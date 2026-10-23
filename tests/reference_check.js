@@ -1,0 +1,64 @@
+// Computes the engine's results on fixed synthetic data and writes them (tests/reference_values.json) together
+// with the data (tests/ref_data/*.csv) for comparison with scikit-learn, SciPy (tests/reference_check.py) and R's
+// cluster package (tests/reference_check.R, run by the Python script).
+// Usage (from the project folder):  node tests/reference_check.js && python3 tests/reference_check.py
+'use strict';
+const fs = require('fs'), path = require('path'), vm = require('vm');
+const dir = path.join(__dirname, '..');
+global.window = globalThis;
+vm.runInThisContext(fs.readFileSync(path.join(dir, 'cluster-engine.js'), 'utf8'));
+const CE = globalThis.ClusterEngine;
+const rng = CE.createPRNG(12345);
+const g = () => { const u = rng() || 1e-12, v = rng(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+const out = {};
+const dataDir = path.join(__dirname, 'ref_data');
+fs.mkdirSync(dataDir, { recursive: true });
+const writeCsv = (name, header, rows) => fs.writeFileSync(path.join(dataDir, name), [header.join(','), ...rows.map(r => r.map(v => (v === null ? 'NA' : v)).join(','))].join('\n') + '\n');
+
+// 1. Three Gaussian clusters in 3 dimensions (unequal sizes and spreads)
+const centres = [[0, 0, 0], [4, 1, -2], [1, 5, 2]], sizes = [70, 50, 30], spread = [1, 0.7, 1.3];
+const X = [];
+centres.forEach((c, k) => { for (let i = 0; i < sizes[k]; i++) X.push(c.map(m => Number((m + spread[k] * g()).toFixed(6)))); });
+writeCsv('blobs.csv', ['x1', 'x2', 'x3'], X);
+out.blobs = { n: X.length };
+// k-means from fixed starting centres (rows 0, 70, 120), and best of 10 k-means++ starts
+const init = [X[0], X[70], X[120]];
+const L = CE.lloyd(X, init, { maxIter: 1000, tol: 0 });
+out.lloyd = { init, centres: L.centres, inertia: L.inertia, labels: L.labels };
+const KM = CE.kmeans(X, 3, { nInit: 10, seed: 7 });
+out.kmeans = { inertia: KM.inertia, labels: KM.labels };
+const E = CE.euclideanMatrix(X);
+out.indices = { silhouette: CE.silhouette(E, KM.labels).mean, silhouetteValues: CE.silhouette(E, KM.labels).values.slice(0, 10), ch: CE.calinskiHarabasz(X, KM.labels), db: CE.daviesBouldin(X, KM.labels) };
+const other = X.map(() => Math.floor(rng() * 4));
+out.ari = { other, value: CE.adjustedRand(KM.labels, other) };
+const P = CE.pca(X);
+out.pca = { ratio: P.varianceRatio, variance: P.variance, components: P.components };
+out.hier = {};
+for (const m of ['ward', 'average', 'complete', 'single']) { const H = CE.hierarchical(E, m); out.hier[m] = { heights: H.Z.map(z => z[2]), cut3: CE.cutTree(H, X.length, 3) }; }
+// Gaussian mixture from the k-means partition of the fixed start (same parameters handed to scikit-learn)
+for (const cov of ['full', 'diag']) {
+    const R = L.labels.map(l => [0, 1, 2].map(c => (c === l ? 1 : 0)));
+    const start = CE.mStep(X, R, 3, cov, 1e-6);
+    const G = CE.gmmFromParams(X, start, { covType: cov, reg: 1e-6, maxIter: 2000, tol: 1e-12 });
+    const nParams = 2 + 3 * 3 + (cov === 'diag' ? 9 : 18);
+    out['gmm_' + cov] = { start, means: G.means, weights: G.weights, meanLogLik: G.meanLogLik, bic: -2 * G.logLik + nParams * Math.log(X.length), converged: G.converged };
+}
+
+// 2. Mixed clinical-type data with missing values: Gower dissimilarity, PAM and silhouette on it
+const sexes = ['F', 'M'], grades = ['mild', 'moderate', 'severe'], sites = ['A', 'B', 'C'];
+const M = [];
+for (let i = 0; i < 60; i++) {
+    const grp = i % 2;
+    M.push([Number((60 + 10 * grp + 8 * g()).toFixed(1)), Number((25 + 4 * g()).toFixed(1)), grades[Math.min(2, Math.max(0, grp + (rng() < 0.3 ? 1 : 0)))], sexes[rng() < 0.5 ? 0 : 1], sites[Math.floor(rng() * 3)]]);
+}
+[[3, 1], [10, 2], [17, 0], [25, 4], [40, 1]].forEach(([i, j]) => { M[i][j] = null; });
+writeCsv('mixed.csv', ['age', 'bmi', 'grade', 'sex', 'site'], M);
+const vars = [{ type: 'continuous' }, { type: 'continuous' }, { type: 'ordinal', levels: grades }, { type: 'nominal' }, { type: 'nominal' }];
+const Gw = CE.gowerMatrix(M, vars);
+out.gower = { firstRows: Array.from({ length: 5 }, (_, i) => Array.from(Gw.D.slice(i * 60, i * 60 + 60))) };
+const PG = CE.pam(Gw, 3);
+out.pamGower = { objective: PG.objective, medoids: PG.medoids.slice().sort((a, b) => a - b), silhouette: CE.silhouette(Gw, PG.labels).mean, labels: PG.labels };
+const PE = CE.pam(E, 3);
+out.pamEuclid = { objective: PE.objective, buildObjective: PE.buildObjective, medoids: PE.medoids.slice().sort((a, b) => a - b) };
+fs.writeFileSync(path.join(__dirname, 'reference_values.json'), JSON.stringify(out));
+console.log('Engine values written to tests/reference_values.json; now run: python3 tests/reference_check.py');

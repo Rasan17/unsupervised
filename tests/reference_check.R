@@ -1,0 +1,21 @@
+# R reference values (cluster package) for tests/reference_check.py: Gower dissimilarity (daisy), PAM on Gower
+# and Euclidean dissimilarities. Writes tests/ref_data/r_results.csv (name, index, value).
+args <- commandArgs(trailingOnly = TRUE); d <- if (length(args)) args[1] else "tests/ref_data"
+suppressPackageStartupMessages(library(cluster))
+out <- data.frame(name = character(), index = integer(), value = numeric())
+add <- function(name, v) out <<- rbind(out, data.frame(name = name, index = seq_along(v), value = as.numeric(v)))
+m <- read.csv(file.path(d, "mixed.csv"), na.strings = "NA", stringsAsFactors = FALSE)
+m$grade <- factor(m$grade, levels = c("mild", "moderate", "severe"), ordered = TRUE)
+m$sex <- factor(m$sex); m$site <- factor(m$site)
+G <- daisy(m, metric = "gower")
+Gm <- as.matrix(G)
+add("gower_rows", as.vector(t(Gm[1:5, ])))
+pg <- pam(G, 3, diss = TRUE)
+add("pam_gower_objective", pg$objective["swap"])
+add("pam_gower_medoids", sort(pg$id.med) - 1)
+add("pam_gower_silhouette", pg$silinfo$avg.width)
+b <- read.csv(file.path(d, "blobs.csv"))
+pe <- pam(b, 3)
+add("pam_euclid_objective", pe$objective[c("build", "swap")])
+add("pam_euclid_medoids", sort(pe$id.med) - 1)
+write.csv(out, file.path(d, "r_results.csv"), row.names = FALSE)
