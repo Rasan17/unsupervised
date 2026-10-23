@@ -50,8 +50,21 @@ for cov in ['full', 'diag']:
     chk(f'Gaussian mixture ({cov}): weights', g['weights'], gm.weights_, 1e-6)
     chk(f'Gaussian mixture ({cov}): mean log-likelihood', g['meanLogLik'], gm.score(X), 1e-8)
     chk(f'Gaussian mixture ({cov}): BIC', g['bic'], gm.bic(X), 1e-5)
-# Gower silhouette (precomputed dissimilarities)
-G = None
+# Tests used to describe clusters
+from scipy import stats
+import pandas as pd
+t = o['tests']
+for key, vals in [('chi', t['sexv']), ('chiGrade', t['gradev'])]:
+    tab = pd.crosstab(pd.Series(vals), pd.Series(t['grp']))
+    c2, pv, df, _ = stats.chi2_contingency(tab, correction=False)
+    chk(f'Chi-square test ({key}): statistic and p (vs SciPy)', [t[key]['statistic'], t[key]['p']], [c2, pv], 1e-10)
+grades = ['mild', 'moderate', 'severe']
+for key, vals in [('kw', t['agev']), ('kwTies', [grades.index(v) for v in t['gradev']])]:
+    groups = [[v for v, gg in zip(vals, t['grp']) if gg == k] for k in range(3)]
+    h, pv = stats.kruskal(*groups)
+    chk(f'Kruskal-Wallis test ({key}): statistic and p (vs SciPy)', [t[key]['statistic'], t[key]['p']], [h, pv], 1e-10)
+from scipy.special import gammaincc
+chk('Regularised upper incomplete gamma function (vs SciPy)', t['q'], [gammaincc(2.5, 3.1), gammaincc(10, 4), gammaincc(0.5, 20)], 1e-12)
 # R: Gower (daisy), PAM
 rs = shutil.which('Rscript')
 if rs:

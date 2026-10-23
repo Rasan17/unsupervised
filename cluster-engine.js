@@ -601,7 +601,45 @@
         return { observed: obs, nullMean: nulls.reduce((a, b) => a + b, 0) / B, nullQuantile95: nulls.slice().sort((a, b) => a - b)[Math.floor(0.95 * (B - 1))], pValue: (1 + ge) / (1 + B), B, p, reference: 'copula' };
     }
 
+    // ------------------------------------------------------------------------------------------- describing clusters
+    // Regularised upper incomplete gamma Q(a, x) (Numerical Recipes: series or continued fraction)
+    function gammaln(x) { const c = [76.18009172947146, -86.50532032941677, 24.01409824083091, -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5]; let y = x, t = x + 5.5; t -= (x + 0.5) * Math.log(t); let ser = 1.000000000190015; for (const cj of c) ser += cj / ++y; return -t + Math.log(2.5066282746310005 * ser / x); }
+    function gammaQ(a, x) {
+        if (x <= 0) return 1;
+        if (x < a + 1) { let sum = 1 / a, del = sum, ap = a; for (let i = 0; i < 1000; i++) { ap++; del *= x / ap; sum += del; if (Math.abs(del) < Math.abs(sum) * 1e-15) break; } return 1 - sum * Math.exp(-x + a * Math.log(x) - gammaln(a)); }
+        let b = x + 1 - a, c = 1 / 1e-300, d = 1 / b, h = d;
+        for (let i = 1; i < 1000; i++) { const an = -i * (i - a); b += 2; d = an * d + b; if (Math.abs(d) < 1e-300) d = 1e-300; c = b + an / c; if (Math.abs(c) < 1e-300) c = 1e-300; d = 1 / d; const del = d * c; h *= del; if (Math.abs(del - 1) < 1e-15) break; }
+        return Math.exp(-x + a * Math.log(x) - gammaln(a)) * h;
+    }
+    const chiSquareP = (x, df) => (df > 0 ? gammaQ(df / 2, x / 2) : null);
+    /** Pearson chi-square test of independence (no continuity correction) for categories x groups */
+    function chiSquareTest(values, groups) {
+        const cats = [...new Set(values)], gs = [...new Set(groups)];
+        if (cats.length < 2 || gs.length < 2) return { statistic: null, df: null, p: null };
+        const T = cats.map(c => gs.map(g => values.filter((v, i) => v === c && groups[i] === g).length));
+        const n = values.length, rs = T.map(r => r.reduce((a, b) => a + b, 0)), cs = gs.map((_, j) => T.reduce((a, r) => a + r[j], 0));
+        let x2 = 0, minExp = Infinity;
+        T.forEach((r, i) => r.forEach((o, j) => { const e = rs[i] * cs[j] / n; minExp = Math.min(minExp, e); x2 += (o - e) ** 2 / e; }));
+        const df = (cats.length - 1) * (gs.length - 1);
+        return { statistic: x2, df, p: chiSquareP(x2, df), minExpected: minExp };
+    }
+    /** Kruskal-Wallis test (with the correction for ties), as scipy.stats.kruskal */
+    function kruskalWallis(values, groups) {
+        const n = values.length, gs = [...new Set(groups)];
+        if (gs.length < 2) return { statistic: null, df: null, p: null };
+        const idx = values.map((v, i) => i).sort((a, b) => values[a] - values[b]), rank = new Array(n);
+        let ties = 0;
+        for (let i = 0; i < n;) { let j = i; while (j + 1 < n && values[idx[j + 1]] === values[idx[i]]) j++; const r = (i + j) / 2 + 1, t = j - i + 1; ties += t ** 3 - t; for (let q = i; q <= j; q++) rank[idx[q]] = r; i = j + 1; }
+        let H = 0;
+        gs.forEach(g => { const rr = rank.filter((_, i) => groups[i] === g); const m = rr.length; if (m) H += (rr.reduce((a, b) => a + b, 0)) ** 2 / m; });
+        H = 12 / (n * (n + 1)) * H - 3 * (n + 1);
+        const corr = 1 - ties / (n ** 3 - n);
+        if (corr <= 0) return { statistic: null, df: gs.length - 1, p: null };
+        H /= corr;
+        return { statistic: H, df: gs.length - 1, p: chiSquareP(H, gs.length - 1) };
+    }
+
     const ClusterEngine = { createPRNG, standardize, euclideanMatrix, gowerMatrix, lloyd, kmeansPlusPlus, kmeans, pam, hierarchical, cutTree, gmm, gmmFromParams, mStep,
-        silhouette, calinskiHarabasz, daviesBouldin, withinSS, adjustedRand, symmetricEigen, pca, gapStatistic, bootstrapStability, nullClusterTest, copulaNullTest, normInv, normCdf, relabelBySize };
+        silhouette, calinskiHarabasz, daviesBouldin, withinSS, adjustedRand, symmetricEigen, pca, gapStatistic, bootstrapStability, nullClusterTest, copulaNullTest, normInv, normCdf, chiSquareTest, kruskalWallis, gammaQ, relabelBySize };
     root.ClusterEngine = ClusterEngine;
 })(typeof window !== 'undefined' ? window : globalThis);

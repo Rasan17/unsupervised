@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Unsupervised Medical Explorer</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:,">
+</head>
+<body>
+<a class="skip" href="#main">Skip to the analysis</a>
+<header class="top">
+  <div>
+    <h1>Unsupervised Medical Explorer</h1>
+    <p class="sub">Finding patient sub-groups in clinical data, with checks that they are real · By Dr G Narenthiran · for research and education</p>
+  </div>
+  <div class="top-actions"><span class="pill">Runs in your browser · no data sent</span><button id="theme" class="btn small" type="button">Theme</button></div>
+</header>
+<nav class="tabs" aria-label="Steps">
+  <button class="tab" type="button" data-step="1">1 Data</button>
+  <button class="tab" type="button" data-step="2">2 Variables</button>
+  <button class="tab" type="button" data-step="3">3 Approach</button>
+  <button class="tab" type="button" data-step="4">4 How many clusters?</button>
+  <button class="tab" type="button" data-step="5">5 The clusters</button>
+</nav>
+<main id="main">
+  <section class="step" data-step="1">
+    <h2>Load the data</h2>
+    <p>One row per patient (or per record, if patients have several), one column per variable. The file is read in this browser and never uploaded.</p>
+    <div class="row">
+      <label class="btn primary file-btn" for="file">Choose a CSV file</label><input type="file" id="file" accept=".csv,text/csv" class="visually-hidden">
+      <span class="muted">or a simulated demonstration cohort:</span>
+      <button id="demo-phenotypes" class="btn" type="button">iNPH with three sub-types (360 patients)</button>
+      <button id="demo-none" class="btn" type="button">No real sub-types (360 patients)</button>
+    </div>
+    <p id="data-status" class="status" role="status"></p>
+    <div id="data-summary"></div>
+  </section>
+
+  <section class="step" data-step="2" hidden>
+    <h2>Choose the variables</h2>
+    <p>Variables <strong>used to find clusters</strong> define what "similar patients" means: choose those measured before any treatment and relevant to the question. Keep outcomes as <strong>describe clusters only</strong>: they then show whether the clusters differ in outcome without having shaped them.</p>
+    <p id="var-summary" class="lead"></p>
+    <div id="var-table" class="table-wrap"></div>
+    <div class="row"><button id="to-step3" class="btn primary" type="button">Next: approach</button></div>
+  </section>
+
+  <section class="step" data-step="3" hidden>
+    <h2>Choose the approach</h2>
+    <div class="form">
+      <label for="method">Method</label>
+      <select id="method">
+        <option value="pam-gower" selected>k-medoids (PAM) with Gower dissimilarity (recommended for mixed clinical data)</option>
+        <option value="kmeans">k-means on standardised variables</option>
+        <option value="ward">Hierarchical clustering (Ward) on standardised variables</option>
+        <option value="gmm" id="method-gmm">Gaussian mixture model (numerical variables only)</option>
+      </select>
+      <p id="method-hint" class="muted small"></p>
+      <label for="missing">Missing values</label>
+      <select id="missing">
+        <option value="fill" selected>Fill with the median or most frequent value</option>
+        <option value="complete">Leave out patients with any missing value</option>
+        <option value="gower">Use only the recorded values of each pair (PAM / Gower only; no map or test)</option>
+      </select>
+      <label for="kmax">Largest number of clusters to try</label>
+      <select id="kmax"><option>4</option><option>5</option><option>6</option><option selected>8</option><option>10</option></select>
+      <label for="patient-col">Patients with several records</label>
+      <select id="patient-col"></select>
+      <p class="muted small">If a patient can have several rows, choose the column that identifies the patient: the stability check then resamples whole patients.</p>
+      <label for="seed">Random seed (for reproducibility)</label>
+      <input id="seed" type="number" value="2024">
+    </div>
+    <div class="row"><button id="explore-btn" class="btn primary" type="button">Compare numbers of clusters</button></div>
+  </section>
+
+  <section class="step" data-step="4" hidden>
+    <h2>How many clusters?</h2>
+    <p id="explore-status" class="status" role="status"></p>
+    <div id="explore-out"></div>
+  </section>
+
+  <section class="step" data-step="5" hidden>
+    <h2>The clusters</h2>
+    <p id="clusters-status" class="status" role="status"></p>
+    <div id="clusters-out"></div>
+  </section>
+</main>
+<footer class="foot">
+  <p>Conceived, designed and directed by Dr G Narenthiran · implemented with AI pair programming (Anthropic Claude Code) · © 2026 Dr G Narenthiran. All rights reserved.</p>
+  <p>For research and education only; not a medical device. Clusters found in one dataset are hypotheses: replicate them in another cohort before any clinical use.</p>
+</footer>
+<script src="data-engine.js"></script>
+<script src="cluster-engine.js"></script>
+<script src="src/charts.js"></script>
+<script src="src/app.js"></script>
+</body>
+</html>

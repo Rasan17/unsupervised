@@ -1,361 +1,361 @@
-Patient_ID,Age,Sex,Hypertension,White_Matter_Fazekas,MMSE,Gait_Score,Evans_Index,Callosal_Angle_Deg,DESH_Sign,Rout_mmHg_min_ml,Tap_Test_Gait_Gain_Pct,Shunt_Response,Gait_Improvement_12mo
-PH-001,65,Male,No,1,28,3,0.34,75,Present,,37,Responder,2
-PH-002,89,Male,Yes,1,23,2,0.34,103,Absent,,7,Responder,2
-PH-003,70,Male,No,1,18,2,0.38,101,Absent,10.9,24,Non-responder,0
-PH-004,77,Female,No,2,24,2,0.39,73,Present,18.6,30,Non-responder,0
-PH-005,76,Female,No,3,19,4,0.38,110,Absent,7.6,14,Responder,2
-PH-006,77,Male,Yes,1,24,3,0.42,83,Present,13.2,27,Responder,3
-PH-007,76,Male,No,1,23,3,0.36,73,Present,15.4,30,Responder,4
-PH-008,69,Female,No,1,16,3,0.36,93,Present,6.9,5,Non-responder,1
-PH-009,81,Male,Yes,3,26,3,0.35,94,Present,11.1,0,Responder,1
-PH-010,81,Female,No,2,23,3,0.35,97,Present,8.7,7,Non-responder,0
-PH-011,70,Male,No,1,20,4,0.35,113,Absent,9.9,,Non-responder,0
-PH-012,69,Female,No,0,25,2,0.36,85,Present,,41,Non-responder,0
-PH-013,72,Male,No,1,20,4,0.38,82,Present,17.9,8,Responder,1
-PH-014,66,Female,No,0,22,2,0.39,59,Present,17.6,22,Responder,2
-PH-015,69,Male,No,2,17,3,0.35,107,Absent,7.8,15,Responder,1
-PH-016,63,Male,Yes,2,22,4,0.35,66,Present,16.2,24,Responder,3
-PH-017,61,Female,Yes,2,23,2,0.31,102,Absent,,7,Non-responder,0
-PH-018,65,Male,Yes,1,26,2,0.37,69,Absent,14.3,31,Responder,2
-PH-019,74,Female,No,0,26,4,0.35,48,Present,17.4,19,Non-responder,0
-PH-020,83,Female,Yes,1,16,2,0.36,110,Present,13.4,12,Non-responder,0
-PH-021,64,Male,Yes,0,18,2,0.37,105,Absent,10.7,5,Responder,1
-PH-022,87,Male,Yes,2,19,2,0.36,93,Absent,12.6,7,Responder,2
-PH-023,72,Female,No,1,26,4,0.35,87,Present,,42,Responder,2
-PH-024,83,Male,Yes,2,19,4,0.33,98,Present,9.2,18,Non-responder,0
-PH-025,68,Male,No,0,25,2,0.34,74,Present,20.4,40,Responder,2
-PH-026,72,Female,Yes,1,23,3,0.36,74,Present,20.2,28,Responder,1
-PH-027,79,Female,Yes,2,22,3,0.36,86,Absent,12.3,5,Responder,2
-PH-028,70,Female,No,0,22,2,0.37,66,Absent,15.0,33,Responder,1
-PH-029,74,Female,No,1,26,2,0.32,87,Absent,7.9,16,Responder,1
-PH-030,73,Male,Yes,3,17,4,0.35,88,Present,11.9,20,Responder,2
-PH-031,77,Male,Yes,,24,4,0.35,93,Absent,15.9,14,Non-responder,0
-PH-032,79,Female,No,0,24,2,0.37,71,Absent,19.0,38,Responder,3
-PH-033,79,Female,No,0,20,3,0.39,93,Present,16.9,31,Responder,3
-PH-034,71,Male,Yes,1,26,2,0.35,90,Present,19.3,28,Non-responder,0
-PH-035,71,Male,No,0,22,3,0.37,77,Absent,15.5,29,Responder,2
-PH-036,67,Male,Yes,3,26,3,0.41,105,Absent,11.4,8,Non-responder,0
-PH-037,69,Female,No,2,19,3,0.38,100,Absent,10.6,3,Non-responder,-1
-PH-038,77,Male,No,1,30,3,0.35,60,Absent,11.2,34,Non-responder,0
-PH-039,82,Female,Yes,0,17,2,0.37,92,Absent,9.0,-7,Responder,2
-PH-040,71,Male,No,,20,3,0.36,108,Absent,9.8,18,Non-responder,1
-PH-041,77,Female,Yes,2,22,2,0.33,83,Absent,15.7,1,Responder,1
-PH-042,76,Male,Yes,2,30,3,0.33,81,Present,9.8,27,Non-responder,0
-PH-043,71,Male,Yes,2,25,3,0.40,68,Present,19.2,42,Responder,1
-PH-044,64,Female,No,1,25,2,0.38,57,Present,15.8,34,Responder,2
-PH-045,68,Male,Yes,1,27,4,0.40,73,Present,17.1,25,Non-responder,-1
-PH-046,74,Male,Yes,3,23,2,0.37,117,Present,10.4,-2,Non-responder,0
-PH-047,62,Male,No,2,25,2,0.33,85,Present,21.3,39,Responder,3
-PH-048,69,Female,Yes,2,24,4,0.34,92,Present,7.3,13,Non-responder,0
-PH-049,79,Female,Yes,3,26,1,0.42,99,Absent,10.1,14,Responder,2
-PH-050,60,Male,No,,24,3,0.35,89,Present,17.9,22,Responder,2
-PH-051,62,Male,Yes,0,25,4,0.39,73,Present,17.3,16,Responder,1
-PH-052,62,Female,Yes,1,26,3,0.42,75,Absent,13.9,24,Non-responder,0
-PH-053,56,Female,No,1,25,2,0.38,69,Present,15.3,40,Non-responder,2
-PH-054,66,Male,No,1,26,3,0.39,75,Present,16.9,15,Responder,1
-PH-055,91,Male,No,1,23,2,0.39,73,Present,17.1,45,Responder,2
-PH-056,87,Male,No,3,18,1,0.37,110,Absent,16.6,18,Non-responder,1
-PH-057,69,Female,No,1,28,3,0.38,61,Present,13.2,23,Responder,2
-PH-058,77,Female,No,3,27,3,0.41,70,Present,17.4,27,Non-responder,0
-PH-059,78,Male,Yes,3,23,4,0.37,102,Absent,,12,Non-responder,1
-PH-060,69,Female,Yes,1,24,2,0.36,89,Present,22.0,18,Non-responder,0
-PH-061,68,Female,No,1,26,3,0.40,91,Present,18.1,,Non-responder,1
-PH-062,61,Male,No,1,25,1,0.39,80,Present,,28,Responder,2
-PH-063,71,Male,No,1,26,1,0.39,68,Present,21.1,25,Responder,2
-PH-064,77,Female,No,3,22,2,0.38,59,Present,21.1,,Responder,2
-PH-065,74,Male,Yes,1,30,3,0.37,59,Present,21.5,33,Responder,2
-PH-066,79,Male,Yes,0,26,4,0.35,56,Present,19.5,39,Responder,2
-PH-067,77,Male,No,1,22,3,0.38,62,Present,18.9,29,Responder,1
-PH-068,78,Male,Yes,3,23,2,0.35,109,Present,13.6,20,Responder,2
-PH-069,70,Female,No,1,24,3,0.33,113,Present,14.4,22,Non-responder,0
-PH-070,77,Female,Yes,3,24,2,0.33,90,Absent,13.4,16,Responder,3
-PH-071,74,Male,No,0,21,2,0.39,114,Absent,13.4,3,Responder,2
-PH-072,85,Female,Yes,3,23,3,0.40,78,Absent,10.0,23,Responder,2
-PH-073,83,Female,Yes,3,21,3,0.39,76,Present,13.9,1,Responder,2
-PH-074,75,Female,Yes,1,20,3,0.34,87,Absent,13.9,15,Responder,1
-PH-075,72,Female,Yes,1,25,2,0.35,99,Absent,11.6,21,Non-responder,-1
-PH-076,73,Male,Yes,2,18,1,0.36,102,Absent,6.0,-14,Non-responder,-1
-PH-077,75,Male,Yes,,17,3,0.40,75,Absent,8.7,13,Responder,2
-PH-078,70,Female,Yes,,24,3,0.33,99,Absent,10.7,-3,Non-responder,0
-PH-079,70,Male,Yes,0,24,3,0.37,76,Present,17.1,25,Non-responder,1
-PH-080,64,Female,No,2,19,4,0.34,104,Absent,8.9,-0,Non-responder,1
-PH-081,84,Female,No,0,23,3,0.34,75,Present,19.8,,Responder,1
-PH-082,77,Female,No,1,28,3,0.34,71,Present,16.5,37,Responder,1
-PH-083,68,Male,No,0,27,3,0.34,78,Present,16.3,11,Responder,2
-PH-084,73,Male,Yes,2,19,3,0.35,94,Absent,12.7,25,Non-responder,-1
-PH-085,66,Female,Yes,1,18,3,0.37,111,Present,8.6,18,Non-responder,-1
-PH-086,69,Female,Yes,1,14,4,0.38,91,Absent,7.5,4,Responder,2
-PH-087,74,Male,Yes,0,19,1,0.35,98,Absent,11.4,10,Non-responder,1
-PH-088,63,Female,No,0,25,2,0.36,83,Present,15.8,24,Responder,1
-PH-089,82,Male,Yes,3,21,3,0.37,93,Absent,14.6,8,Non-responder,1
-PH-090,73,Female,Yes,2,19,2,0.34,103,Absent,15.3,-1,Responder,1
-PH-091,75,Male,Yes,1,15,3,0.38,89,Present,,7,Non-responder,1
-PH-092,69,Female,Yes,0,23,2,0.36,83,Present,16.5,32,Responder,2
-PH-093,75,Male,Yes,0,26,2,0.39,61,Present,15.3,30,Responder,3
-PH-094,81,Female,Yes,2,17,3,0.37,98,Absent,6.7,7,Non-responder,0
-PH-095,73,Male,Yes,1,24,3,0.35,74,Present,15.5,16,Non-responder,-1
-PH-096,79,Female,No,2,25,3,0.35,88,Present,21.0,18,Responder,1
-PH-097,67,Male,Yes,0,27,1,0.37,87,Present,18.3,39,Responder,1
-PH-098,76,Female,No,0,24,2,0.37,61,Present,18.6,14,Responder,1
-PH-099,79,Male,Yes,1,26,2,0.36,61,Present,16.9,29,Non-responder,0
-PH-100,66,Male,No,,18,3,0.33,97,Absent,8.3,9,Non-responder,-1
-PH-101,73,Male,Yes,3,26,3,0.38,89,Present,,9,Responder,1
-PH-102,64,Male,No,0,27,4,0.38,71,Present,20.6,25,Responder,1
-PH-103,72,Male,No,1,26,2,0.33,53,Absent,15.9,37,Responder,1
-PH-104,82,Male,Yes,2,27,3,0.35,97,Present,20.6,15,Responder,3
-PH-105,82,Male,Yes,1,24,2,0.34,70,Present,19.4,27,Responder,3
-PH-106,64,Male,Yes,0,25,4,0.36,94,Present,14.7,7,Non-responder,0
-PH-107,85,Male,Yes,2,22,4,0.32,84,Present,,4,Non-responder,1
-PH-108,75,Male,Yes,1,17,3,0.35,97,Present,12.3,16,Responder,2
-PH-109,75,Female,Yes,1,24,3,0.36,90,Absent,9.0,3,Non-responder,1
-PH-110,80,Female,Yes,0,22,2,0.36,86,Absent,14.8,8,Non-responder,1
-PH-111,76,Female,Yes,,22,4,0.38,90,Present,6.7,31,Non-responder,0
-PH-112,76,Male,Yes,3,24,4,0.37,90,Absent,7.1,16,Non-responder,1
-PH-113,70,Female,Yes,2,22,4,0.34,104,Absent,12.9,18,Non-responder,0
-PH-114,73,Male,No,0,16,4,0.32,119,Absent,12.1,-8,Responder,2
-PH-115,73,Male,No,1,25,2,0.39,78,Present,13.9,38,Responder,1
-PH-116,83,Male,Yes,2,16,1,0.36,99,Absent,14.9,2,Responder,3
-PH-117,69,Male,Yes,2,24,4,0.35,89,Absent,11.5,18,Non-responder,0
-PH-118,65,Male,Yes,2,21,4,0.35,95,Absent,11.7,22,Responder,1
-PH-119,71,Male,No,1,21,2,0.39,73,Present,12.9,30,Responder,2
-PH-120,69,Female,Yes,3,23,2,0.34,106,Absent,10.8,-4,Responder,3
-PH-121,86,Female,Yes,1,21,3,0.38,131,Absent,8.7,,Responder,1
-PH-122,83,Female,Yes,2,19,2,0.40,70,Absent,10.3,-10,Non-responder,1
-PH-123,70,Female,No,0,24,1,0.39,74,Present,20.8,22,Responder,1
-PH-124,74,Female,Yes,1,22,2,0.35,106,Absent,10.4,-1,Responder,1
-PH-125,78,Male,No,1,27,3,0.39,52,Present,,40,Non-responder,0
-PH-126,71,Female,Yes,1,23,3,0.38,96,Present,8.8,-8,Non-responder,0
-PH-127,76,Female,No,1,25,2,0.36,79,Present,16.7,16,Non-responder,1
-PH-128,78,Male,No,1,25,4,0.37,56,Present,11.6,18,Responder,2
-PH-129,75,Female,Yes,2,23,3,0.39,99,Absent,9.6,-3,Non-responder,1
-PH-130,69,Female,No,1,29,2,0.37,70,Present,18.0,12,Responder,2
-PH-131,86,Female,Yes,1,20,3,0.32,98,Absent,12.7,,Non-responder,1
-PH-132,75,Female,Yes,3,17,2,0.36,87,Absent,5.6,3,Non-responder,0
-PH-133,75,Male,No,1,24,4,0.35,93,Absent,18.9,18,Responder,1
-PH-134,74,Female,No,0,20,4,0.32,104,Absent,11.5,17,Responder,1
-PH-135,68,Male,No,0,26,4,0.38,55,Present,20.7,28,Responder,1
-PH-136,80,Male,Yes,1,30,2,0.36,76,Present,19.9,27,Responder,3
-PH-137,79,Female,Yes,3,24,4,0.36,101,Absent,15.9,23,Responder,2
-PH-138,72,Male,No,1,17,3,0.37,121,Absent,7.6,0,Non-responder,-1
-PH-139,73,Female,Yes,1,21,3,0.34,104,Present,16.8,8,Non-responder,1
-PH-140,76,Male,Yes,2,20,3,0.34,97,Absent,10.7,5,Responder,1
-PH-141,75,Male,No,2,21,3,0.33,110,Present,4.9,7,Non-responder,0
-PH-142,76,Male,No,3,23,2,0.33,68,Present,23.8,36,Responder,2
-PH-143,83,Female,Yes,1,17,2,0.37,112,Absent,,19,Non-responder,1
-PH-144,70,Male,No,0,18,2,0.40,100,Absent,9.4,5,Responder,1
-PH-145,63,Female,No,2,23,2,0.36,71,Present,16.1,42,Responder,2
-PH-146,84,Male,No,3,24,3,0.33,74,Absent,15.6,9,Responder,1
-PH-147,79,Male,No,0,13,2,0.35,96,Absent,,16,Non-responder,1
-PH-148,74,Male,Yes,2,27,3,0.39,75,Absent,5.7,16,Non-responder,-1
-PH-149,74,Male,Yes,2,26,3,0.31,96,Present,15.5,32,Responder,1
-PH-150,84,Female,No,2,18,2,0.34,92,Present,9.1,-4,Non-responder,0
-PH-151,80,Female,No,3,19,2,0.36,89,Present,12.4,,Responder,3
-PH-152,77,Female,Yes,2,27,3,0.32,84,Present,9.2,10,Non-responder,1
-PH-153,72,Male,No,1,22,4,0.39,55,Present,24.9,16,Responder,2
-PH-154,67,Male,Yes,1,30,3,0.39,71,Present,21.8,37,Responder,1
-PH-155,84,Female,No,2,21,3,0.37,112,Present,9.4,24,Responder,2
-PH-156,64,Female,No,0,24,2,0.36,71,Absent,17.2,48,Non-responder,-1
-PH-157,82,Female,Yes,3,23,3,0.33,93,Absent,12.6,13,Responder,2
-PH-158,80,Male,Yes,2,22,4,0.39,84,Absent,11.0,29,Responder,3
-PH-159,78,Female,Yes,1,23,1,0.39,106,Present,8.6,,Non-responder,0
-PH-160,82,Female,Yes,,21,2,0.35,96,Absent,12.7,6,Responder,2
-PH-161,81,Male,No,1,15,3,0.40,113,Absent,15.1,12,Non-responder,1
-PH-162,80,Female,Yes,3,22,3,0.33,104,Absent,11.3,-3,Responder,2
-PH-163,74,Female,No,1,21,3,0.37,64,Absent,17.5,40,Responder,1
-PH-164,78,Male,Yes,0,18,1,0.40,95,Present,13.8,16,Non-responder,1
-PH-165,72,Female,Yes,,24,2,0.36,60,Present,11.8,6,Responder,2
-PH-166,73,Female,Yes,0,30,2,0.34,66,Absent,13.2,46,Responder,1
-PH-167,65,Male,Yes,2,24,3,0.40,86,Present,18.0,24,Responder,2
-PH-168,68,Male,No,0,28,3,0.33,81,Present,16.6,21,Responder,1
-PH-169,69,Female,No,2,21,3,0.35,105,Absent,,19,Non-responder,1
-PH-170,74,Male,No,1,26,1,0.35,61,Absent,21.3,24,Non-responder,0
-PH-171,76,Female,No,0,28,2,0.39,63,Absent,23.9,21,Responder,3
-PH-172,70,Male,Yes,3,22,3,0.37,94,Present,16.0,12,Responder,3
-PH-173,79,Male,Yes,1,22,4,0.30,85,Present,15.4,5,Responder,1
-PH-174,74,Male,No,0,25,2,0.37,66,Present,14.0,20,Responder,2
-PH-175,77,Female,Yes,2,18,3,0.39,93,Absent,12.7,14,Responder,2
-PH-176,75,Female,Yes,1,24,2,0.41,48,Present,,34,Responder,0
-PH-177,74,Female,Yes,2,20,3,0.33,102,Absent,9.6,-1,Responder,3
-PH-178,84,Female,Yes,,22,1,0.37,90,Absent,4.7,8,Responder,2
-PH-179,64,Female,No,1,22,3,0.37,73,Present,,41,Responder,1
-PH-180,74,Male,No,0,30,1,0.37,59,Present,14.9,39,Responder,2
-PH-181,73,Female,Yes,1,14,2,0.35,114,Present,12.8,-9,Responder,2
-PH-182,76,Female,Yes,1,15,2,0.35,97,Absent,15.3,-2,Responder,1
-PH-183,68,Female,Yes,3,25,3,0.35,108,Present,13.7,23,Non-responder,0
-PH-184,70,Male,Yes,1,23,2,0.39,79,Present,22.3,37,Responder,1
-PH-185,68,Male,No,3,23,3,0.35,67,Present,21.7,24,Non-responder,1
-PH-186,75,Female,Yes,3,18,2,0.40,82,Absent,,28,Non-responder,0
-PH-187,71,Female,Yes,2,20,4,0.33,86,Absent,13.1,26,Responder,1
-PH-188,83,Male,No,0,18,2,0.36,92,Present,10.9,2,Responder,2
-PH-189,71,Male,Yes,3,24,3,0.35,97,Absent,15.9,14,Non-responder,-1
-PH-190,75,Male,Yes,2,17,3,0.36,99,Absent,13.5,2,Non-responder,-1
-PH-191,67,Female,Yes,0,23,3,0.40,92,Absent,11.4,11,Non-responder,-1
-PH-192,79,Male,Yes,1,17,3,0.34,127,Absent,,-2,Non-responder,0
-PH-193,71,Male,No,1,27,2,0.40,70,Present,21.8,29,Non-responder,1
-PH-194,73,Male,No,1,23,2,0.35,62,Present,13.8,13,Non-responder,-1
-PH-195,74,Female,Yes,0,12,3,0.38,116,Absent,9.1,7,Responder,3
-PH-196,79,Female,No,3,22,4,0.36,79,Present,10.9,16,Non-responder,2
-PH-197,77,Female,No,2,21,4,0.35,113,Present,9.1,22,Responder,2
-PH-198,68,Male,Yes,,27,2,0.35,80,Present,9.9,21,Non-responder,-1
-PH-199,76,Female,Yes,3,21,4,0.37,97,Present,5.8,17,Responder,2
-PH-200,60,Male,No,1,26,2,0.39,82,Present,17.5,19,Responder,1
-PH-201,76,Male,Yes,1,24,2,0.34,77,Present,14.3,15,Responder,2
-PH-202,65,Male,No,1,22,3,0.37,60,Present,19.1,36,Responder,2
-PH-203,70,Female,Yes,1,20,4,0.39,112,Absent,10.1,13,Non-responder,0
-PH-204,81,Female,No,1,24,2,0.40,73,Present,13.7,,Responder,2
-PH-205,72,Male,Yes,3,17,3,0.32,96,Absent,5.4,9,Non-responder,-1
-PH-206,87,Male,Yes,2,21,2,0.32,95,Absent,9.9,21,Non-responder,0
-PH-207,79,Male,Yes,1,24,2,0.40,82,Present,17.5,28,Responder,3
-PH-208,76,Male,Yes,1,18,2,0.34,99,Present,12.5,8,Non-responder,1
-PH-209,75,Male,No,0,24,2,0.37,68,Present,26.2,60,Responder,1
-PH-210,80,Male,Yes,1,23,2,0.34,101,Present,11.7,14,Responder,2
-PH-211,80,Male,No,3,30,2,0.35,92,Present,13.8,18,Responder,2
-PH-212,75,Male,Yes,1,25,3,0.35,95,Absent,11.7,22,Responder,2
-PH-213,72,Male,No,0,17,3,0.36,97,Absent,8.4,25,Responder,2
-PH-214,72,Male,Yes,1,21,0,0.40,89,Present,8.2,18,Non-responder,1
-PH-215,73,Female,No,0,15,3,0.35,116,Absent,10.3,10,Responder,1
-PH-216,77,Male,No,0,24,3,0.40,66,Present,24.7,30,Responder,1
-PH-217,73,Male,Yes,2,23,2,0.35,96,Absent,11.4,13,Responder,2
-PH-218,73,Female,Yes,0,18,2,0.35,86,Absent,14.5,14,Non-responder,0
-PH-219,68,Female,No,2,18,1,0.33,105,Absent,6.4,9,Non-responder,1
-PH-220,82,Male,Yes,1,21,3,0.35,107,Absent,10.7,23,Non-responder,1
-PH-221,74,Female,Yes,3,23,2,0.35,77,Absent,11.8,11,Responder,2
-PH-222,78,Male,Yes,2,24,3,0.35,87,Absent,8.6,-10,Responder,1
-PH-223,80,Male,Yes,2,22,3,0.34,107,Absent,16.8,27,Responder,1
-PH-224,73,Female,No,0,21,1,0.34,114,Absent,11.8,18,Non-responder,-1
-PH-225,74,Male,Yes,3,25,3,0.31,96,Absent,9.9,18,Responder,2
-PH-226,78,Male,Yes,1,15,2,0.36,95,Present,6.9,5,Responder,3
-PH-227,61,Male,No,1,24,3,0.34,68,Present,17.8,23,Responder,2
-PH-228,67,Male,No,1,27,3,0.37,83,Present,14.8,38,Responder,1
-PH-229,70,Female,No,2,25,2,0.41,73,Present,,30,Responder,2
-PH-230,81,Male,Yes,3,21,3,0.36,80,Absent,13.2,,Responder,2
-PH-231,85,Female,No,0,16,1,0.35,103,Absent,11.8,4,Non-responder,0
-PH-232,82,Male,No,2,22,2,0.30,88,Absent,9.1,4,Responder,1
-PH-233,68,Male,No,,21,1,0.36,96,Absent,11.5,-2,Responder,3
-PH-234,61,Male,No,2,26,3,0.42,89,Present,19.3,34,Responder,3
-PH-235,76,Female,Yes,2,15,1,0.37,112,Absent,6.1,27,Responder,2
-PH-236,79,Female,Yes,2,19,1,0.36,102,Absent,7.9,15,Responder,1
-PH-237,79,Female,No,3,30,4,0.35,73,Present,11.9,15,Responder,2
-PH-238,72,Male,No,2,18,2,0.39,121,Absent,10.3,36,Non-responder,1
-PH-239,83,Female,No,0,19,3,0.40,102,Absent,12.4,-4,Non-responder,1
-PH-240,61,Male,Yes,0,23,2,0.40,59,Present,8.9,31,Responder,3
-PH-241,80,Male,No,1,13,1,0.34,107,Present,7.7,2,Responder,1
-PH-242,78,Male,Yes,1,18,2,0.37,114,Present,8.6,9,Non-responder,0
-PH-243,82,Male,No,1,19,1,0.37,98,Absent,10.4,30,Non-responder,0
-PH-244,87,Female,Yes,2,21,2,0.35,92,Present,14.0,,Responder,0
-PH-245,74,Male,No,2,23,3,0.38,74,Present,13.3,42,Non-responder,-1
-PH-246,71,Female,No,2,20,2,0.36,79,Present,19.7,7,Responder,3
-PH-247,82,Female,Yes,1,23,3,0.32,98,Absent,10.2,6,Responder,1
-PH-248,75,Male,Yes,3,27,2,0.32,111,Absent,11.3,,Responder,2
-PH-249,68,Male,Yes,2,21,3,0.34,126,Absent,12.5,,Non-responder,1
-PH-250,82,Male,No,3,16,3,0.37,103,Absent,10.0,-3,Non-responder,0
-PH-251,61,Female,No,0,28,3,0.39,77,Present,19.1,16,Responder,2
-PH-252,75,Female,Yes,3,23,2,0.35,106,Absent,8.5,23,Responder,2
-PH-253,69,Male,No,1,27,3,0.36,65,Absent,16.5,28,Responder,1
-PH-254,71,Female,Yes,1,18,1,0.37,98,Present,11.3,-2,Non-responder,1
-PH-255,70,Female,Yes,0,24,2,0.37,91,Absent,10.0,-7,Non-responder,1
-PH-256,89,Female,No,3,21,4,0.36,71,Absent,7.7,17,Non-responder,-1
-PH-257,80,Male,No,1,29,3,0.41,81,Present,,26,Responder,2
-PH-258,80,Male,Yes,3,26,4,0.33,86,Absent,,14,Responder,1
-PH-259,67,Female,No,1,25,2,0.39,77,Absent,14.8,23,Responder,3
-PH-260,76,Male,Yes,1,19,3,0.38,108,Absent,9.4,4,Responder,1
-PH-261,59,Male,No,1,28,2,0.38,76,Present,15.7,28,Responder,2
-PH-262,62,Female,No,1,28,2,0.38,84,Absent,17.0,21,Responder,2
-PH-263,84,Male,Yes,2,22,2,0.31,84,Absent,15.4,22,Responder,0
-PH-264,72,Male,No,3,26,2,0.42,76,Present,11.8,39,Responder,1
-PH-265,82,Female,Yes,3,28,3,0.34,111,Absent,10.7,13,Responder,2
-PH-266,73,Female,Yes,1,26,3,0.34,102,Present,19.0,33,Responder,2
-PH-267,85,Male,Yes,1,16,2,0.33,105,Absent,,20,Responder,3
-PH-268,70,Male,No,2,17,3,0.35,110,Absent,12.1,8,Non-responder,0
-PH-269,72,Female,Yes,0,24,2,0.39,79,Present,13.5,20,Responder,1
-PH-270,81,Male,Yes,3,27,3,0.34,90,Absent,10.2,30,Non-responder,0
-PH-271,70,Female,Yes,0,29,2,0.37,63,Present,15.7,21,Responder,1
-PH-272,70,Male,No,0,24,3,0.37,76,Present,21.0,19,Responder,2
-PH-273,69,Female,No,3,21,3,0.37,103,Absent,8.9,-16,Non-responder,-1
-PH-274,77,Female,Yes,2,20,3,0.37,103,Present,12.5,-7,Responder,0
-PH-275,67,Male,Yes,1,20,2,0.37,128,Present,13.0,10,Responder,3
-PH-276,73,Female,Yes,1,25,2,0.41,88,Present,14.5,23,Responder,2
-PH-277,76,Male,No,3,18,2,0.34,90,Absent,10.2,6,Non-responder,-1
-PH-278,82,Male,Yes,1,26,2,0.38,79,Present,18.7,39,Non-responder,1
-PH-279,61,Male,Yes,1,26,2,0.43,63,Present,,31,Responder,1
-PH-280,83,Male,Yes,0,17,2,0.33,86,Absent,6.6,-1,Responder,1
-PH-281,73,Male,No,0,25,3,0.38,68,Present,20.2,28,Responder,1
-PH-282,68,Male,No,1,26,1,0.33,55,Present,11.4,25,Non-responder,0
-PH-283,78,Female,Yes,3,30,4,0.34,91,Present,15.2,2,Non-responder,1
-PH-284,83,Female,Yes,2,21,2,0.38,89,Absent,14.9,16,Non-responder,0
-PH-285,75,Male,No,2,24,2,0.38,75,Present,,22,Responder,2
-PH-286,77,Male,No,1,15,3,0.35,128,Absent,10.4,19,Responder,2
-PH-287,73,Male,No,0,29,3,0.36,72,Absent,16.6,34,Responder,2
-PH-288,67,Male,No,1,27,3,0.36,73,Present,16.4,30,Non-responder,-1
-PH-289,70,Male,No,2,27,3,0.41,89,Present,,19,Responder,1
-PH-290,73,Male,Yes,1,23,3,0.39,50,Present,18.7,26,Responder,2
-PH-291,63,Female,Yes,1,24,2,0.38,86,Present,17.5,33,Responder,2
-PH-292,84,Male,Yes,,23,4,0.37,87,Present,8.4,2,Non-responder,0
-PH-293,73,Female,No,2,28,3,0.39,63,Present,15.5,33,Responder,2
-PH-294,77,Female,Yes,2,20,4,0.39,98,Absent,13.6,5,Non-responder,0
-PH-295,77,Male,Yes,2,24,4,0.35,98,Present,9.4,,Responder,1
-PH-296,72,Female,No,0,24,1,0.37,47,Present,11.2,21,Responder,2
-PH-297,81,Female,No,1,27,4,0.32,72,Present,15.0,27,Responder,3
-PH-298,80,Male,Yes,2,24,3,0.38,104,Present,8.0,15,Responder,2
-PH-299,70,Male,No,2,21,2,0.40,78,Present,17.0,17,Responder,0
-PH-300,71,Male,No,1,27,2,0.38,60,Present,14.1,20,Responder,2
-PH-301,67,Female,No,0,26,1,0.37,58,Present,15.1,35,Non-responder,0
-PH-302,80,Male,No,0,23,2,0.36,87,Present,14.7,40,Non-responder,1
-PH-303,68,Male,No,0,23,3,0.37,111,Present,12.2,9,Non-responder,-1
-PH-304,76,Male,Yes,1,22,3,0.39,84,Present,13.9,42,Responder,3
-PH-305,82,Female,Yes,2,23,2,0.32,96,Absent,8.2,21,Responder,3
-PH-306,71,Male,No,0,29,2,0.40,71,Present,16.0,35,Responder,2
-PH-307,78,Male,Yes,1,29,3,0.40,63,Present,23.1,35,Responder,2
-PH-308,85,Female,No,2,22,4,0.33,81,Absent,11.2,21,Non-responder,1
-PH-309,70,Female,Yes,1,30,4,0.40,74,Present,14.9,33,Responder,3
-PH-310,73,Male,Yes,1,23,3,0.37,82,Absent,12.7,6,Responder,2
-PH-311,75,Female,No,0,23,2,0.35,61,Present,23.0,19,Responder,1
-PH-312,78,Male,No,1,18,2,0.34,109,Present,8.1,3,Responder,1
-PH-313,68,Male,Yes,2,28,2,0.37,105,Present,14.8,18,Responder,2
-PH-314,79,Male,No,0,23,3,0.38,76,Present,20.6,30,Responder,2
-PH-315,66,Female,Yes,1,26,3,0.39,67,Present,15.4,22,Non-responder,1
-PH-316,90,Male,No,1,23,2,0.39,88,Present,,27,Responder,2
-PH-317,78,Female,Yes,,18,3,0.35,107,Absent,7.7,-5,Non-responder,0
-PH-318,66,Male,No,1,18,2,0.38,89,Present,,,Non-responder,0
-PH-319,64,Female,No,0,20,2,0.37,73,Present,17.0,29,Responder,2
-PH-320,69,Female,No,2,25,2,0.39,64,Present,13.8,14,Non-responder,0
-PH-321,76,Male,Yes,2,21,3,0.31,95,Absent,11.8,28,Non-responder,0
-PH-322,72,Female,Yes,1,20,2,0.35,102,Absent,9.0,2,Non-responder,0
-PH-323,65,Male,No,1,23,4,0.37,68,Present,16.7,36,Responder,2
-PH-324,67,Male,No,1,29,2,0.40,45,Present,19.4,38,Responder,1
-PH-325,69,Male,No,2,30,3,0.33,73,Present,18.7,30,Responder,1
-PH-326,79,Male,No,3,18,4,0.35,102,Absent,9.6,2,Non-responder,0
-PH-327,85,Female,Yes,1,20,3,0.37,91,Absent,9.1,17,Non-responder,0
-PH-328,77,Male,Yes,2,21,4,0.36,89,Present,12.4,21,Non-responder,-1
-PH-329,77,Male,Yes,3,25,3,0.36,68,Present,11.6,15,Non-responder,0
-PH-330,57,Male,No,0,23,4,0.39,69,Present,18.6,38,Responder,3
-PH-331,76,Male,Yes,0,22,4,0.34,83,Absent,12.0,19,Responder,1
-PH-332,76,Male,No,2,20,2,0.39,101,Absent,9.4,-7,Responder,2
-PH-333,81,Female,No,0,26,3,0.40,79,Present,16.0,33,Responder,2
-PH-334,73,Male,Yes,0,28,4,0.36,69,Present,,27,Responder,3
-PH-335,88,Male,Yes,1,24,1,0.33,97,Present,14.6,15,Non-responder,1
-PH-336,79,Male,No,2,20,3,0.42,96,Absent,8.6,1,Responder,1
-PH-337,80,Male,Yes,2,17,2,0.38,110,Present,17.4,12,Non-responder,0
-PH-338,68,Female,No,,27,1,0.35,71,Present,16.6,52,Non-responder,1
-PH-339,64,Male,No,2,13,1,0.37,115,Absent,12.4,10,Responder,0
-PH-340,79,Female,No,1,22,1,0.35,76,Present,19.2,29,Responder,2
-PH-341,83,Male,No,1,24,3,0.40,68,Present,,58,Responder,0
-PH-342,82,Female,No,0,14,3,0.39,112,Present,11.7,18,Non-responder,1
-PH-343,78,Male,Yes,1,21,2,0.34,112,Absent,9.1,21,Responder,3
-PH-344,85,Male,Yes,1,21,2,0.32,119,Present,13.8,7,Non-responder,0
-PH-345,84,Male,Yes,1,22,4,0.39,92,Present,18.7,37,Responder,2
-PH-346,80,Female,Yes,3,22,2,0.35,114,Absent,11.0,3,Responder,2
-PH-347,63,Male,No,2,26,3,0.33,104,Present,14.4,12,Responder,1
-PH-348,79,Female,Yes,0,25,3,0.35,66,Present,,42,Responder,1
-PH-349,71,Male,Yes,1,21,2,0.38,79,Present,,14,Responder,1
-PH-350,70,Male,No,2,25,2,0.36,70,Present,17.2,24,Responder,1
-PH-351,82,Male,No,0,20,3,0.38,87,Absent,11.3,13,Responder,1
-PH-352,92,Female,Yes,3,23,3,0.34,90,Absent,12.4,11,Non-responder,-1
-PH-353,83,Male,Yes,1,21,2,0.41,94,Absent,10.4,24,Non-responder,0
-PH-354,77,Male,Yes,0,28,3,0.34,92,Absent,10.4,7,Responder,1
-PH-355,75,Male,No,1,22,1,0.39,74,Present,,32,Responder,3
-PH-356,66,Male,No,2,19,4,0.39,78,Present,18.7,29,Responder,3
-PH-357,84,Male,Yes,3,22,3,0.37,80,Present,16.0,18,Non-responder,1
-PH-358,83,Male,Yes,3,23,3,0.31,91,Absent,13.8,14,Responder,2
-PH-359,76,Male,No,0,29,3,0.39,81,Present,19.1,15,Responder,0
-PH-360,87,Male,No,1,16,2,0.38,101,Absent,7.4,5,Responder,2
+Patient_ID,Age,Sex,Hypertension,White_Matter_Fazekas,MMSE,Gait_Score,Evans_Index,Callosal_Angle_Deg,DESH_Sign,Rout_mmHg_min_ml,Tap_Test_Gait_Gain_Pct,Shunt_Response,Gait_Improvement_12mo,Simulated_True_Subtype
+PH-001,64,Male,No,1,29,3,0.35,71,Present,,41,Responder,2,Classic CSF-dynamic
+PH-002,90,Male,Yes,1,23,2,0.34,105,Absent,,7,Responder,2,Vascular-comorbid
+PH-003,69,Male,No,1,17,2,0.38,107,Absent,9.9,22,Non-responder,0,Neurodegenerative overlap
+PH-004,76,Female,No,2,25,2,0.40,69,Present,20.1,34,Non-responder,0,Classic CSF-dynamic
+PH-005,75,Female,No,3,18,3,0.38,116,Absent,6.6,12,Responder,2,Neurodegenerative overlap
+PH-006,76,Male,No,0,25,3,0.43,79,Present,14.7,31,Responder,3,Classic CSF-dynamic
+PH-007,75,Male,No,1,24,3,0.37,69,Present,16.9,34,Responder,4,Classic CSF-dynamic
+PH-008,68,Female,No,1,15,3,0.36,99,Present,5.9,3,Non-responder,1,Neurodegenerative overlap
+PH-009,82,Male,Yes,3,26,3,0.35,96,Present,11.1,0,Responder,1,Vascular-comorbid
+PH-010,80,Female,No,2,22,3,0.35,103,Present,7.7,5,Non-responder,0,Neurodegenerative overlap
+PH-011,69,Male,No,1,19,4,0.35,119,Absent,8.9,,Non-responder,0,Neurodegenerative overlap
+PH-012,68,Female,No,0,26,2,0.37,81,Present,,45,Non-responder,0,Classic CSF-dynamic
+PH-013,71,Male,No,0,21,4,0.39,78,Present,19.4,12,Responder,1,Classic CSF-dynamic
+PH-014,65,Female,No,0,23,2,0.40,55,Present,19.1,26,Responder,2,Classic CSF-dynamic
+PH-015,68,Male,No,2,16,3,0.35,113,Absent,6.8,13,Responder,1,Neurodegenerative overlap
+PH-016,64,Male,Yes,3,22,4,0.35,68,Present,16.2,24,Responder,3,Vascular-comorbid
+PH-017,62,Female,Yes,2,23,2,0.31,104,Absent,,7,Non-responder,0,Vascular-comorbid
+PH-018,64,Male,Yes,0,27,2,0.38,65,Absent,15.8,35,Responder,2,Classic CSF-dynamic
+PH-019,73,Female,No,0,27,3,0.36,45,Present,18.9,23,Non-responder,0,Classic CSF-dynamic
+PH-020,82,Female,Yes,1,15,2,0.36,116,Absent,12.4,10,Non-responder,0,Neurodegenerative overlap
+PH-021,63,Male,No,0,17,2,0.37,111,Absent,9.7,3,Responder,1,Neurodegenerative overlap
+PH-022,88,Male,Yes,3,19,2,0.36,95,Absent,12.6,7,Responder,2,Vascular-comorbid
+PH-023,71,Female,No,1,27,4,0.36,83,Present,,46,Responder,2,Classic CSF-dynamic
+PH-024,82,Male,No,2,18,3,0.33,104,Present,8.2,16,Non-responder,0,Neurodegenerative overlap
+PH-025,67,Male,No,0,26,2,0.35,70,Present,21.9,44,Responder,2,Classic CSF-dynamic
+PH-026,71,Female,Yes,1,24,3,0.37,70,Present,21.7,32,Responder,1,Classic CSF-dynamic
+PH-027,80,Female,Yes,2,22,3,0.36,88,Absent,12.3,5,Responder,2,Vascular-comorbid
+PH-028,69,Female,No,0,23,2,0.38,62,Absent,16.5,37,Responder,1,Classic CSF-dynamic
+PH-029,75,Female,No,1,26,2,0.32,89,Absent,7.9,16,Responder,1,Vascular-comorbid
+PH-030,74,Male,Yes,3,17,4,0.35,90,Absent,11.9,20,Responder,2,Vascular-comorbid
+PH-031,78,Male,Yes,,24,4,0.35,95,Absent,15.9,14,Non-responder,0,Vascular-comorbid
+PH-032,78,Female,No,0,25,2,0.38,67,Absent,20.5,42,Responder,3,Classic CSF-dynamic
+PH-033,78,Female,No,0,21,3,0.40,89,Present,18.4,35,Responder,3,Classic CSF-dynamic
+PH-034,70,Male,Yes,1,27,2,0.36,86,Present,20.8,32,Non-responder,0,Classic CSF-dynamic
+PH-035,70,Male,No,0,23,3,0.38,73,Present,17.0,33,Responder,2,Classic CSF-dynamic
+PH-036,68,Male,Yes,3,26,3,0.41,107,Absent,11.4,8,Non-responder,0,Vascular-comorbid
+PH-037,68,Female,No,2,18,3,0.38,106,Absent,9.6,1,Non-responder,-1,Neurodegenerative overlap
+PH-038,76,Male,No,1,30,2,0.36,56,Absent,12.7,38,Non-responder,0,Classic CSF-dynamic
+PH-039,81,Female,Yes,0,16,2,0.37,98,Absent,8.0,-9,Responder,2,Neurodegenerative overlap
+PH-040,70,Male,No,,19,3,0.36,114,Absent,8.8,16,Non-responder,1,Neurodegenerative overlap
+PH-041,78,Female,Yes,2,22,2,0.33,85,Absent,15.7,1,Responder,1,Vascular-comorbid
+PH-042,77,Male,Yes,2,30,3,0.33,83,Present,9.8,27,Non-responder,0,Vascular-comorbid
+PH-043,70,Male,No,2,26,3,0.41,64,Present,20.7,46,Responder,1,Classic CSF-dynamic
+PH-044,63,Female,No,1,26,2,0.39,53,Present,17.3,38,Responder,2,Classic CSF-dynamic
+PH-045,67,Male,Yes,1,28,4,0.41,69,Present,18.6,29,Non-responder,-1,Classic CSF-dynamic
+PH-046,73,Male,Yes,3,22,2,0.37,123,Present,9.4,-4,Non-responder,0,Neurodegenerative overlap
+PH-047,61,Male,No,2,26,2,0.34,81,Present,22.8,43,Responder,3,Classic CSF-dynamic
+PH-048,70,Female,Yes,3,24,4,0.34,94,Present,7.3,13,Non-responder,0,Vascular-comorbid
+PH-049,80,Female,Yes,3,26,1,0.42,101,Absent,10.1,14,Responder,2,Vascular-comorbid
+PH-050,59,Male,No,,25,3,0.36,85,Present,19.4,26,Responder,2,Classic CSF-dynamic
+PH-051,61,Male,Yes,0,26,3,0.40,69,Present,18.8,20,Responder,1,Classic CSF-dynamic
+PH-052,61,Female,Yes,1,27,3,0.43,71,Absent,15.4,28,Non-responder,0,Classic CSF-dynamic
+PH-053,55,Female,No,0,26,2,0.39,65,Present,16.8,44,Non-responder,2,Classic CSF-dynamic
+PH-054,65,Male,No,1,27,2,0.40,71,Present,18.4,19,Responder,1,Classic CSF-dynamic
+PH-055,90,Male,No,1,24,2,0.40,69,Present,18.6,49,Responder,2,Classic CSF-dynamic
+PH-056,86,Male,No,3,17,1,0.37,116,Absent,15.6,16,Non-responder,1,Neurodegenerative overlap
+PH-057,68,Female,No,1,29,3,0.39,57,Present,14.7,27,Responder,2,Classic CSF-dynamic
+PH-058,76,Female,No,3,28,3,0.42,66,Present,18.9,31,Non-responder,0,Classic CSF-dynamic
+PH-059,79,Male,Yes,3,23,4,0.37,104,Absent,,12,Non-responder,1,Vascular-comorbid
+PH-060,68,Female,Yes,1,25,2,0.37,85,Present,23.5,22,Non-responder,0,Classic CSF-dynamic
+PH-061,67,Female,No,1,27,3,0.41,87,Present,19.6,,Non-responder,1,Classic CSF-dynamic
+PH-062,60,Male,No,1,26,1,0.40,76,Present,,32,Responder,2,Classic CSF-dynamic
+PH-063,70,Male,No,1,27,1,0.40,64,Present,22.6,29,Responder,2,Classic CSF-dynamic
+PH-064,76,Female,No,3,23,2,0.39,55,Present,22.6,,Responder,2,Classic CSF-dynamic
+PH-065,73,Male,Yes,1,30,3,0.38,55,Present,23.0,37,Responder,2,Classic CSF-dynamic
+PH-066,78,Male,Yes,0,27,4,0.36,52,Present,21.0,43,Responder,2,Classic CSF-dynamic
+PH-067,76,Male,No,0,23,3,0.39,58,Present,20.4,33,Responder,1,Classic CSF-dynamic
+PH-068,79,Male,Yes,3,23,2,0.35,111,Absent,13.6,20,Responder,2,Vascular-comorbid
+PH-069,71,Female,Yes,1,24,3,0.33,115,Present,14.4,22,Non-responder,0,Vascular-comorbid
+PH-070,78,Female,Yes,3,24,2,0.33,92,Absent,13.4,16,Responder,3,Vascular-comorbid
+PH-071,73,Male,No,0,20,1,0.39,120,Absent,12.4,1,Responder,2,Neurodegenerative overlap
+PH-072,86,Female,Yes,3,23,3,0.40,80,Absent,10.0,23,Responder,2,Vascular-comorbid
+PH-073,84,Female,Yes,3,21,3,0.39,78,Present,13.9,1,Responder,2,Vascular-comorbid
+PH-074,76,Female,Yes,2,20,3,0.34,89,Absent,13.9,15,Responder,1,Vascular-comorbid
+PH-075,73,Female,Yes,1,25,2,0.35,101,Absent,11.6,21,Non-responder,-1,Vascular-comorbid
+PH-076,72,Male,Yes,2,17,1,0.36,108,Absent,5.0,-16,Non-responder,-1,Neurodegenerative overlap
+PH-077,74,Male,Yes,,16,2,0.40,81,Absent,7.7,11,Responder,2,Neurodegenerative overlap
+PH-078,71,Female,Yes,,24,3,0.33,101,Absent,10.7,-3,Non-responder,0,Vascular-comorbid
+PH-079,69,Male,Yes,0,25,3,0.38,72,Present,18.6,29,Non-responder,1,Classic CSF-dynamic
+PH-080,63,Female,No,2,18,3,0.34,110,Absent,7.9,-2,Non-responder,1,Neurodegenerative overlap
+PH-081,83,Female,No,0,24,3,0.35,71,Present,21.3,,Responder,1,Classic CSF-dynamic
+PH-082,76,Female,No,0,29,3,0.35,67,Present,18.0,41,Responder,1,Classic CSF-dynamic
+PH-083,67,Male,No,0,28,3,0.35,74,Present,17.8,15,Responder,2,Classic CSF-dynamic
+PH-084,74,Male,Yes,2,19,3,0.35,96,Absent,12.7,25,Non-responder,-1,Vascular-comorbid
+PH-085,65,Female,Yes,1,17,2,0.37,117,Present,7.6,16,Non-responder,-1,Neurodegenerative overlap
+PH-086,68,Female,Yes,1,13,3,0.38,97,Absent,6.5,2,Responder,2,Neurodegenerative overlap
+PH-087,73,Male,Yes,0,18,1,0.35,104,Absent,10.4,8,Non-responder,1,Neurodegenerative overlap
+PH-088,62,Female,No,0,26,2,0.37,79,Present,17.3,28,Responder,1,Classic CSF-dynamic
+PH-089,83,Male,Yes,3,21,3,0.37,95,Absent,14.6,8,Non-responder,1,Vascular-comorbid
+PH-090,72,Female,Yes,2,18,2,0.34,109,Absent,14.3,-3,Responder,1,Neurodegenerative overlap
+PH-091,74,Male,No,1,14,3,0.38,95,Absent,,5,Non-responder,1,Neurodegenerative overlap
+PH-092,68,Female,Yes,0,24,2,0.37,79,Present,18.0,36,Responder,2,Classic CSF-dynamic
+PH-093,74,Male,Yes,0,27,2,0.40,57,Present,16.8,34,Responder,3,Classic CSF-dynamic
+PH-094,80,Female,Yes,2,16,3,0.37,104,Absent,5.7,5,Non-responder,0,Neurodegenerative overlap
+PH-095,74,Male,Yes,1,24,3,0.35,76,Present,15.5,16,Non-responder,-1,Vascular-comorbid
+PH-096,78,Female,No,2,26,3,0.36,84,Present,22.5,22,Responder,1,Classic CSF-dynamic
+PH-097,66,Male,Yes,0,28,1,0.38,83,Present,19.8,43,Responder,1,Classic CSF-dynamic
+PH-098,75,Female,No,0,25,2,0.38,57,Present,20.1,18,Responder,1,Classic CSF-dynamic
+PH-099,78,Male,Yes,1,27,2,0.37,57,Present,18.4,33,Non-responder,0,Classic CSF-dynamic
+PH-100,65,Male,No,,17,2,0.33,103,Absent,7.3,7,Non-responder,-1,Neurodegenerative overlap
+PH-101,74,Male,Yes,3,26,3,0.38,91,Present,,9,Responder,1,Vascular-comorbid
+PH-102,63,Male,No,0,28,4,0.39,67,Present,22.1,29,Responder,1,Classic CSF-dynamic
+PH-103,71,Male,No,1,27,2,0.34,49,Present,17.4,41,Responder,1,Classic CSF-dynamic
+PH-104,81,Male,Yes,2,28,3,0.36,93,Present,22.1,19,Responder,3,Classic CSF-dynamic
+PH-105,81,Male,Yes,1,25,2,0.35,66,Present,20.9,31,Responder,3,Classic CSF-dynamic
+PH-106,65,Male,Yes,1,25,4,0.36,96,Present,14.7,7,Non-responder,0,Vascular-comorbid
+PH-107,86,Male,Yes,2,22,4,0.32,86,Present,,4,Non-responder,1,Vascular-comorbid
+PH-108,76,Male,Yes,1,17,3,0.35,99,Present,12.3,16,Responder,2,Vascular-comorbid
+PH-109,76,Female,Yes,1,24,3,0.36,92,Absent,9.0,3,Non-responder,1,Vascular-comorbid
+PH-110,81,Female,Yes,1,22,2,0.36,88,Absent,14.8,8,Non-responder,1,Vascular-comorbid
+PH-111,77,Female,Yes,,22,4,0.38,92,Present,6.7,31,Non-responder,0,Vascular-comorbid
+PH-112,77,Male,Yes,3,24,4,0.37,92,Absent,7.1,16,Non-responder,1,Vascular-comorbid
+PH-113,71,Female,Yes,2,22,4,0.34,106,Absent,12.9,18,Non-responder,0,Vascular-comorbid
+PH-114,72,Male,No,0,15,3,0.32,125,Absent,11.1,-10,Responder,2,Neurodegenerative overlap
+PH-115,72,Male,No,1,26,2,0.40,74,Present,15.4,42,Responder,1,Classic CSF-dynamic
+PH-116,84,Male,Yes,3,16,1,0.36,101,Absent,14.9,2,Responder,3,Vascular-comorbid
+PH-117,70,Male,Yes,2,24,4,0.35,91,Absent,11.5,18,Non-responder,0,Vascular-comorbid
+PH-118,66,Male,Yes,2,21,4,0.35,97,Absent,11.7,22,Responder,1,Vascular-comorbid
+PH-119,70,Male,No,1,22,2,0.40,69,Present,14.4,34,Responder,2,Classic CSF-dynamic
+PH-120,70,Female,Yes,3,23,3,0.34,108,Absent,10.8,-4,Responder,3,Vascular-comorbid
+PH-121,85,Female,Yes,1,20,2,0.38,137,Absent,7.7,,Responder,1,Neurodegenerative overlap
+PH-122,84,Female,Yes,2,19,3,0.40,72,Absent,10.3,-10,Non-responder,1,Vascular-comorbid
+PH-123,69,Female,No,0,25,1,0.40,70,Present,22.3,26,Responder,1,Classic CSF-dynamic
+PH-124,75,Female,Yes,1,22,2,0.35,108,Absent,10.4,-1,Responder,1,Vascular-comorbid
+PH-125,77,Male,No,1,28,3,0.40,48,Present,,44,Non-responder,0,Classic CSF-dynamic
+PH-126,70,Female,Yes,1,22,3,0.38,102,Present,7.8,-10,Non-responder,0,Neurodegenerative overlap
+PH-127,75,Female,No,1,26,2,0.37,75,Present,18.2,20,Non-responder,1,Classic CSF-dynamic
+PH-128,77,Male,No,1,26,4,0.38,52,Present,13.1,22,Responder,2,Classic CSF-dynamic
+PH-129,76,Female,Yes,2,23,3,0.39,101,Absent,9.6,-3,Non-responder,1,Vascular-comorbid
+PH-130,68,Female,No,1,30,2,0.38,66,Present,19.5,16,Responder,2,Classic CSF-dynamic
+PH-131,87,Female,Yes,1,20,3,0.32,100,Absent,12.7,,Non-responder,1,Vascular-comorbid
+PH-132,74,Female,Yes,3,16,2,0.36,93,Absent,4.6,1,Non-responder,0,Neurodegenerative overlap
+PH-133,76,Male,No,1,24,4,0.35,95,Absent,18.9,18,Responder,1,Vascular-comorbid
+PH-134,73,Female,No,0,19,4,0.32,110,Absent,10.5,15,Responder,1,Neurodegenerative overlap
+PH-135,67,Male,No,0,27,4,0.39,51,Present,22.2,32,Responder,1,Classic CSF-dynamic
+PH-136,79,Male,Yes,1,30,2,0.37,72,Present,21.4,31,Responder,3,Classic CSF-dynamic
+PH-137,80,Female,Yes,3,24,4,0.36,103,Absent,15.9,23,Responder,2,Vascular-comorbid
+PH-138,71,Male,No,1,16,3,0.37,127,Absent,6.6,-2,Non-responder,-1,Neurodegenerative overlap
+PH-139,74,Female,Yes,1,21,3,0.34,106,Present,16.8,8,Non-responder,1,Vascular-comorbid
+PH-140,77,Male,Yes,2,20,3,0.34,99,Absent,10.7,5,Responder,1,Vascular-comorbid
+PH-141,74,Male,No,2,20,3,0.33,116,Present,4.0,5,Non-responder,0,Neurodegenerative overlap
+PH-142,75,Male,No,3,24,2,0.34,64,Present,25.3,40,Responder,2,Classic CSF-dynamic
+PH-143,82,Female,Yes,1,16,2,0.37,118,Absent,,17,Non-responder,1,Neurodegenerative overlap
+PH-144,69,Male,No,0,17,2,0.40,106,Absent,8.4,3,Responder,1,Neurodegenerative overlap
+PH-145,62,Female,No,2,24,2,0.37,67,Present,17.6,46,Responder,2,Classic CSF-dynamic
+PH-146,85,Male,No,3,24,3,0.33,76,Absent,15.6,9,Responder,1,Vascular-comorbid
+PH-147,78,Male,No,0,12,2,0.35,102,Absent,,14,Non-responder,1,Neurodegenerative overlap
+PH-148,75,Male,Yes,2,27,4,0.39,77,Absent,5.7,16,Non-responder,-1,Vascular-comorbid
+PH-149,75,Male,Yes,2,26,3,0.31,98,Present,15.5,32,Responder,1,Vascular-comorbid
+PH-150,83,Female,No,2,17,2,0.34,98,Absent,8.1,-6,Non-responder,0,Neurodegenerative overlap
+PH-151,81,Female,Yes,3,19,2,0.36,91,Present,12.4,,Responder,3,Vascular-comorbid
+PH-152,78,Female,Yes,2,27,3,0.32,86,Present,9.2,10,Non-responder,1,Vascular-comorbid
+PH-153,71,Male,No,0,23,4,0.40,51,Present,26.4,20,Responder,2,Classic CSF-dynamic
+PH-154,66,Male,Yes,0,30,3,0.40,67,Present,23.3,41,Responder,1,Classic CSF-dynamic
+PH-155,85,Female,Yes,2,21,3,0.37,114,Present,9.4,24,Responder,2,Vascular-comorbid
+PH-156,63,Female,No,0,25,2,0.37,67,Absent,18.7,52,Non-responder,-1,Classic CSF-dynamic
+PH-157,83,Female,Yes,3,23,3,0.33,95,Absent,12.6,13,Responder,2,Vascular-comorbid
+PH-158,81,Male,Yes,2,22,4,0.39,86,Absent,11.0,29,Responder,3,Vascular-comorbid
+PH-159,79,Female,Yes,2,23,1,0.39,108,Present,8.6,,Non-responder,0,Vascular-comorbid
+PH-160,83,Female,Yes,,21,2,0.35,98,Absent,12.7,6,Responder,2,Vascular-comorbid
+PH-161,80,Male,No,1,14,3,0.40,119,Absent,14.1,10,Non-responder,1,Neurodegenerative overlap
+PH-162,79,Female,Yes,3,21,3,0.33,110,Absent,10.3,-5,Responder,2,Neurodegenerative overlap
+PH-163,73,Female,No,1,22,3,0.38,60,Present,19.0,44,Responder,1,Classic CSF-dynamic
+PH-164,77,Male,Yes,0,17,1,0.40,101,Absent,12.8,14,Non-responder,1,Neurodegenerative overlap
+PH-165,71,Female,Yes,,25,2,0.37,56,Present,13.3,10,Responder,2,Classic CSF-dynamic
+PH-166,72,Female,Yes,0,30,2,0.35,62,Absent,14.7,50,Responder,1,Classic CSF-dynamic
+PH-167,64,Male,Yes,2,25,3,0.41,82,Present,19.5,28,Responder,2,Classic CSF-dynamic
+PH-168,67,Male,No,0,29,3,0.34,77,Present,18.1,25,Responder,1,Classic CSF-dynamic
+PH-169,68,Female,No,2,20,3,0.35,111,Absent,,17,Non-responder,1,Neurodegenerative overlap
+PH-170,73,Male,No,1,27,1,0.36,57,Absent,22.8,28,Non-responder,0,Classic CSF-dynamic
+PH-171,75,Female,No,0,29,2,0.40,59,Absent,25.4,25,Responder,3,Classic CSF-dynamic
+PH-172,71,Male,Yes,3,22,3,0.37,96,Present,16.0,12,Responder,3,Vascular-comorbid
+PH-173,80,Male,Yes,1,22,4,0.30,87,Present,15.4,5,Responder,1,Vascular-comorbid
+PH-174,73,Male,No,0,26,2,0.38,62,Present,15.5,24,Responder,2,Classic CSF-dynamic
+PH-175,78,Female,Yes,3,18,3,0.39,95,Absent,12.7,14,Responder,2,Vascular-comorbid
+PH-176,74,Female,No,1,25,2,0.42,45,Present,,38,Responder,0,Classic CSF-dynamic
+PH-177,73,Female,Yes,2,19,3,0.33,108,Absent,8.6,-3,Responder,3,Neurodegenerative overlap
+PH-178,85,Female,Yes,,22,1,0.37,92,Absent,4.7,8,Responder,2,Vascular-comorbid
+PH-179,63,Female,No,1,23,3,0.38,69,Present,,45,Responder,1,Classic CSF-dynamic
+PH-180,73,Male,No,0,30,1,0.38,55,Present,16.4,43,Responder,2,Classic CSF-dynamic
+PH-181,72,Female,Yes,1,13,2,0.35,120,Present,11.8,-11,Responder,2,Neurodegenerative overlap
+PH-182,75,Female,Yes,1,14,2,0.35,103,Absent,14.3,-4,Responder,1,Neurodegenerative overlap
+PH-183,69,Female,Yes,3,25,3,0.35,110,Present,13.7,23,Non-responder,0,Vascular-comorbid
+PH-184,69,Male,Yes,1,24,1,0.40,75,Present,23.8,41,Responder,1,Classic CSF-dynamic
+PH-185,67,Male,No,3,24,3,0.36,63,Present,23.2,28,Non-responder,1,Classic CSF-dynamic
+PH-186,76,Female,Yes,3,18,2,0.40,84,Absent,,28,Non-responder,0,Vascular-comorbid
+PH-187,72,Female,Yes,2,20,4,0.33,88,Absent,13.1,26,Responder,1,Vascular-comorbid
+PH-188,82,Male,No,0,17,2,0.36,98,Present,9.9,0,Responder,2,Neurodegenerative overlap
+PH-189,72,Male,Yes,3,24,3,0.35,99,Absent,15.9,14,Non-responder,-1,Vascular-comorbid
+PH-190,74,Male,Yes,2,16,2,0.36,105,Absent,12.5,0,Non-responder,-1,Neurodegenerative overlap
+PH-191,68,Female,Yes,1,23,3,0.40,94,Absent,11.4,11,Non-responder,-1,Vascular-comorbid
+PH-192,78,Male,Yes,1,16,3,0.34,133,Absent,,-4,Non-responder,0,Neurodegenerative overlap
+PH-193,70,Male,No,1,28,2,0.41,66,Present,23.3,33,Non-responder,1,Classic CSF-dynamic
+PH-194,72,Male,No,1,24,2,0.36,58,Present,15.3,17,Non-responder,-1,Classic CSF-dynamic
+PH-195,73,Female,Yes,0,11,3,0.38,122,Absent,8.1,5,Responder,3,Neurodegenerative overlap
+PH-196,80,Female,Yes,3,22,4,0.36,81,Present,10.9,16,Non-responder,2,Vascular-comorbid
+PH-197,78,Female,No,2,21,4,0.35,115,Present,9.1,22,Responder,2,Vascular-comorbid
+PH-198,67,Male,Yes,,28,2,0.36,76,Present,11.4,25,Non-responder,-1,Classic CSF-dynamic
+PH-199,77,Female,Yes,3,21,4,0.37,99,Present,5.8,17,Responder,2,Vascular-comorbid
+PH-200,59,Male,No,1,27,2,0.40,78,Present,19.0,23,Responder,1,Classic CSF-dynamic
+PH-201,77,Male,Yes,1,24,2,0.34,79,Present,14.3,15,Responder,2,Vascular-comorbid
+PH-202,64,Male,No,1,23,3,0.38,56,Present,20.6,40,Responder,2,Classic CSF-dynamic
+PH-203,69,Female,Yes,1,19,3,0.39,118,Absent,9.1,11,Non-responder,0,Neurodegenerative overlap
+PH-204,80,Female,No,1,25,2,0.41,69,Present,15.2,,Responder,2,Classic CSF-dynamic
+PH-205,71,Male,Yes,3,16,3,0.32,102,Absent,4.4,7,Non-responder,-1,Neurodegenerative overlap
+PH-206,88,Male,Yes,3,21,2,0.32,97,Absent,9.9,21,Non-responder,0,Vascular-comorbid
+PH-207,78,Male,Yes,1,25,2,0.41,78,Present,19.0,32,Responder,3,Classic CSF-dynamic
+PH-208,75,Male,Yes,1,17,2,0.34,105,Absent,11.5,6,Non-responder,1,Neurodegenerative overlap
+PH-209,74,Male,No,0,25,2,0.38,64,Present,27.7,64,Responder,1,Classic CSF-dynamic
+PH-210,81,Male,Yes,1,23,2,0.34,103,Absent,11.7,14,Responder,2,Vascular-comorbid
+PH-211,81,Male,No,3,30,2,0.35,94,Present,13.8,18,Responder,2,Vascular-comorbid
+PH-212,76,Male,Yes,1,25,3,0.35,97,Absent,11.7,22,Responder,2,Vascular-comorbid
+PH-213,71,Male,No,0,16,3,0.36,103,Absent,7.4,23,Responder,2,Neurodegenerative overlap
+PH-214,73,Male,Yes,1,21,1,0.40,91,Present,8.2,18,Non-responder,1,Vascular-comorbid
+PH-215,72,Female,No,0,14,3,0.35,122,Absent,9.3,8,Responder,1,Neurodegenerative overlap
+PH-216,76,Male,No,0,25,3,0.41,62,Present,26.2,34,Responder,1,Classic CSF-dynamic
+PH-217,74,Male,Yes,2,23,2,0.35,98,Absent,11.4,13,Responder,2,Vascular-comorbid
+PH-218,72,Female,Yes,0,17,2,0.35,92,Absent,13.5,12,Non-responder,0,Neurodegenerative overlap
+PH-219,67,Female,No,2,17,1,0.33,111,Absent,5.4,7,Non-responder,1,Neurodegenerative overlap
+PH-220,81,Male,Yes,1,20,3,0.35,113,Absent,9.7,21,Non-responder,1,Neurodegenerative overlap
+PH-221,75,Female,Yes,3,23,2,0.35,79,Absent,11.8,11,Responder,2,Vascular-comorbid
+PH-222,79,Male,Yes,3,24,4,0.35,89,Absent,8.6,-10,Responder,1,Vascular-comorbid
+PH-223,81,Male,Yes,2,22,3,0.34,109,Absent,16.8,27,Responder,1,Vascular-comorbid
+PH-224,72,Female,No,0,20,1,0.34,120,Absent,10.8,16,Non-responder,-1,Neurodegenerative overlap
+PH-225,75,Male,Yes,3,25,4,0.31,98,Absent,9.9,18,Responder,2,Vascular-comorbid
+PH-226,77,Male,Yes,1,14,2,0.36,101,Present,5.9,3,Responder,3,Neurodegenerative overlap
+PH-227,60,Male,No,1,25,2,0.35,64,Present,19.3,27,Responder,2,Classic CSF-dynamic
+PH-228,66,Male,No,1,28,3,0.38,79,Present,16.3,42,Responder,1,Classic CSF-dynamic
+PH-229,69,Female,No,1,26,2,0.42,69,Present,,34,Responder,2,Classic CSF-dynamic
+PH-230,82,Male,Yes,3,21,3,0.36,82,Absent,13.2,,Responder,2,Vascular-comorbid
+PH-231,84,Female,No,0,15,1,0.35,109,Absent,10.8,2,Non-responder,0,Neurodegenerative overlap
+PH-232,83,Male,No,2,22,2,0.30,90,Absent,9.1,4,Responder,1,Vascular-comorbid
+PH-233,67,Male,No,,20,1,0.36,102,Absent,10.5,-4,Responder,3,Neurodegenerative overlap
+PH-234,60,Male,No,2,27,2,0.43,85,Present,20.8,38,Responder,3,Classic CSF-dynamic
+PH-235,75,Female,Yes,2,14,1,0.37,118,Absent,5.1,25,Responder,2,Neurodegenerative overlap
+PH-236,80,Female,Yes,2,19,1,0.36,104,Absent,7.9,15,Responder,1,Vascular-comorbid
+PH-237,80,Female,No,3,30,4,0.35,75,Present,11.9,15,Responder,2,Vascular-comorbid
+PH-238,71,Male,No,2,17,2,0.39,127,Absent,9.3,34,Non-responder,1,Neurodegenerative overlap
+PH-239,82,Female,No,0,18,3,0.40,108,Absent,11.4,-6,Non-responder,1,Neurodegenerative overlap
+PH-240,60,Male,Yes,0,24,2,0.41,55,Present,10.4,35,Responder,3,Classic CSF-dynamic
+PH-241,79,Male,No,1,12,1,0.34,113,Absent,6.7,-0,Responder,1,Neurodegenerative overlap
+PH-242,77,Male,Yes,1,17,2,0.37,120,Absent,7.6,7,Non-responder,0,Neurodegenerative overlap
+PH-243,81,Male,No,1,18,1,0.37,104,Absent,9.4,28,Non-responder,0,Neurodegenerative overlap
+PH-244,88,Female,Yes,2,21,2,0.35,94,Present,14.0,,Responder,0,Vascular-comorbid
+PH-245,73,Male,No,2,24,3,0.39,70,Present,14.8,46,Non-responder,-1,Classic CSF-dynamic
+PH-246,70,Female,No,2,21,2,0.37,75,Present,21.2,11,Responder,3,Classic CSF-dynamic
+PH-247,83,Female,Yes,2,23,3,0.32,100,Absent,10.2,6,Responder,1,Vascular-comorbid
+PH-248,76,Male,Yes,3,27,2,0.32,113,Absent,11.3,,Responder,2,Vascular-comorbid
+PH-249,67,Male,Yes,2,20,3,0.34,132,Absent,11.5,,Non-responder,1,Neurodegenerative overlap
+PH-250,81,Male,No,3,15,3,0.37,109,Absent,9.0,-5,Non-responder,0,Neurodegenerative overlap
+PH-251,60,Female,No,0,29,3,0.40,73,Present,20.6,20,Responder,2,Classic CSF-dynamic
+PH-252,76,Female,Yes,3,23,3,0.35,108,Absent,8.5,23,Responder,2,Vascular-comorbid
+PH-253,68,Male,No,1,28,3,0.37,61,Absent,18.0,32,Responder,1,Classic CSF-dynamic
+PH-254,70,Female,Yes,1,17,1,0.37,104,Present,10.3,-4,Non-responder,1,Neurodegenerative overlap
+PH-255,69,Female,No,0,23,2,0.37,97,Absent,9.0,-9,Non-responder,1,Neurodegenerative overlap
+PH-256,90,Female,No,3,21,4,0.36,73,Absent,7.7,17,Non-responder,-1,Vascular-comorbid
+PH-257,79,Male,No,1,30,3,0.42,77,Present,,30,Responder,2,Classic CSF-dynamic
+PH-258,81,Male,Yes,3,26,4,0.33,88,Absent,,14,Responder,1,Vascular-comorbid
+PH-259,66,Female,No,1,26,2,0.40,73,Present,16.3,27,Responder,3,Classic CSF-dynamic
+PH-260,75,Male,Yes,1,18,3,0.38,114,Absent,8.4,2,Responder,1,Neurodegenerative overlap
+PH-261,58,Male,No,1,29,2,0.39,72,Present,17.2,32,Responder,2,Classic CSF-dynamic
+PH-262,61,Female,No,1,29,2,0.39,80,Present,18.5,25,Responder,2,Classic CSF-dynamic
+PH-263,85,Male,Yes,2,22,2,0.31,86,Absent,15.4,22,Responder,0,Vascular-comorbid
+PH-264,71,Male,No,3,27,2,0.43,72,Present,13.3,43,Responder,1,Classic CSF-dynamic
+PH-265,83,Female,Yes,3,28,3,0.34,113,Absent,10.7,13,Responder,2,Vascular-comorbid
+PH-266,74,Female,Yes,1,26,3,0.34,104,Present,19.0,33,Responder,2,Vascular-comorbid
+PH-267,84,Male,Yes,1,15,2,0.33,111,Absent,,18,Responder,3,Neurodegenerative overlap
+PH-268,69,Male,No,2,16,3,0.35,116,Absent,11.1,6,Non-responder,0,Neurodegenerative overlap
+PH-269,71,Female,Yes,0,25,2,0.40,75,Present,15.0,24,Responder,1,Classic CSF-dynamic
+PH-270,82,Male,Yes,3,27,3,0.34,92,Absent,10.2,30,Non-responder,0,Vascular-comorbid
+PH-271,69,Female,Yes,0,30,2,0.38,59,Present,17.2,25,Responder,1,Classic CSF-dynamic
+PH-272,69,Male,No,0,25,3,0.38,72,Present,22.5,23,Responder,2,Classic CSF-dynamic
+PH-273,68,Female,No,3,20,3,0.37,109,Absent,7.9,-18,Non-responder,-1,Neurodegenerative overlap
+PH-274,78,Female,Yes,2,20,3,0.37,105,Present,12.5,-7,Responder,0,Vascular-comorbid
+PH-275,66,Male,Yes,1,19,2,0.37,134,Present,12.0,8,Responder,3,Neurodegenerative overlap
+PH-276,72,Female,No,1,26,2,0.42,84,Present,16.0,27,Responder,2,Classic CSF-dynamic
+PH-277,75,Male,No,3,17,2,0.34,96,Absent,9.2,4,Non-responder,-1,Neurodegenerative overlap
+PH-278,81,Male,Yes,1,27,2,0.39,75,Present,20.2,43,Non-responder,1,Classic CSF-dynamic
+PH-279,60,Male,Yes,1,27,2,0.44,59,Present,,35,Responder,1,Classic CSF-dynamic
+PH-280,82,Male,Yes,0,16,2,0.33,92,Absent,5.6,-3,Responder,1,Neurodegenerative overlap
+PH-281,72,Male,No,0,26,3,0.39,64,Present,21.7,32,Responder,1,Classic CSF-dynamic
+PH-282,67,Male,No,1,27,1,0.34,51,Present,12.9,29,Non-responder,0,Classic CSF-dynamic
+PH-283,79,Female,Yes,3,30,4,0.34,93,Present,15.2,2,Non-responder,1,Vascular-comorbid
+PH-284,84,Female,Yes,3,21,2,0.38,91,Absent,14.9,16,Non-responder,0,Vascular-comorbid
+PH-285,74,Male,No,2,25,2,0.39,71,Present,,26,Responder,2,Classic CSF-dynamic
+PH-286,76,Male,No,1,14,3,0.35,134,Absent,9.4,17,Responder,2,Neurodegenerative overlap
+PH-287,72,Male,No,0,30,3,0.37,68,Present,18.1,38,Responder,2,Classic CSF-dynamic
+PH-288,66,Male,No,0,28,3,0.37,69,Present,17.9,34,Non-responder,-1,Classic CSF-dynamic
+PH-289,69,Male,No,1,28,3,0.42,85,Present,,23,Responder,1,Classic CSF-dynamic
+PH-290,72,Male,Yes,1,24,3,0.40,46,Present,20.2,30,Responder,2,Classic CSF-dynamic
+PH-291,62,Female,No,1,25,2,0.39,82,Present,19.0,37,Responder,2,Classic CSF-dynamic
+PH-292,85,Male,Yes,,23,4,0.37,89,Present,8.4,2,Non-responder,0,Vascular-comorbid
+PH-293,72,Female,No,2,29,3,0.40,59,Present,17.0,37,Responder,2,Classic CSF-dynamic
+PH-294,78,Female,Yes,3,20,4,0.39,100,Absent,13.6,5,Non-responder,0,Vascular-comorbid
+PH-295,78,Male,Yes,3,24,4,0.35,100,Present,9.4,,Responder,1,Vascular-comorbid
+PH-296,71,Female,No,0,25,1,0.38,45,Present,12.7,25,Responder,2,Classic CSF-dynamic
+PH-297,80,Female,No,1,28,4,0.33,68,Present,16.5,31,Responder,3,Classic CSF-dynamic
+PH-298,81,Male,Yes,2,24,3,0.38,106,Present,8.0,15,Responder,2,Vascular-comorbid
+PH-299,69,Male,No,2,22,2,0.41,74,Present,18.5,21,Responder,0,Classic CSF-dynamic
+PH-300,70,Male,No,1,28,2,0.39,56,Present,15.6,24,Responder,2,Classic CSF-dynamic
+PH-301,66,Female,No,0,27,1,0.38,54,Present,16.6,39,Non-responder,0,Classic CSF-dynamic
+PH-302,79,Male,No,0,24,2,0.37,83,Present,16.2,44,Non-responder,1,Classic CSF-dynamic
+PH-303,69,Male,Yes,0,23,3,0.37,113,Present,12.2,9,Non-responder,-1,Vascular-comorbid
+PH-304,75,Male,Yes,1,23,2,0.40,80,Present,15.4,46,Responder,3,Classic CSF-dynamic
+PH-305,83,Female,Yes,2,23,2,0.32,98,Absent,8.2,21,Responder,3,Vascular-comorbid
+PH-306,70,Male,No,0,30,2,0.41,67,Present,17.5,39,Responder,2,Classic CSF-dynamic
+PH-307,77,Male,Yes,1,30,3,0.41,59,Present,24.6,39,Responder,2,Classic CSF-dynamic
+PH-308,86,Female,Yes,2,22,4,0.33,83,Absent,11.2,21,Non-responder,1,Vascular-comorbid
+PH-309,69,Female,Yes,1,30,4,0.41,70,Present,16.4,37,Responder,3,Classic CSF-dynamic
+PH-310,74,Male,Yes,1,23,3,0.37,84,Absent,12.7,6,Responder,2,Vascular-comorbid
+PH-311,74,Female,No,0,24,2,0.36,57,Present,24.5,23,Responder,1,Classic CSF-dynamic
+PH-312,77,Male,No,1,17,1,0.34,115,Present,7.1,1,Responder,1,Neurodegenerative overlap
+PH-313,69,Male,Yes,2,28,2,0.37,107,Present,14.8,18,Responder,2,Vascular-comorbid
+PH-314,78,Male,No,0,24,3,0.39,72,Present,22.1,34,Responder,2,Classic CSF-dynamic
+PH-315,65,Female,Yes,1,27,3,0.40,63,Present,16.9,26,Non-responder,1,Classic CSF-dynamic
+PH-316,89,Male,No,1,24,2,0.40,84,Present,,31,Responder,2,Classic CSF-dynamic
+PH-317,77,Female,Yes,,17,3,0.35,113,Absent,6.7,-7,Non-responder,0,Neurodegenerative overlap
+PH-318,65,Male,No,1,17,2,0.38,95,Present,,,Non-responder,0,Neurodegenerative overlap
+PH-319,63,Female,No,0,21,2,0.38,69,Present,18.5,33,Responder,2,Classic CSF-dynamic
+PH-320,68,Female,No,2,26,2,0.40,60,Present,15.3,18,Non-responder,0,Classic CSF-dynamic
+PH-321,77,Male,Yes,2,21,3,0.31,97,Absent,11.8,28,Non-responder,0,Vascular-comorbid
+PH-322,71,Female,Yes,1,19,2,0.35,108,Absent,8.0,-0,Non-responder,0,Neurodegenerative overlap
+PH-323,64,Male,No,1,24,4,0.38,64,Present,18.2,40,Responder,2,Classic CSF-dynamic
+PH-324,66,Male,No,1,30,1,0.41,45,Present,20.9,42,Responder,1,Classic CSF-dynamic
+PH-325,68,Male,No,1,30,3,0.34,69,Present,20.2,34,Responder,1,Classic CSF-dynamic
+PH-326,78,Male,No,3,17,3,0.35,108,Absent,8.6,-0,Non-responder,0,Neurodegenerative overlap
+PH-327,86,Female,Yes,1,20,3,0.37,93,Absent,9.1,17,Non-responder,0,Vascular-comorbid
+PH-328,78,Male,Yes,3,21,4,0.36,91,Absent,12.4,21,Non-responder,-1,Vascular-comorbid
+PH-329,78,Male,Yes,3,25,3,0.36,70,Present,11.6,15,Non-responder,0,Vascular-comorbid
+PH-330,56,Male,No,0,24,4,0.40,65,Present,20.1,42,Responder,3,Classic CSF-dynamic
+PH-331,77,Male,Yes,1,22,4,0.34,85,Absent,12.0,19,Responder,1,Vascular-comorbid
+PH-332,75,Male,No,2,19,2,0.39,107,Absent,8.4,-9,Responder,2,Neurodegenerative overlap
+PH-333,80,Female,No,0,27,3,0.41,75,Present,17.5,37,Responder,2,Classic CSF-dynamic
+PH-334,72,Male,Yes,0,29,4,0.37,65,Present,,31,Responder,3,Classic CSF-dynamic
+PH-335,89,Male,Yes,1,24,2,0.33,99,Present,14.6,15,Non-responder,1,Vascular-comorbid
+PH-336,78,Male,No,2,19,3,0.42,102,Absent,7.6,-1,Responder,1,Neurodegenerative overlap
+PH-337,79,Male,Yes,2,16,2,0.38,116,Absent,16.4,10,Non-responder,0,Neurodegenerative overlap
+PH-338,67,Female,No,,28,1,0.36,67,Present,18.1,56,Non-responder,1,Classic CSF-dynamic
+PH-339,63,Male,No,2,12,1,0.37,121,Absent,11.4,8,Responder,0,Neurodegenerative overlap
+PH-340,78,Female,No,0,23,1,0.36,72,Present,20.7,33,Responder,2,Classic CSF-dynamic
+PH-341,82,Male,No,1,25,3,0.41,64,Present,,62,Responder,0,Classic CSF-dynamic
+PH-342,81,Female,No,0,13,3,0.39,118,Present,10.7,16,Non-responder,1,Neurodegenerative overlap
+PH-343,79,Male,Yes,2,21,3,0.34,114,Absent,9.1,21,Responder,3,Vascular-comorbid
+PH-344,86,Male,Yes,1,21,2,0.32,121,Present,13.8,7,Non-responder,0,Vascular-comorbid
+PH-345,83,Male,Yes,1,23,4,0.40,88,Present,20.2,41,Responder,2,Classic CSF-dynamic
+PH-346,81,Female,Yes,3,22,2,0.35,116,Absent,11.0,3,Responder,2,Vascular-comorbid
+PH-347,64,Male,Yes,2,26,3,0.33,106,Present,14.4,12,Responder,1,Vascular-comorbid
+PH-348,78,Female,Yes,0,26,3,0.36,62,Present,,46,Responder,1,Classic CSF-dynamic
+PH-349,70,Male,Yes,1,22,2,0.39,75,Present,,18,Responder,1,Classic CSF-dynamic
+PH-350,69,Male,No,2,26,2,0.37,66,Present,18.7,28,Responder,1,Classic CSF-dynamic
+PH-351,81,Male,No,0,19,3,0.38,93,Absent,10.3,11,Responder,1,Neurodegenerative overlap
+PH-352,92,Female,Yes,3,23,3,0.34,92,Absent,12.4,11,Non-responder,-1,Vascular-comorbid
+PH-353,82,Male,Yes,1,20,2,0.41,100,Absent,9.4,22,Non-responder,0,Neurodegenerative overlap
+PH-354,78,Male,Yes,0,28,3,0.34,94,Absent,10.4,7,Responder,1,Vascular-comorbid
+PH-355,74,Male,No,1,23,1,0.40,70,Present,,36,Responder,3,Classic CSF-dynamic
+PH-356,65,Male,No,1,20,4,0.40,74,Present,20.2,33,Responder,3,Classic CSF-dynamic
+PH-357,85,Male,Yes,3,22,3,0.37,82,Present,16.0,18,Non-responder,1,Vascular-comorbid
+PH-358,84,Male,Yes,3,23,3,0.31,93,Absent,13.8,14,Responder,2,Vascular-comorbid
+PH-359,75,Male,No,0,30,3,0.40,77,Present,20.6,19,Responder,0,Classic CSF-dynamic
+PH-360,86,Male,No,1,15,2,0.38,107,Absent,6.4,3,Responder,2,Neurodegenerative overlap

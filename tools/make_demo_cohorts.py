@@ -5,7 +5,8 @@ demo_inph_phenotypes.csv   360 patients with three built-in sub-types of idiopat
                            good tap test), "vascular-comorbid" (older, hypertension, white-matter disease) and
                            "neurodegenerative overlap" (low MMSE, wider callosal angle, poor tap test).
                            Includes outcome columns (shunt response, gait improvement) that are not used to find
-                           the sub-types but to describe them afterwards, and some missing values.
+                           the sub-types but to describe them afterwards, some missing values, and the simulated true
+                           sub-type (to see how well clustering recovers it; keep it as "describe only").
 demo_no_subtypes.csv       360 patients with the same variables drawn from one population (correlated
                            variables, no sub-types): any "clusters" found here are artefacts.
 
@@ -16,14 +17,14 @@ import numpy as np
 
 ROOT = os.path.join(os.path.dirname(__file__), '..')
 COLS = ['Patient_ID', 'Age', 'Sex', 'Hypertension', 'White_Matter_Fazekas', 'MMSE', 'Gait_Score', 'Evans_Index',
-        'Callosal_Angle_Deg', 'DESH_Sign', 'Rout_mmHg_min_ml', 'Tap_Test_Gait_Gain_Pct', 'Shunt_Response', 'Gait_Improvement_12mo']
+        'Callosal_Angle_Deg', 'DESH_Sign', 'Rout_mmHg_min_ml', 'Tap_Test_Gait_Gain_Pct', 'Shunt_Response', 'Gait_Improvement_12mo', 'Simulated_True_Subtype']
 FAZ = ['0', '1', '2', '3']
 
 
 def draw(rng, kind, n):
-    p = {'classic': dict(age=72, htn=0.30, faz=[0.35, 0.40, 0.20, 0.05], mmse=25, gait=2.6, evans=0.37, ca=72, desh=0.85, rout=17.5, tap=28, resp=0.85),
-         'vascular': dict(age=78, htn=0.85, faz=[0.05, 0.20, 0.40, 0.35], mmse=23, gait=2.9, evans=0.35, ca=92, desh=0.35, rout=12.0, tap=14, resp=0.55),
-         'neuro': dict(age=76, htn=0.45, faz=[0.25, 0.40, 0.25, 0.10], mmse=18, gait=2.4, evans=0.36, ca=104, desh=0.20, rout=10.5, tap=6, resp=0.30),
+    p = {'classic': dict(age=71, htn=0.25, faz=[0.40, 0.40, 0.15, 0.05], mmse=26, gait=2.5, evans=0.38, ca=68, desh=0.90, rout=19.0, tap=32, resp=0.85),
+         'vascular': dict(age=79, htn=0.90, faz=[0.03, 0.15, 0.40, 0.42], mmse=23, gait=3.0, evans=0.35, ca=94, desh=0.30, rout=12.0, tap=14, resp=0.55),
+         'neuro': dict(age=75, htn=0.40, faz=[0.25, 0.40, 0.25, 0.10], mmse=17, gait=2.3, evans=0.36, ca=110, desh=0.15, rout=9.5, tap=4, resp=0.30),
          'single': None}[kind]
     rows = []
     for _ in range(n):
@@ -46,7 +47,8 @@ def draw(rng, kind, n):
         tap = rng.normal(q['tap'], 9)
         resp = 'Responder' if rng.random() < q['resp'] else 'Non-responder'
         gimp = int(np.clip(round(rng.normal(1.8 if resp == 'Responder' else 0.2, 0.7)), -1, 4))
-        rows.append([round(float(age)), sex, htn, faz, mmse, gait, f'{evans:.2f}', round(float(ca)), desh, f'{rout:.1f}', f'{tap:.0f}', resp, gimp])
+        truth = {'classic': 'Classic CSF-dynamic', 'vascular': 'Vascular-comorbid', 'neuro': 'Neurodegenerative overlap', 'single': 'None (one population)'}[kind]
+        rows.append([round(float(age)), sex, htn, faz, mmse, gait, f'{evans:.2f}', round(float(ca)), desh, f'{rout:.1f}', f'{tap:.0f}', resp, gimp, truth])
     return rows
 
 

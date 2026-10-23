@@ -60,5 +60,8 @@ const PG = CE.pam(Gw, 3);
 out.pamGower = { objective: PG.objective, medoids: PG.medoids.slice().sort((a, b) => a - b), silhouette: CE.silhouette(Gw, PG.labels).mean, labels: PG.labels };
 const PE = CE.pam(E, 3);
 out.pamEuclid = { objective: PE.objective, buildObjective: PE.buildObjective, medoids: PE.medoids.slice().sort((a, b) => a - b) };
+// Tests used to describe clusters: chi-square and Kruskal-Wallis (with ties)
+const grp = M.map((_, i) => i % 3), sexv = M.map(r => r[3]), agev = M.map(r => (r[0] === null ? 50 : r[0])), gradev = M.map(r => r[2] ?? 'mild');
+out.tests = { grp, sexv, agev, gradev, chi: CE.chiSquareTest(sexv, grp), chiGrade: CE.chiSquareTest(gradev, grp), kw: CE.kruskalWallis(agev, grp), kwTies: CE.kruskalWallis(gradev.map(v => grades.indexOf(v)), grp), q: [CE.gammaQ(2.5, 3.1), CE.gammaQ(10, 4), CE.gammaQ(0.5, 20)] };
 fs.writeFileSync(path.join(__dirname, 'reference_values.json'), JSON.stringify(out));
 console.log('Engine values written to tests/reference_values.json; now run: python3 tests/reference_check.py');
