@@ -541,7 +541,67 @@
         return { observed: obs, nullMean: nulls.reduce((a, b) => a + b, 0) / B, nullQuantile95: nulls.slice().sort((a, b) => a - b)[Math.floor(0.95 * (B - 1))], pValue: (1 + ge) / (1 + B), B, p };
     }
 
+    // Inverse of the standard normal CDF (Acklam's rational approximation, relative error < 1.2e-9)
+    function normInv(p) {
+        const a = [-3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02, 1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00];
+        const b = [-5.447609879822406e+01, 1.615858368580409e+02, -1.556989798598866e+02, 6.680131188771972e+01, -1.328068155288572e+01];
+        const c = [-7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e+00, -2.549671010599464e+00, 4.374664141464968e+00, 2.938163982698783e+00];
+        const d = [7.784695709041462e-03, 3.224671290700398e-01, 2.445134137142996e+00, 3.754408661907416e+00];
+        const pl = 0.02425;
+        if (p < pl) { const q = Math.sqrt(-2 * Math.log(p)); return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1); }
+        if (p > 1 - pl) { const q = Math.sqrt(-2 * Math.log(1 - p)); return -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1); }
+        const q = p - 0.5, r = q * q;
+        return (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
+    }
+    function normCdf(x) { // Abramowitz-Stegun 7.1.26 via erf, accurate to ~1e-7
+        const t = 1 / (1 + 0.3275911 * Math.abs(x) / Math.SQRT2), y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x / 2);
+        return 0.5 * (1 + (x >= 0 ? y : -y));
+    }
+
+    /**
+     * Test of "no real sub-types" for clinical data with yes/no, graded and skewed variables: the reference datasets
+     * come from a Gaussian copula, i.e. one continuous latent population with the data's rank correlations, mapped
+     * onto each variable's own observed distribution (a yes/no variable stays yes/no with the same prevalence).
+     * Discrete variables make any data look "clustered" against a Gaussian cloud; this reference has exactly the
+     * same discreteness, so only sub-types beyond it count. X: the numerically coded data (before standardisation);
+     * the clustering statistic is k-means R^2 on standardised data, as for the observed data.
+     */
+    function copulaNullTest(X, k, { B = 100, seed = 2024, nInit = 5 } = {}) {
+        checkMatrix(X);
+        const n = X.length, p = X[0].length, rng = createPRNG(seed);
+        const stat = data => { const Z = standardize(data).Z, tss = withinSS(Z, new Array(n).fill(0)); return tss > 0 ? 1 - kmeans(Z, k, { nInit, seed: Math.floor(rng() * 1e9) }).inertia / tss : 0; };
+        const obs = stat(X);
+        // NORTA ("normal to anything"): latent Gaussian correlations adjusted until data mapped onto each variable's
+        // observed distribution reproduce the observed (Pearson) correlations, the quantity the statistic depends on
+        const cols = Array.from({ length: p }, (_, j) => X.map(r => r[j]));
+        const sorted = cols.map(col => col.slice().sort((a, b) => a - b));
+        const pearson = M => { const m = M.length, mean = new Array(p).fill(0); M.forEach(r => r.forEach((v, j) => { mean[j] += v / m; }));
+            const S = Array.from({ length: p }, () => new Array(p).fill(0)); M.forEach(r => { for (let a = 0; a < p; a++) for (let b = 0; b <= a; b++) S[a][b] += (r[a] - mean[a]) * (r[b] - mean[b]); });
+            return S.map((row, a) => row.map((v, b) => { const x = b <= a ? v : S[b][a]; return S[a][a] > 0 && S[b][b] > 0 ? x / Math.sqrt(S[a][a] * S[b][b]) : (a === b ? 1 : 0); })); };
+        const target = pearson(X);
+        const mapRow = (z) => z.map((v, j) => sorted[j][Math.min(n - 1, Math.floor(normCdf(v) * n))]);
+        const factor = R => { let L = cholesky(R, p); for (let eps = 1e-8; !L && eps < 1; eps *= 10) L = cholesky(R.map((r, a) => r.map((v, b) => (a === b ? v + eps : v))), p); return L; };
+        const drawLatent = (L, r) => { const e = Array.from({ length: p }, () => gaussian(r)), z = new Array(p).fill(0); for (let i = 0; i < p; i++) for (let j = 0; j <= i; j++) z[i] += L[i][j] * e[j]; return z; };
+        let Rl = target.map(r => r.slice()), L = factor(Rl);
+        const crng = createPRNG(seed + 1), m = Math.max(4000, 20 * n);
+        for (let it = 0; it < 12 && L; it++) {
+            const ref = pearson(Array.from({ length: m }, () => mapRow(drawLatent(L, crng))));
+            let worst = 0;
+            Rl = Rl.map((row, a) => row.map((v, b) => { if (a === b) return 1; const d = target[a][b] - ref[a][b]; worst = Math.max(worst, Math.abs(d)); return Math.max(-0.999, Math.min(0.999, v + d)); }));
+            L = factor(Rl);
+            if (worst < 0.005) break;
+        }
+        if (!L) throw new Error('The correlation of the variables could not be modelled.');
+        const nulls = [];
+        for (let b = 0; b < B; b++) {
+            const Y = Array.from({ length: n }, () => mapRow(drawLatent(L, rng)));
+            nulls.push(stat(Y));
+        }
+        const ge = nulls.filter(v => v >= obs).length;
+        return { observed: obs, nullMean: nulls.reduce((a, b) => a + b, 0) / B, nullQuantile95: nulls.slice().sort((a, b) => a - b)[Math.floor(0.95 * (B - 1))], pValue: (1 + ge) / (1 + B), B, p, reference: 'copula' };
+    }
+
     const ClusterEngine = { createPRNG, standardize, euclideanMatrix, gowerMatrix, lloyd, kmeansPlusPlus, kmeans, pam, hierarchical, cutTree, gmm, gmmFromParams, mStep,
-        silhouette, calinskiHarabasz, daviesBouldin, withinSS, adjustedRand, symmetricEigen, pca, gapStatistic, bootstrapStability, nullClusterTest, relabelBySize };
+        silhouette, calinskiHarabasz, daviesBouldin, withinSS, adjustedRand, symmetricEigen, pca, gapStatistic, bootstrapStability, nullClusterTest, copulaNullTest, normInv, normCdf, relabelBySize };
     root.ClusterEngine = ClusterEngine;
 })(typeof window !== 'undefined' ? window : globalThis);

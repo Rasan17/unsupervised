@@ -86,5 +86,26 @@ check('Results are reproducible: same seed, same clusters', () => {
     assert(a.join() === b.join(), 'differ');
     return 'identical';
 });
+check('Mixed-data test (copula reference) is valid: at most 5% false positives for one population with yes/no, graded and skewed variables (100 datasets)', () => {
+    const mixed = (seed, n) => { const rng = CE.createPRNG(seed), g = () => { const u = rng() || 1e-12, v = rng(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+        return Array.from({ length: n }, () => { const z = g(), l = [z + 0.5 * g(), 0.6 * z + g(), -0.5 * z + g(), g(), 0.4 * z + g(), g()];
+            return [l[0], Math.exp(0.6 * l[1]), l[2] > 0.3 ? 1 : 0, l[3] > -0.2 ? 1 : 0, Math.min(3, Math.max(0, Math.round(l[4] + 1.5))), Math.min(4, Math.max(0, Math.round(l[5] + 2)))]; }); };
+    let rej = 0; const sims = 100;
+    for (let s = 0; s < sims; s++) if (CE.copulaNullTest(mixed(700 + s, 150), 3, { B: 49, seed: s, nInit: 2 }).pValue <= 0.05) rej++;
+    assert(rej / sims <= 0.06, `false-positive rate ${(100 * rej / sims).toFixed(1)}%`);
+    return `false positives ${(100 * rej / sims).toFixed(1)}% (conservative)`;
+});
+check('Demo cohorts: sub-types detected where they exist (copula reference), and not where there are none', () => {
+    const DEp = require('path'), D = DEp.join(__dirname, '..');
+    vm.runInThisContext(fs.readFileSync(DEp.join(D, 'data-engine.js'), 'utf8'));
+    const vars = [['Age', 'c'], ['Sex', 'b'], ['Hypertension', 'b'], ['White_Matter_Fazekas', 'o'], ['MMSE', 'c'], ['Gait_Score', 'o'], ['Evans_Index', 'c'], ['Callosal_Angle_Deg', 'c'], ['DESH_Sign', 'b'], ['Rout_mmHg_min_ml', 'c'], ['Tap_Test_Gait_Gain_Pct', 'c']];
+    const ps = ['demo_inph_phenotypes.csv', 'demo_no_subtypes.csv'].map(f => {
+        const p = globalThis.DataEngine.parseCSV(fs.readFileSync(DEp.join(D, f), 'utf8'));
+        const X = p.rows.filter(r => vars.every(([v]) => !globalThis.DataEngine.isMissing(r[v]))).map(r => vars.map(([v, t]) => (t === 'b' ? (['Male', 'Yes', 'Present'].includes(r[v]) ? 1 : 0) : Number(r[v]))));
+        return CE.copulaNullTest(X, 3, { B: 99, seed: 1 }).pValue;
+    });
+    assert(ps[0] <= 0.05 && ps[1] > 0.2, `p = ${ps.join(' / ')}`);
+    return `p = ${ps[0]} (sub-types) and ${ps[1]} (none)`;
+});
 console.log(`\n${passed}/${passed + failed} behaviour checks passed`);
 process.exit(failed ? 1 : 0);
