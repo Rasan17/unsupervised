@@ -1,0 +1,11 @@
+Unsupervised Medical Explorer
+Copyright (c) 2026 Dr G Narenthiran. All rights reserved.
+
+No permission is granted to copy, modify, distribute or use this software or its documentation, in whole or
+in part, without the prior written permission of the copyright holder. Viewing and running the published web
+page for personal research and education is permitted.
+
+For research and education only. Not a medical device; not for clinical decision-making.
+
+Third-party component: tf.min.js is TensorFlow.js, Copyright Google LLC, distributed under the Apache License 2.0
+(https://www.apache.org/licenses/LICENSE-2.0); that licence applies to that file only.
