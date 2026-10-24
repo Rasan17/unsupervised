@@ -7,7 +7,8 @@ global.window = globalThis;
 vm.runInThisContext(fs.readFileSync(path.join(__dirname, '..', 'cluster-engine.js'), 'utf8'));
 vm.runInThisContext(fs.readFileSync(path.join(__dirname, '..', 'embed-engine.js'), 'utf8'));
 vm.runInThisContext(fs.readFileSync(path.join(__dirname, '..', 'anomaly-engine.js'), 'utf8'));
-const CE = globalThis.ClusterEngine, EE = globalThis.EmbedEngine, AE = globalThis.AnomalyEngine;
+vm.runInThisContext(fs.readFileSync(path.join(__dirname, '..', 'nn-engine.js'), 'utf8'));
+const CE = globalThis.ClusterEngine, EE = globalThis.EmbedEngine, AE = globalThis.AnomalyEngine, NN = globalThis.NNEngine;
 let passed = 0, failed = 0;
 function check(name, fn) {
     const t0 = Date.now();
@@ -214,6 +215,37 @@ check('Data checks find planted entry errors (decimal point, extra digit, minus 
     const want = [3, 9, 17, 25, 40, 60], hit = want.filter(i => found.has(i)), extra = [...found].filter(i => !want.includes(i));
     assert(hit.length === want.length && extra.length === 0, `found ${hit.join(',')}, extra ${extra.join(',')}`);
     return `all ${want.length} found, no false alarms`;
+});
+// Autoencoder
+function curveData(seed, n) {   // patients along a curved one-dimensional path in 4 variables, plus noise
+    const r = CE.createPRNG(seed), gz = () => { const u = r() || 1e-12, v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+    return Array.from({ length: n }, () => { const t = -1.5 + 3 * r(); return [t, t * t, Math.sin(2 * t), Math.cos(1.5 * t)].map(v => v + 0.05 * gz()); });
+}
+check('Autoencoder captures curved structure better than PCA with the same number of dimensions (1), on new patients', () => {
+    const all = curveData(61, 500), st = CE.standardize(all.slice(0, 400)), sc = x => x.map((v, j) => (v - st.mean[j]) / st.sd[j]);
+    const Xtr = st.Z, Xte = all.slice(400).map(sc), ones = A => A.map(r => r.map(() => 1));
+    const T = NN.train(Xtr, ones(Xtr), { hidden: [16], latent: 1, seed: 2, maxEpochs: 800 });
+    const err = NN.errors(T.net, Xte, ones(Xte)).reduce((a, e) => a + e.mean, 0) / Xte.length;
+    const P1 = CE.pca(Xtr, 1), v = P1.components[0], mu = P1.mean;
+    const pcaErr = Xte.reduce((a, x) => { const c = x.map((xj, j) => xj - mu[j]), t = c.reduce((s2, cj, j) => s2 + cj * v[j], 0); return a + c.reduce((s2, cj, j) => s2 + (cj - t * v[j]) ** 2, 0) / x.length; }, 0) / Xte.length;
+    assert(err < 0.6 * pcaErr, `autoencoder ${err}, PCA ${pcaErr}`);
+    return `reconstruction error on 100 new patients ${err.toFixed(3)} vs PCA ${pcaErr.toFixed(3)} (lower is better)`;
+});
+check('Autoencoder reconstruction error ranks scattered outliers high (AUC >= 0.9)', () => {
+    const { X, y } = corrData(53, 285, 15, 6, true), Z = CE.standardize(X).Z;
+    const T = NN.train(Z, Z.map(r => r.map(() => 1)), { hidden: [8], latent: 2, seed: 4 });
+    const a = auc(NN.errors(T.net, Z, Z.map(r => r.map(() => 1))).map(e => e.mean), y);
+    assert(a >= 0.9, `AUC ${a}`);
+    return `AUC ${a.toFixed(3)}`;
+});
+check('Autoencoder: the training error counts recorded values only, and the same seed gives the same network', () => {
+    const Z = CE.standardize(curveData(62, 150)).Z, M = Z.map((r, i) => r.map((_, j) => ((i + j) % 9 === 0 ? 0 : 1))), Zm = Z.map((r, i) => r.map((v, j) => (M[i][j] ? v : 0)));
+    const a = NN.train(Zm, M, { seed: 7, maxEpochs: 60 }), b = NN.train(Zm, M, { seed: 7, maxEpochs: 60 });
+    const idx = Zm.map((_, i) => i), loss = NN.lossGrad(a.net, Zm, M, idx, 0).loss;
+    const manual = Zm.reduce((s2, x, i) => { const y = NN.reconstruct(a.net, x); return s2 + y.reduce((t, v, j) => t + (M[i][j] ? (v - x[j]) ** 2 : 0), 0); }, 0) / (Zm.length * Zm[0].length);
+    const same = JSON.stringify(a.net.layers) === JSON.stringify(b.net.layers);
+    assert(same && Math.abs(loss - manual) < 1e-12, `same ${same}, loss ${loss} vs ${manual}`);
+    return 'loss equals the error over recorded values; identical networks from the same seed';
 });
 console.log(`\n${passed}/${passed + failed} behaviour checks passed`);
 process.exit(failed ? 1 : 0);

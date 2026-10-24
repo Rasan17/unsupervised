@@ -4,10 +4,10 @@
 // (window.UMEMaps); every value from the data is escaped.
 (function (root) {
     'use strict';
-    const EE = root.EmbedEngine, CE = root.ClusterEngine, CH = root.UMECharts, esc = CH.esc;
+    const EE = root.EmbedEngine, CE = root.ClusterEngine, NN = root.NNEngine, CH = root.UMECharts, esc = CH.esc;
     const $ = id => document.getElementById(id);
     const yieldUI = () => new Promise(r => setTimeout(r, 0));
-    const LIMIT = { tsne: 2000, umap: 5000 };
+    const LIMIT = { tsne: 2000, umap: 5000, ae: 20000 };
     // Colour scale (viridis), readable on light and dark backgrounds
     const STOPS = ['#440154', '#414487', '#2a788e', '#22a884', '#7ad151', '#fde725'];
     function colourAt(t) {
@@ -15,12 +15,13 @@
         const h = s => [1, 3, 5].map(k => parseInt(s.slice(k, k + 2), 16)), a = h(STOPS[i]), b = h(STOPS[i + 1]);
         return '#' + a.map((v, k) => Math.round(v + (b[k] - v) * f).toString(16).padStart(2, '0')).join('');
     }
-    const NAMES = { pca: 'PCA', famd: 'FAMD', mds: 'Classical scaling', tsne: 't-SNE', umap: 'UMAP' };
+    const NAMES = { pca: 'PCA', famd: 'FAMD', mds: 'Classical scaling', tsne: 't-SNE', umap: 'UMAP', ae: 'Autoencoder' };
     const NOTES = {
         pca: 'Principal components of the standardised variables: a faithful projection, but only the two directions with the most variation are shown, so clusters can overlap here and still be distinct in other directions.',
         famd: 'Factor analysis of mixed data (FAMD, the counterpart of PCA for numbers and categories together): a faithful projection of the two main dimensions, so clusters can overlap here and still be distinct. The panel below shows which variables make up each dimension.',
         mds: 'Classical scaling of the dissimilarities used for clustering (the counterpart of PCA for mixed data): a faithful projection of the two main directions, so clusters can overlap here and still be distinct.',
         tsne: 't-SNE keeps each patient\'s close neighbours together but distorts everything else: the sizes of groups and the distances between them mean nothing, and it can show apparent groups even in data without sub-groups. Use it to see whether the clusters found are coherent, not as evidence that they exist.',
+        ae: 'An autoencoder is a small neural network (deep learning) trained to compress each patient into two numbers and to rebuild all the variables from them: a non-linear generalisation of PCA. With a few hundred patients it can overfit, so training stops when the error on held-back patients stops improving (see the curve). Distances on this map are not to scale, and another random seed gives a somewhat different map.',
         umap: 'UMAP keeps close neighbours together and more of the overall layout than t-SNE, but still distorts sizes and distances, and apparent groups are not evidence of sub-groups. Use it to see whether the clusters found are coherent.'
     };
     let M = null;   // { key, kind, colourBy, maps: { kind: { Y, idx, trust, xLabel, yLabel } }, busy }
@@ -88,6 +89,15 @@
                 const t = EE.createTSNE(EE.squared(D), { perplexity: 30 });
                 while (!t.done) { t.step(25); status.textContent = `t-SNE: iteration ${t.iter} of ${t.maxIter}…`; await yieldUI(); }
                 M.maps.tsne = { Y: t.Y, idx, xLabel: 't-SNE 1', yLabel: 't-SNE 2', extra: `perplexity ${Math.round(t.perplexity)}, divergence ${t.kl.toFixed(3)}` };
+            } else if (kind === 'ae') {
+                const vars = P.specs.map(s => ({ name: s.col, type: s.type, levels: s.levels })), coded = NN.codeData(idx.map(i => P.raw[i]), vars);
+                const t = NN.createTrainer(coded.X, coded.M, { hidden: [16], latent: 2, seed: P.seed });
+                while (!t.done) { t.step(10); status.textContent = `Autoencoder: training, epoch ${t.epoch} (stops when the error on held-back patients no longer improves)…`; await yieldUI(); }
+                const net = t.net, Y = coded.X.map(x => NN.encode(net, x));
+                let sse = 0, sst = 0; coded.X.forEach((x, i) => { const y = NN.reconstruct(net, x); x.forEach((v, j) => { if (coded.M[i][j]) { sse += (y[j] - v) ** 2; sst += v * v; } }); });
+                const r2 = 1 - sse / sst, F = M.famd, ref = F && F.ratio.length >= 2 ? F.ratio[0] + F.ratio[1] : null;
+                M.maps.ae = { Y, idx, xLabel: 'Autoencoder 1', yLabel: 'Autoencoder 2', history: t.history, bestEpoch: t.bestEpoch,
+                    extra: `network ${coded.X[0].length}-16-2-16-${coded.X[0].length}, best after ${t.bestEpoch} epochs; it reconstructs ${(100 * r2).toFixed(0)}% of the variation${ref ? `, against ${(100 * ref).toFixed(0)}% for the first two ${P.allContinuous ? 'principal components' : 'FAMD dimensions'}` : ''}` };
             } else {
                 const u = EE.createUMAP(D, { nNeighbors: Math.min(15, D.n - 1), minDist: 0.1, seed: P.seed });
                 while (!u.done) { u.step(20); status.textContent = `UMAP: epoch ${u.epoch} of ${u.nEpochs}…`; await yieldUI(); }
@@ -123,20 +133,21 @@
     function draw() {
         const el = $('map-panel'); if (!el) return;
         const { P } = M.ctx, n = P.rows.length;
-        const kinds = [M.maps.pca ? 'pca' : M.maps.famd ? 'famd' : 'mds', 'tsne', 'umap'];
+        const kinds = [M.maps.pca ? 'pca' : M.maps.famd ? 'famd' : 'mds', 'tsne', 'umap', 'ae'];
         const vars = [...P.cols, ...P.describe];
         const map = M.maps[M.kind];
         let body = '<p class="muted">No map is available for these data.</p>';
         if (map) {
             const c = colouring(map);
-            const svg = CH.scatter({ points: map.idx.map((i, r) => ({ x: map.Y[r][0], y: map.Y[r][1], ...c.pts(i) })), xLabel: map.xLabel, yLabel: map.yLabel, noAxes: M.kind === 'tsne' || M.kind === 'umap', aria: `${NAMES[M.kind]} map of the patients` });
+            const svg = CH.scatter({ points: map.idx.map((i, r) => ({ x: map.Y[r][0], y: map.Y[r][1], ...c.pts(i) })), xLabel: map.xLabel, yLabel: map.yLabel, noAxes: M.kind === 'tsne' || M.kind === 'umap' || M.kind === 'ae', aria: `${NAMES[M.kind]} map of the patients` });
             const tr = trustOf(map);
             body = `${svg}${c.legend}
+                ${map.history ? `<details><summary class="small">Training curve</summary>${CH.lineChart({ series: [{ name: 'Training patients', cls: 0, points: map.history.map(h => ({ x: h.epoch, y: h.train })) }, { name: 'Held-back patients', cls: 1, points: map.history.map(h => ({ x: h.epoch, y: h.val })) }], xLabel: 'Epoch', yLabel: 'Reconstruction error', aria: 'Training curve of the autoencoder', H: 220 })}${CH.legend(['Training patients', 'Held-back patients'])}<p class="muted small">If the error on held-back patients rises while the training error keeps falling, the network is learning the noise of these patients (overfitting); the weights from the lowest held-back error are used.</p></details>` : ''}
                 <p class="muted small"><strong>${NAMES[M.kind]}</strong>${map.extra ? ` (${esc(map.extra)})` : ''}. ${esc(NOTES[M.kind])}</p>
                 <p class="muted small">Trustworthiness ${tr.toFixed(3)}: how well the map keeps each patient's ${map.k} nearest neighbours (1 = perfectly; above 0.9 good).${map.idx.length < n ? ` Map of a random sample of ${map.idx.length} of the ${n} patients.` : ''}</p>`;
         }
         el.innerHTML = `
-            <div class="row map-controls" role="group" aria-label="Type of map">${kinds.map(k => `<button type="button" class="btn small${M.kind === k ? ' primary' : ''}" data-map="${k}" aria-pressed="${M.kind === k}"${M.busy ? ' disabled' : ''}>${NAMES[k]}${(k === 'tsne' || k === 'umap') && !M.maps[k] ? ' (make)' : ''}</button>`).join('')}
+            <div class="row map-controls" role="group" aria-label="Type of map">${kinds.map(k => `<button type="button" class="btn small${M.kind === k ? ' primary' : ''}" data-map="${k}" aria-pressed="${M.kind === k}"${M.busy ? ' disabled' : ''}>${NAMES[k]}${(k === 'tsne' || k === 'umap' || k === 'ae') && !M.maps[k] ? ' (make)' : ''}</button>`).join('')}
                 <label for="map-colour" class="small">Colour by</label><select id="map-colour"><option value="__cluster">Cluster</option>${vars.map(v => `<option value="${esc(v)}"${M.colourBy === v ? ' selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
             <p id="map-status" class="status small" role="status"></p>
             ${body}`;

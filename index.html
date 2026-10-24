@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>Unsupervised Medical Explorer</title>
-<link rel="stylesheet" href="style.css?v=16">
+<link rel="stylesheet" href="style.css?v=18">
 <link rel="icon" href="data:,">
 </head>
 <body>
@@ -52,6 +52,7 @@
   <section class="step" data-step="3" hidden>
     <h2>Check the data (optional)</h2>
     <p>Looks for likely data-entry errors in the variables you use, and for unusual patients among the clustering variables, before the analysis. Nothing changes unless you choose to leave a patient out.</p>
+    <div class="row"><label class="small"><input id="check-ae" type="checkbox"> Also use an autoencoder (deep learning): patients it rebuilds poorly</label></div>
     <div class="row"><button id="check-btn" class="btn primary" type="button">Run the checks</button></div>
     <p id="check-status" class="status" role="status"></p>
     <div id="check-out"></div>
@@ -118,14 +119,15 @@
   <p>Conceived, designed and directed by Dr G Narenthiran · implemented with AI pair programming (Anthropic Claude Code) · © 2026 Dr G Narenthiran. All rights reserved.</p>
   <p>For research and education only; not a medical device. Clusters found in one dataset are hypotheses: replicate them in another cohort before any clinical use.</p>
 </footer>
-<script src="data-engine.js?v=16"></script>
-<script src="cluster-engine.js?v=16"></script>
-<script src="embed-engine.js?v=16"></script>
-<script src="anomaly-engine.js?v=16"></script>
-<script src="src/charts.js?v=16"></script>
-<script src="src/maps.js?v=16"></script>
-<script src="src/checks.js?v=16"></script>
-<script src="src/use-clusters.js?v=16"></script>
-<script src="src/app.js?v=16"></script>
+<script src="data-engine.js?v=18"></script>
+<script src="cluster-engine.js?v=18"></script>
+<script src="embed-engine.js?v=18"></script>
+<script src="anomaly-engine.js?v=18"></script>
+<script src="nn-engine.js?v=18"></script>
+<script src="src/charts.js?v=18"></script>
+<script src="src/maps.js?v=18"></script>
+<script src="src/checks.js?v=18"></script>
+<script src="src/use-clusters.js?v=18"></script>
+<script src="src/app.js?v=18"></script>
 </body>
 </html>

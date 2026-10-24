@@ -9,7 +9,8 @@ global.window = globalThis;
 vm.runInThisContext(fs.readFileSync(path.join(dir, 'cluster-engine.js'), 'utf8'));
 vm.runInThisContext(fs.readFileSync(path.join(dir, 'embed-engine.js'), 'utf8'));
 vm.runInThisContext(fs.readFileSync(path.join(dir, 'anomaly-engine.js'), 'utf8'));
-const CE = globalThis.ClusterEngine, EE = globalThis.EmbedEngine, AE = globalThis.AnomalyEngine;
+vm.runInThisContext(fs.readFileSync(path.join(dir, 'nn-engine.js'), 'utf8'));
+const CE = globalThis.ClusterEngine, EE = globalThis.EmbedEngine, AE = globalThis.AnomalyEngine, NN = globalThis.NNEngine;
 const rng = CE.createPRNG(12345);
 const g = () => { const u = rng() || 1e-12, v = rng(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
 const out = {};
@@ -125,6 +126,22 @@ out.lcaCont = { logLik: LP.logLik, bic: LP.bic, shares: LP.model.pi.slice().sort
     out.anomaly = { location: R.location, covariance: R.covariance, dist: R.dist, support: R.support.map(Number), rawSupport: R.rawSupport.map(Number), rawLocation: R.rawLocation,
         lof: AE.lof(DA, 20), iso: AE.isolationForest(A, { seed: 3 }), avgPath: [1, 2, 3, 10, 256, 1000].map(AE.avgPath),
         chi2: [[0.975, 3], [0.999, 5], [0.5, 1], [0.025, 7]].map(([q, df]) => AE.chi2Ppf(q, df)), rz: AE.robustZ(A.map(r => r[0])) };
+}
+// 8. Autoencoder: gradients vs finite differences; Adam steps vs an independent NumPy implementation; linear autoencoder vs PCA
+{
+    const Z = CE.standardize(X).Z, Mk = Z.map((r, i) => r.map((_, j) => ((i * 7 + j * 3) % 23 === 0 ? 0 : 1)));
+    const Zm = Z.map((r, i) => r.map((v, j) => (Mk[i][j] ? v : 0)));
+    const net = NN.createAutoencoder({ p: 3, hidden: [5], latent: 2, activation: 'tanh', seed: 9 });
+    const init = NN.clone(net), all = Zm.map((_, i) => i);
+    // Finite-difference check of every gradient (central differences)
+    const g = NN.lossGrad(net, Zm, Mk, all, 1e-3); let worst = 0;
+    net.layers.forEach((L, l) => { L.W.forEach((row, o) => row.forEach((w, k) => { const h = 1e-6; row[k] = w + h; const a1 = NN.lossGrad(net, Zm, Mk, all, 1e-3).loss; row[k] = w - h; const a2 = NN.lossGrad(net, Zm, Mk, all, 1e-3).loss; row[k] = w; worst = Math.max(worst, Math.abs((a1 - a2) / (2 * h) - g.gW[l][o][k]) / Math.max(1e-8, Math.abs(g.gW[l][o][k]))); }));
+        L.b.forEach((bb, o) => { const h = 1e-6; L.b[o] = bb + h; const a1 = NN.lossGrad(net, Zm, Mk, all, 1e-3).loss; L.b[o] = bb - h; const a2 = NN.lossGrad(net, Zm, Mk, all, 1e-3).loss; L.b[o] = bb; worst = Math.max(worst, Math.abs((a1 - a2) / (2 * h) - g.gb[l][o]) / Math.max(1e-8, Math.abs(g.gb[l][o]))); }); });
+    const st = {}, losses = [];
+    for (let s = 0; s < 30; s++) { const gg = NN.lossGrad(net, Zm, Mk, all, 1e-3); losses.push(gg.loss); NN.adamStep(net, gg, st, { lr: 0.01 }); }
+    // Linear autoencoder with a 1- and a 2-dimensional bottleneck: full batch, no weight decay, no validation
+    const lin = [1, 2].map(d => { const T = NN.createTrainer(Z, Z.map(r => r.map(() => 1)), { hidden: [], latent: d, activation: 'linear', seed: 3, lr: 0.01, weightDecay: 0, batch: Z.length, maxEpochs: 4000, patience: 4000, validation: 0 }); while (!T.done) T.step(500); return NN.lossGrad(T.net, Z, Z.map(r => r.map(() => 1)), Z.map((_, i) => i), 0).loss; });
+    out.nn = { Z: Zm, M: Mk, init: init.layers.map(L => ({ W: L.W, b: L.b, act: L.act })), final: net.layers.map(L => ({ W: L.W, b: L.b })), losses, gradRelErr: worst, linLoss: lin };
 }
 fs.writeFileSync(path.join(__dirname, 'reference_values.json'), JSON.stringify(out));
 console.log('Engine values written to tests/reference_values.json; now run: python3 tests/reference_check.py');

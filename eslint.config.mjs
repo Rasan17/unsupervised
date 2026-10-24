@@ -4,9 +4,9 @@
 const browser = ['document', 'window', 'alert', 'confirm', 'prompt', 'console', 'URL', 'Blob', 'FileReader', 'fetch',
     'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'localStorage', 'sessionStorage', 'Event', 'navigator',
     'location', 'Worker', 'requestAnimationFrame', 'getComputedStyle', 'performance', 'self', 'matchMedia'];
-const app = ['DataEngine', 'ClusterEngine', 'EmbedEngine', 'AnomalyEngine', 'UMEChecks', 'UMECharts', 'UMEUse', 'UMEMaps', 'globalThis'];
+const app = ['DataEngine', 'ClusterEngine', 'EmbedEngine', 'AnomalyEngine', 'NNEngine', 'UMEChecks', 'UMECharts', 'UMEUse', 'UMEMaps', 'globalThis'];
 export default [{
-    files: ['src/**/*.js', 'cluster-engine.js', 'embed-engine.js', 'anomaly-engine.js'],
+    files: ['src/**/*.js', 'cluster-engine.js', 'embed-engine.js', 'anomaly-engine.js', 'nn-engine.js'],
     languageOptions: { ecmaVersion: 2023, sourceType: 'script', globals: Object.fromEntries([...browser, ...app].map(g => [g, 'readonly'])) },
     rules: {
         'no-undef': 'error',

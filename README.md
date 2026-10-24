@@ -5,16 +5,18 @@ Finding structure in clinical data without an outcome: patient phenotypes (clust
 verification standard as the Universal Medical ML/NeuralNet Predictor. Runs entirely in the browser; patient
 data never leave the computer.
 
-**Status:** in development. The statistical engine (`cluster-engine.js`) is complete for clustering and PCA and
-verified. The phenotype-discovery interface (`index.html`) works end to end: load a CSV (or a demo cohort), choose
-the variables to cluster on and those only to describe, choose a method, compare 2 to 10 clusters (silhouette,
-stability, gap statistic or BIC), then describe the chosen clusters with a verdict on whether they are more than
-chance, a silhouette plot, a map of the patients (PCA, t-SNE or UMAP) and a profile table. Step 6, "Use the clusters", turns them into a
-classification for clinicians: draft names and descriptions of each class (editable), short bedside rules from a
-classification tree with cross-validated agreement with the clusters, a calculator for a new patient (by the rules
-and by the full clustering), outcomes by class, what is needed before clinical use, and a downloadable
-classification sheet. Step 3, "Check the data" (optional), looks for likely data-entry errors and unusual
-patients before clustering and lets you leave patients out. Next: autoencoders.
+**Status:** the five planned stages are complete and verified (statistical engine, phenotype discovery, maps,
+data checks and unusual patients, autoencoders). Next: testing on real cohorts and review by a statistician.
+
+The interface (`index.html`) works end to end in seven steps: load a CSV (or a demo cohort); choose the variables to
+cluster on and those only to describe; optionally check the data for likely entry errors and unusual patients, and
+leave patients out; choose a method (an advisor suggests one for the data); compare 2 to 10 clusters (silhouette,
+stability, gap statistic or BIC); describe the chosen clusters with a verdict on whether they are more than chance,
+a silhouette plot, maps of the patients (PCA or FAMD, t-SNE, UMAP, autoencoder), the dimensions of the data and a
+profile table; and use the clusters as a classification for clinicians: draft names and descriptions of each class
+(editable), short bedside rules from a classification tree with cross-validated agreement with the clusters, a
+calculator for a new patient, outcomes by class, what is needed before clinical use, and a downloadable
+classification sheet.
 
 After changing a script or `style.css`, raise its `?v=` number in `index.html` so browsers do not keep the old copy.
 
@@ -63,6 +65,13 @@ well clustering recovers it) and a cohort of one population, where the app shoul
   (FAST-MCD with reweighting, as scikit-learn; flagged above the 99.9% chi-square limit), isolation forest, and
   local outlier factor on balanced Gower dissimilarities; each flag comes with a reason (an extreme value, a rare
   category, or the most unusual pair of values). A demo cohort has 11 planted problems.
+- **Autoencoder** (`nn-engine.js`, written directly so the page keeps a strict security policy): fully connected
+  network (default 16-2-16, tanh, linear bottleneck and output), mean squared error over recorded values only,
+  Adam with L2 weight decay, mini-batches, early stopping on 20% held-back patients; numbers standardised and
+  categories coded as in FAMD. Verified: gradients against finite differences, Adam training steps against an
+  independent NumPy implementation, and a linear autoencoder reaching exactly the PCA reconstruction error.
+  Used for a map (with its training curve and share of variation reconstructed) and, optionally, for unusual
+  patients (reconstruction error, with the variables rebuilt worst).
 - **Dimensions of the data:** FAMD (factor analysis of mixed data, as R's FactoMineR; PCA for numbers only, MCA
   for categories only): variance explained by each dimension (scree chart), the contribution and correlation of
   each variable, a plain-language description of the first three dimensions, and how strongly each dimension
@@ -78,10 +87,10 @@ well clustering recovers it) and a cohort of one population, where the app shoul
 ## Verification
 
 ```bash
-node tests/reference_check.js && python3 tests/reference_check.py   # 76 checks against scikit-learn, SciPy, umap-learn and R (poLCA, mclust, cluster, FactoMineR) (cluster::daisy, cluster::pam)
+node tests/reference_check.js && python3 tests/reference_check.py   # 80 checks against scikit-learn, SciPy, NumPy, umap-learn and R (poLCA, mclust, cluster, FactoMineR) (cluster::daisy, cluster::pam)
 node tests/behaviour_check.js                                       # simulations: true k found, 1 cluster when there are none, test calibration, stability
 node tests/ui_check.js                                              # browser (Playwright + Chrome): both demo cohorts end to end (incl. MICE and step 6), layout, no page errors
-npx eslint@9.39.5 -c eslint.config.mjs src cluster-engine.js embed-engine.js anomaly-engine.js  # undefined names and real mistakes
+npx eslint@9.39.5 -c eslint.config.mjs src cluster-engine.js embed-engine.js anomaly-engine.js nn-engine.js  # undefined names and real mistakes
 ```
 
 ## Author

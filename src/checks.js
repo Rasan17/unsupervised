@@ -4,7 +4,7 @@
 // Plain script (window.UMEChecks); every value from the data is escaped.
 (function (root) {
     'use strict';
-    const AE = root.AnomalyEngine, CE = root.ClusterEngine, EE = root.EmbedEngine, DE = root.DataEngine, CH = root.UMECharts, esc = CH.esc;
+    const NN = root.NNEngine, AE = root.AnomalyEngine, CE = root.ClusterEngine, EE = root.EmbedEngine, DE = root.DataEngine, CH = root.UMECharts, esc = CH.esc;
     const $ = id => document.getElementById(id);
     const LIMITS = { mcd: 0.999, iso: 0.6, lof: 1.6 };
     const ID_RE = /(^|[\s_-])(id|mrn|nhs|hospital[\s_-]?number|record|patient)([\s_-]?(id|no|number))?$/i;
@@ -27,7 +27,7 @@
         const num = h => rows.map(r => (isNum(r[h]) ? Number(String(r[h]).trim()) : NaN));
         const numVals = Object.fromEntries(numCols.map(h => [h, num(h)]));
         const rz = Object.fromEntries(numCols.map(h => [h, AE.robustZ(numVals[h])]));
-        const flags = Array.from({ length: n }, () => ({ mcd: null, iso: null, lof: null }));
+        const flags = Array.from({ length: n }, () => ({ mcd: null, iso: null, lof: null, ae: null }));
         const methods = [];
         // 1. Robust Mahalanobis distance (numbers and grades; patients with all of them recorded)
         let robust = null;
@@ -65,6 +65,17 @@
                 C.famdRaw = { raw, specs: cl.map((h, j) => ({ name: h, type: specs[j].type, levels: specs[j].levels })) };
             } catch (e) { /* patients sharing no recorded variable: no local outlier factor */ }
         }
+        // 4. Optional: autoencoder reconstruction error (deep learning); flagged above the upper fence Q3 + 3 IQR
+        let aeWorst = null;
+        if (C.useAE && cl.length >= 2 && n >= 50) {
+            const vars = cl.map(h => ({ name: h, type: S.vars[h].type, levels: S.vars[h].type === 'continuous' ? null : [...new Set(rows.map(r => r[h]).filter(v => !DE.isMissing(v)).map(v => String(v).trim()))].sort((a, b) => (isNum(a) && isNum(b) ? a - b : a < b ? -1 : 1)) }));
+            const raw = rows.map(r => cl.map(h => { const v = r[h]; if (DE.isMissing(v)) return null; if (S.vars[h].type === 'continuous') return isNum(v) ? Number(String(v).trim()) : null; return String(v).trim(); }));
+            const coded = NN.codeData(raw, vars), T = NN.train(coded.X, coded.M, { hidden: [8], latent: 2, seed: 2024 }), E = NN.errors(T.net, coded.X, coded.M);
+            const e = E.map(x => x.mean), srt = e.filter(Number.isFinite).sort((a, b) => a - b), q = f => srt[Math.min(srt.length - 1, Math.floor(f * (srt.length - 1)))], fence = q(0.75) + 3 * (q(0.75) - q(0.25));
+            e.forEach((v, i) => { flags[i].ae = { value: v, flagged: v > fence }; });
+            aeWorst = E.map(x => { const per = new Array(cl.length).fill(0); x.perVar.forEach((v, c) => { if (v !== null) per[coded.columns[c].variable] += v; }); return per.map((v, j) => [v, j]).sort((a, b) => b[0] - a[0]).slice(0, 2).map(([, j]) => pretty(cl[j])); });
+            methods.push({ key: 'ae', name: 'Autoencoder', note: `autoencoder (a small neural network, ${coded.X[0].length}-8-2-8-${coded.X[0].length}) trained to rebuild the clustering variables; flagged when a patient is rebuilt much worse than the others (error above the upper quartile plus 3 interquartile ranges)` });
+        }
         // Reasons: extreme single values, rare categories, otherwise the most unusual pair of numbers
         const reason = i => {
             const parts = [];
@@ -87,9 +98,9 @@
             }
             return 'no single value is extreme; the overall pattern of values is unusual';
         };
-        const unusual = flags.map((f, i) => ({ i, count: ['mcd', 'iso', 'lof'].filter(k => f[k] && f[k].flagged).length, f })).filter(u => u.count > 0)
+        const unusual = flags.map((f, i) => ({ i, count: ['mcd', 'iso', 'lof', 'ae'].filter(k => f[k] && f[k].flagged).length, f })).filter(u => u.count > 0)
             .sort((a, b) => b.count - a.count || (b.f.lof?.value ?? 0) - (a.f.lof?.value ?? 0));
-        unusual.forEach(u => { u.why = reason(u.i); });
+        unusual.forEach(u => { u.why = reason(u.i) + (aeWorst && u.f.ae && u.f.ae.flagged ? ` (rebuilt worst by the autoencoder: ${aeWorst[u.i].join(', ')})` : ''); });
         return { issues, unusual, methods, nMethods: methods.length };
     }
 
@@ -136,7 +147,8 @@
         const b = $('excl-clear'); if (b) b.addEventListener('click', () => { S.excluded.clear(); draw(); C.onChange(); });
     }
     async function start() {
-        status('Checking the data…');
+        C.useAE = !!($('check-ae') && $('check-ae').checked);
+        status(C.useAE ? 'Checking the data (training the autoencoder)…' : 'Checking the data…');
         await new Promise(r => setTimeout(r, 0));
         try { C.results = run(C.S); status(''); } catch (e) { status(`The checks stopped: ${e.message}`); }
         draw();

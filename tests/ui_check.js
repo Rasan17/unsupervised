@@ -59,7 +59,10 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         check((await p.locator('#clusters-out svg').count()) >= 2, `${name}: silhouette plot and map drawn`);
         // Maps: t-SNE and UMAP made on request, faithful (trustworthiness), coloured by a variable
         if (method !== 'lca') {
-            for (const m of ['tsne', 'umap']) { await p.click(`[data-map="${m}"]`); await p.waitForSelector(`[data-map="${m}"].primary`, { timeout: 300000 }); }
+            for (const m of ['ae', 'tsne', 'umap']) {
+                await p.click(`[data-map="${m}"]`); await p.waitForSelector(`[data-map="${m}"].primary`, { timeout: 300000 });
+                if (m === 'ae') { const at = await p.locator('#map-panel').innerText(); check(/reconstructs \d+% of the variation/.test(at) && /Training curve/.test(at) && /overfit/.test(at), `${name}: autoencoder map with its reconstruction share, training curve and caution`); }
+            }
             const mapText = await p.locator('#map-panel').innerText(), tr = Number((mapText.match(/Trustworthiness ([0-9.]+)/) || [])[1]);
             check(/UMAP keeps close neighbours together/.test(mapText) && tr > 0.85, `${name}: t-SNE and UMAP maps made, with trustworthiness (${tr}) and a caution`);
             await p.selectOption('#map-colour', 'Callosal_Angle_Deg');
@@ -102,7 +105,8 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         const errs = []; p.on('pageerror', e => errs.push(String(e))); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
         await p.goto(url); await p.click('#demo-errors'); await p.waitForSelector('#var-table table');
         check(await p.evaluate(() => window.UMEApp.state.vars.Rout_mmHg_min_ml.type) === 'continuous', `${name}: a number column with one decimal comma stays numerical`);
-        await p.click('#to-check'); await p.click('#check-btn'); await p.waitForSelector('#check-out h3', { timeout: 300000 });
+        await p.click('#to-check'); await p.check('#check-ae'); await p.click('#check-btn'); await p.waitForSelector('#check-out h3', { timeout: 300000 });
+        check(/of the 4 methods/.test(await p.locator('#check-out').innerText()) && /rebuilt worst by the autoencoder/.test(await p.locator('#check-out').innerText()), `${name}: the optional autoencoder adds a fourth method with the variables it rebuilds worst`);
         const planted = await p.evaluate(() => window.UMEApp.state.data.rows.map(r => r.Simulated_Planted_Problem ? r.Patient_ID : null).filter(Boolean));
         const found = await p.$$eval('#check-out table tbody tr td:nth-child(2)', tds => [...new Set(tds.map(td => td.textContent.trim()))]);
         const hit = planted.filter(id => found.includes(id) || (id === 'PH-115' && found.includes('PH-999')));

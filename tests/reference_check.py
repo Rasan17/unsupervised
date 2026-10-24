@@ -153,6 +153,29 @@ auc_ours = roc_auc_score(ya, an['iso']); auc_sk = np.mean([roc_auc_score(ya, -Is
 chk('Isolation forest ranks planted outliers as well as scikit-learn (AUC within 0.02 of its mean over 5 seeds)', max(0.0, auc_sk - 0.02 - auc_ours), 0.0, 0)
 chk('Chi-square quantiles (vs SciPy)', an['chi2'], [_chi2.ppf(0.975, 3), _chi2.ppf(0.999, 5), _chi2.ppf(0.5, 1), _chi2.ppf(0.025, 7)], 1e-9)
 chk('Robust z-scores: median and scaled MAD (vs SciPy)', [an['rz']['med'], an['rz']['scale']], [np.median(Xa[:, 0]), median_abs_deviation(Xa[:, 0], scale='normal')], 1e-4)
+# Autoencoder: independent NumPy forward/backward pass and Adam, from the same starting weights
+nn = o['nn']; Zm, Mk = np.array(nn['Z']), np.array(nn['M'], float)
+Ws = [np.array(L['W'], float) for L in nn['init']]; bs = [np.array(L['b'], float) for L in nn['init']]; acts = [L['act'] for L in nn['init']]
+mW = [np.zeros_like(W) for W in Ws]; vW = [np.zeros_like(W) for W in Ws]; mb = [np.zeros_like(b) for b in bs]; vb = [np.zeros_like(b) for b in bs]
+lossesN = []; wd, lr, b1, b2, eps = 1e-3, 0.01, 0.9, 0.999, 1e-8; nP, pP = Zm.shape
+for t in range(1, 31):
+    A = [Zm]
+    for W, b, a in zip(Ws, bs, acts):
+        z = A[-1] @ W.T + b; A.append(np.tanh(z) if a == 'tanh' else z)
+    Y = A[-1]; lossesN.append(float(np.sum(Mk * (Y - Zm) ** 2) / (pP * nP) + 0.5 * wd * sum(np.sum(W ** 2) for W in Ws)))
+    D = Mk * 2 * (Y - Zm) / (pP * nP); gW = [None] * len(Ws); gb = [None] * len(Ws)
+    for l in range(len(Ws) - 1, -1, -1):
+        dz = D * ((1 - A[l + 1] ** 2) if acts[l] == 'tanh' else 1)
+        gW[l] = dz.T @ A[l] + wd * Ws[l]; gb[l] = dz.sum(0); D = dz @ Ws[l]
+    for l in range(len(Ws)):
+        for P, G, m, v in ((Ws, gW, mW, vW), (bs, gb, mb, vb)):
+            m[l] = b1 * m[l] + (1 - b1) * G[l]; v[l] = b2 * v[l] + (1 - b2) * G[l] ** 2
+            P[l] = P[l] - lr * (m[l] / (1 - b1 ** t)) / (np.sqrt(v[l] / (1 - b2 ** t)) + eps)
+chk('Autoencoder gradients (back-propagation) agree with finite differences (largest relative difference)', nn['gradRelErr'], 0.0, 1e-5)
+chk('Autoencoder training, 30 Adam steps with weight decay and missing values: losses (vs independent NumPy implementation)', nn['losses'], lossesN, 1e-12)
+chk('Autoencoder training: weights after 30 steps (vs NumPy)', np.concatenate([np.ravel(L['W']) for L in nn['final']] + [np.ravel(L['b']) for L in nn['final']]), np.concatenate([W.ravel() for W in Ws] + [b.ravel() for b in bs]), 1e-11)
+ev = PCA().fit(X).explained_variance_ * (n - 1) / n; Zs = (X - X.mean(0)) / X.std(0); evz = PCA().fit(Zs).explained_variance_ * (n - 1) / n
+chk('Linear autoencoder reaches the PCA reconstruction error (bottleneck 1 and 2; Baldi & Hornik 1989)', nn['linLoss'], [evz[1:].sum() / 3, evz[2:].sum() / 3], 1e-5)
 # R: Gower (daisy), PAM
 rs = shutil.which('Rscript')
 if rs:
