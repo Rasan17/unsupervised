@@ -25,6 +25,8 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
         p.on('dialog', d => d.accept());
         await p.goto(url);
+        const visibleSteps = () => p.$$eval('section.step', ss => ss.filter(s => s.offsetParent !== null).map(s => s.dataset.step));
+        check(JSON.stringify(await visibleSteps()) === '["1"]', `${name}: only step 1 is shown at the start`);
         await p.click(demo); await p.click('#to-step3'); await p.click('#explore-btn');
         await p.waitForSelector('#describe-btn', { timeout: 300000 });
         const lead = await p.locator('#explore-out .lead').innerText();
@@ -36,6 +38,10 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         const verdict = (await p.locator('.verdict').innerText()).replace(/\s+/g, ' ');
         check(expectReal ? !/Do not interpret/.test(verdict) : /Do not interpret/.test(verdict), `${name}: verdict (${verdict.slice(0, 90)}...)`);
         check((await p.locator('#clusters-out svg').count()) >= 2, `${name}: silhouette plot and map drawn`);
+        await p.click('.tab[data-step="2"]');
+        check(JSON.stringify(await visibleSteps()) === '["2"]', `${name}: clicking the "2 Variables" tab shows only that step`);
+        await p.click('.tab[data-step="5"]');
+        check(JSON.stringify(await visibleSteps()) === '["5"]', `${name}: clicking the "5 The clusters" tab shows only that step`);
         check(errs.length === 0, `${name}: no page errors${errs.length ? ': ' + errs.join(' | ') : ''}`);
         await p.close();
     }
