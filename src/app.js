@@ -344,7 +344,12 @@
             const stab = CE.bootstrapStability(P.rows.length, labels, resampleFn(P, k, 7), { B: 100, seed: P.seed + 1, groups: P.groups });
             status('clusters-status', 'Testing whether the data have more structure than a single population…'); await yieldUI();
             let test = null;
-            const testOne = Q => (P.allContinuous ? { ...CE.nullClusterTest(Q.Z, k, { B: 99, seed: P.seed }), kind: 'gaussian' } : { ...CE.copulaNullTest(Q.X, k, { B: 99, seed: P.seed }), kind: 'copula' });
+            // Mixed data: categories with more than two levels enter the test with one reference level left out (their
+            // indicators always add up to 1, which no correlation model can reproduce exactly)
+            const keep = [], groups = []; let col = 0;
+            P.specs.forEach(sp => { const w = sp.type === 'nominal' && sp.levels.length > 2 ? sp.levels.length : 1; const g = []; for (let q = 0; q < w; q++) { if (!(w > 1 && q === 0)) { if (w > 1) g.push(keep.length); keep.push(col); } col++; } if (g.length) groups.push(g); });
+            const refX = X => X.map(r => keep.map(c => r[c]));
+            const testOne = Q => (P.allContinuous ? { ...CE.nullClusterTest(Q.Z, k, { B: 99, seed: P.seed }), kind: 'gaussian' } : { ...CE.copulaNullTest(refX(Q.X), k, { B: 99, seed: P.seed, groups }), kind: 'copula' });
             if (P.X && !P.impP) test = testOne(P);
             if (P.X && P.impP) {
                 // One test per imputed dataset, combined by the median p-value (Eekhout et al. 2017)

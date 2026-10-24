@@ -256,6 +256,20 @@ check('Large datasets: fast balanced Gower weights, pairwise dissimilarity and r
     assert(wd < 1e-10 && md < 1e-12 && ld === 0, `weights ${wd}, pairs ${md}, lof ${ld}`);
     return `largest differences: weights ${wd.toExponential(1)}, dissimilarities ${md.toExponential(1)}, local outlier factor ${ld}`;
 });
+check('Mixed-data test (copula reference) stays valid with categories of several levels: at most 7% false positives for one population (60 datasets)', () => {
+    let fp = 0, errors = 0;
+    for (let s = 0; s < 60; s++) {
+        const r = CE.createPRNG(900 + s), gz = () => { const u = r() || 1e-12, v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+        const X = Array.from({ length: 250 }, () => {
+            const a = gz(), b = 0.5 * a + 0.87 * gz(), c = 0.4 * a + 0.9 * gz();
+            const cat = c < -0.7 ? 0 : c < 0 ? 1 : c < 0.7 ? 2 : 3;   // a 4-level category, correlated with a
+            return [a, Math.exp(0.5 * b), b > 0.4 ? 1 : 0, ...[1, 2, 3].map(l => (cat === l ? 1 : 0))];   // reference coding
+        });
+        try { if (CE.copulaNullTest(X, 3, { B: 39, seed: s, groups: [[3, 4, 5]] }).pValue <= 0.05) fp++; } catch (e) { errors++; }
+    }
+    assert(errors === 0 && fp / 60 <= 0.07, `${fp} false positives, ${errors} errors`);
+    return `${fp} of 60 false positives (${(100 * fp / 60).toFixed(1)}%); no failures`;
+});
 // Self-organising map (the neural-network method for large datasets)
 check('Self-organising map keeps the layout of the data: low topographic error on a two-dimensional sheet in 4 variables', () => {
     const r = CE.createPRNG(91), X = Array.from({ length: 1500 }, () => { const a = r() * 4, b = r() * 4; return [a, b, a + b, a - b].map(v => v + 0.05 * (r() - 0.5)); }), M1 = X.map(x => x.map(() => 1));

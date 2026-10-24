@@ -167,6 +167,10 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         check(ari5 >= 0.7, `${name}: 5 groups recover the simulated referral patterns (adjusted Rand ${ari5.toFixed(2)})`);
         await p.selectOption('#k-choice', '5'); await p.click('#describe-btn'); await p.waitForSelector('#to-use', { timeout: 600000 });
         check((await p.locator('#clusters-out svg[aria-label="Self-organising map of the records coloured by cluster"]').count()) === 1, `${name}: the self-organising map is drawn`);
+        // Regression: the test of "no real sub-groups" with categories of several levels (missing values filled)
+        await p.click('.tab[data-step="4"]'); await p.selectOption('#missing', 'fill'); await p.click('#explore-btn'); await p.waitForSelector('#describe-btn', { timeout: 600000 });
+        await p.selectOption('#k-choice', '5'); await p.click('#describe-btn'); await p.waitForSelector('#to-use', { timeout: 600000 });
+        check(/more separation than a single population/.test(await p.locator('#clusters-out .verdict').innerText()) && !/stopped/.test(await p.locator('#clusters-status').innerText()), `${name}: the test of no real sub-groups runs with categories of several levels and detects the patterns`);
         await p.click('#to-use'); await p.waitForSelector('#np-go');
         const j = await p.evaluate(() => window.UMEApp.state.explore.P.specs.findIndex(sp => sp.col === 'Urgency'));
         await p.selectOption(`#np-${j}`, 'Two-week wait'); await p.click('#np-go');

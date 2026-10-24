@@ -580,11 +580,27 @@
      * same discreteness, so only sub-types beyond it count. X: the numerically coded data (before standardisation);
      * the clustering statistic is k-means R^2 on standardised data, as for the observed data.
      */
-    function copulaNullTest(X, k, { B = 100, seed = 2024, nInit = 5 } = {}) {
-        checkMatrix(X);
-        const n = X.length, p = X[0].length, rng = createPRNG(seed);
+    function copulaNullTest(X0, k, { B = 100, seed = 2024, nInit = 5, groups = [] } = {}) {
+        checkMatrix(X0);
+        const n = X0.length, rng = createPRNG(seed);
         const stat = data => { const Z = standardize(data).Z, tss = withinSS(Z, new Array(n).fill(0)); return tss > 0 ? 1 - kmeans(Z, k, { nInit, seed: Math.floor(rng() * 1e9) }).inertia / tss : 0; };
-        const obs = stat(X);
+        const obs = stat(X0);
+        // Categories with several levels (groups: the indicator columns of one variable) are simulated from a single
+        // latent value cut at the observed category shares, so every patient has exactly one category. The levels are
+        // ordered along the first principal component of the other columns, which keeps their main association.
+        const inGroup = new Set(groups.flat()), others = X0[0].map((_, j) => j).filter(j => !inGroup.has(j));
+        let pc1 = null;
+        if (groups.length && others.length >= 1) { const Zo = standardize(X0.map(r => others.map(j => r[j]))).Z, P1 = pca(Zo, 1); pc1 = P1.scores.map(sv => sv[0]); }
+        const gInfo = groups.map(cols => {
+            const pattern = r => cols.map(c => r[c]).join(','), pats = new Map();
+            X0.forEach((r, i) => { const key = pattern(r); if (!pats.has(key)) pats.set(key, { key, vals: cols.map(c => r[c]), n: 0, s: 0 }); const e = pats.get(key); e.n++; e.s += pc1 ? pc1[i] : 0; });
+            const levels = [...pats.values()].sort((a, b) => a.s / a.n - b.s / b.n);
+            return { cols, levels, code: r => levels.findIndex(l => l.key === pattern(r)) };
+        });
+        // Reduced matrix: other columns, then one ordered code per category
+        const toReduced = r => [...others.map(j => r[j]), ...gInfo.map(g => g.code(r))];
+        const fromReduced = z => { const out = new Array(X0[0].length); others.forEach((j, q) => { out[j] = z[q]; }); gInfo.forEach((g, q) => { const lv = g.levels[Math.round(z[others.length + q])]; g.cols.forEach((c, t) => { out[c] = lv.vals[t]; }); }); return out; };
+        const X = groups.length ? X0.map(toReduced) : X0, p = X[0].length;
         // NORTA ("normal to anything"): latent Gaussian correlations adjusted until data mapped onto each variable's
         // observed distribution reproduce the observed (Pearson) correlations, the quantity the statistic depends on
         const cols = Array.from({ length: p }, (_, j) => X.map(r => r[j]));
@@ -594,7 +610,15 @@
             return S.map((row, a) => row.map((v, b) => { const x = b <= a ? v : S[b][a]; return S[a][a] > 0 && S[b][b] > 0 ? x / Math.sqrt(S[a][a] * S[b][b]) : (a === b ? 1 : 0); })); };
         const target = pearson(X);
         const mapRow = (z) => z.map((v, j) => sorted[j][Math.min(n - 1, Math.floor(normCdf(v) * n))]);
-        const factor = R => { let L = cholesky(R, p); for (let eps = 1e-8; !L && eps < 1; eps *= 10) L = cholesky(R.map((r, a) => r.map((v, b) => (a === b ? v + eps : v))), p); return L; };
+        // Cholesky factor of a correlation matrix; if it is not positive definite (as with the indicators of one
+        // category, which can never be 1 together), first project it onto the nearest valid correlation matrix:
+        // eigenvalues clipped at 1e-4, then the diagonal rescaled to 1
+        const project = R => {
+            const e = symmetricEigen(R), lam = e.values.map(v => Math.max(v, 1e-4));
+            const A = Array.from({ length: p }, (_, a) => Array.from({ length: p }, (__, b) => e.vectors.reduce((s, v, q) => s + v[a] * v[b] * lam[q], 0)));
+            return A.map((row, a) => row.map((v, b) => v / Math.sqrt(A[a][a] * A[b][b])));
+        };
+        const factor = R => cholesky(R, p) || cholesky(project(R), p) || cholesky(project(project(R)).map((r, a) => r.map((v, b) => (a === b ? v + 1e-6 : v))), p);
         const drawLatent = (L, r) => { const e = Array.from({ length: p }, () => gaussian(r)), z = new Array(p).fill(0); for (let i = 0; i < p; i++) for (let j = 0; j <= i; j++) z[i] += L[i][j] * e[j]; return z; };
         let Rl = target.map(r => r.slice()), L = factor(Rl);
         const crng = createPRNG(seed + 1), m = Math.max(4000, 20 * n);
@@ -602,6 +626,7 @@
             const ref = pearson(Array.from({ length: m }, () => mapRow(drawLatent(L, crng))));
             let worst = 0;
             Rl = Rl.map((row, a) => row.map((v, b) => { if (a === b) return 1; const d = target[a][b] - ref[a][b]; worst = Math.max(worst, Math.abs(d)); return Math.max(-0.999, Math.min(0.999, v + d)); }));
+            if (!cholesky(Rl, p)) Rl = project(Rl);
             L = factor(Rl);
             if (worst < 0.005) break;
         }
@@ -609,10 +634,10 @@
         const nulls = [];
         for (let b = 0; b < B; b++) {
             const Y = Array.from({ length: n }, () => mapRow(drawLatent(L, rng)));
-            nulls.push(stat(Y));
+            nulls.push(stat(groups.length ? Y.map(fromReduced) : Y));
         }
         const ge = nulls.filter(v => v >= obs).length;
-        return { observed: obs, nullMean: nulls.reduce((a, b) => a + b, 0) / B, nullQuantile95: nulls.slice().sort((a, b) => a - b)[Math.floor(0.95 * (B - 1))], pValue: (1 + ge) / (1 + B), B, p, reference: 'copula' };
+        return { observed: obs, nullMean: nulls.reduce((a, b) => a + b, 0) / B, nullQuantile95: nulls.slice().sort((a, b) => a - b)[Math.floor(0.95 * (B - 1))], pValue: (1 + ge) / (1 + B), B, p: X0[0].length, reference: 'copula' };
     }
 
     // ------------------------------------------------------------------------------------------- describing clusters
