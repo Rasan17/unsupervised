@@ -31,7 +31,8 @@
         el.innerHTML = `
             <div class="grid2"><div>${chart()}${CH.legend(Array.from({ length: k }, (_, c) => `Cluster ${c + 1}`))}</div>
             <div class="small"><p class="muted">Each square is a unit of the map: records with similar values fall on the same or neighbouring units. Colour: the cluster of the unit; the stronger the colour, the more records it holds (hover for the number). Units without records are grey.</p>
-                <p><strong>Select a region:</strong> drag a rectangle over this map, or click a unit. Hold Shift (or Cmd / Ctrl) to add to the selection. The records on the selected units are listed below. You can also select patients on the map of the patients above: click a point, drag a rectangle, or hold Option (Alt) and drag for a freehand outline.</p>
+                <p><strong>Select a region:</strong> drag a rectangle over this map, or click a unit. Hold Shift while dragging to add, Cmd (Ctrl on Windows) to remove; Shift- or Cmd-click adds or removes one unit. The records on the selected units are listed below. You can also select patients on the map of the patients above: click a point, drag a rectangle, or hold Option (Alt) and drag for a freehand outline.</p>
+                <p><strong>Deselect:</strong> "Clear selection", the Escape key, or a click on an empty part of either map.</p>
                 <div class="row" role="group" aria-label="Select the units of a cluster">${Array.from({ length: k }, (_, c) => `<button type="button" class="btn small" data-selc="${c}"><i class="sw s${c % 8}"></i>Cluster ${c + 1}</button>`).join('')}<button type="button" class="btn small" id="som-clear"${V.sel.size ? '' : ' disabled'}>Clear selection</button></div></div></div>
             ${V.rec ? `<p class="small note">Selected on the map of the patients: ${V.rec.size.toLocaleString('en-GB')} record(s), on the ${V.sel.size} unit(s) outlined here (dashed: only some of the unit's records are selected). The table lists exactly these records.</p>` : ''}
             ${V.picked && V.sel.has(V.picked.u) ? `<p class="small note">Selected from the map of the patients: record ${esc(recordLabel(V.picked.i))} is on unit ${V.picked.u + 1} (outlined), with ${V.nn.map.hits[V.picked.u]} record(s).</p>` : ''}
@@ -45,26 +46,36 @@
         const svg = $('som-svg'), band = $('som-band');
         const toUnit = e => { const t = e.target; return t && t.dataset && t.dataset.unit !== undefined ? Number(t.dataset.unit) : null; };
         const pt = e => { const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; const q = p.matrixTransform(svg.getScreenCTM().inverse()); return [q.x, q.y]; };
-        let start = null, add = false;
-        svg.addEventListener('pointerdown', e => { start = pt(e); add = e.shiftKey || e.metaKey || e.ctrlKey; svg.setPointerCapture(e.pointerId); e.preventDefault(); });
+        let start = null, add = false, remove = false, far = 0;
+        svg.addEventListener('pointerdown', e => { start = pt(e); far = 0; remove = e.metaKey || e.ctrlKey; add = e.shiftKey && !remove; svg.setPointerCapture(e.pointerId); e.preventDefault(); });
         svg.addEventListener('pointermove', e => {
             if (!start) return;
             const [x, y] = pt(e), x0 = Math.min(x, start[0]), y0 = Math.min(y, start[1]);
+            far = Math.max(far, Math.hypot(x - start[0], y - start[1]));
             band.setAttribute('x', x0); band.setAttribute('y', y0); band.setAttribute('width', Math.abs(x - start[0])); band.setAttribute('height', Math.abs(y - start[1])); band.removeAttribute('display');
         });
         svg.addEventListener('pointerup', e => {
             if (!start) return;
-            const [x, y] = pt(e), moved = Math.hypot(x - start[0], y - start[1]) > 3, m = V.nn.map, cell = cellSize(m);
+            const [x, y] = pt(e), m = V.nn.map, cell = cellSize(m), moved = Math.max(far, Math.hypot(x - start[0], y - start[1])) > 3;
             if (moved) {
                 const x0 = Math.min(x, start[0]), x1 = Math.max(x, start[0]), y0 = Math.min(y, start[1]), y1 = Math.max(y, start[1]);
                 const hit = m.pos.map(([r, c], u) => [u, c * cell + cell / 2, r * cell + cell / 2]).filter(([, cx, cy]) => cx >= x0 && cx <= x1 && cy >= y0 && cy <= y1).map(([u]) => u);
-                if (!add) V.sel.clear();
-                hit.forEach(u => V.sel.add(u));
+                if (remove) {
+                    // Remove: these units, or (after a selection on the map of the patients) their records
+                    if (V.rec) { hit.forEach(u => { V.rec.forEach(i => { if (m.bmu[i] === u) V.rec.delete(i); }); }); if (!V.rec.size) V.rec = null; V.sel = new Set(V.rec ? [...V.rec].map(i => m.bmu[i]) : []); } else hit.forEach(u => V.sel.delete(u));
+                } else {
+                    if (!add) { V.sel.clear(); V.rec = null; } else if (V.rec) { V.rec = null; }
+                    hit.forEach(u => V.sel.add(u));
+                }
             } else {
-                const u = toUnit(e) ?? (() => { const c = Math.floor(start[0] / cell), r = Math.floor(start[1] / cell); return r >= 0 && r < m.rows && c >= 0 && c < m.cols ? r * m.cols + c : null; })();
-                if (u !== null) { if (add) { if (V.sel.has(u)) V.sel.delete(u); else V.sel.add(u); } else if (V.sel.size === 1 && V.sel.has(u)) V.sel.clear(); else { V.sel.clear(); V.sel.add(u); } }
+                const c0 = Math.floor(start[0] / cell), r0 = Math.floor(start[1] / cell), u = toUnit(e) ?? (r0 >= 0 && r0 < m.rows && c0 >= 0 && c0 < m.cols ? r0 * m.cols + c0 : null);
+                // A click on an empty unit or outside the grid clears the selection
+                if (u === null || !m.hits[u]) { V.sel.clear(); V.rec = null; }
+                else if (add || remove) { V.rec = null; if (V.sel.has(u)) V.sel.delete(u); else V.sel.add(u); }
+                else if (V.sel.size === 1 && V.sel.has(u)) { V.sel.clear(); V.rec = null; }
+                else { V.sel.clear(); V.rec = null; V.sel.add(u); }
             }
-            start = null; V.page = 0; V.picked = null; V.rec = null; draw();
+            start = null; V.page = 0; V.picked = null; draw();
         });
         svg.addEventListener('pointercancel', () => { start = null; band.setAttribute('display', 'none'); });
         document.querySelectorAll('#som-view [data-selc]').forEach(b => b.addEventListener('click', e => {
@@ -123,10 +134,12 @@
         });
     }
     // From the map of the patients: select the unit of a clicked record (toggle; add with Shift / Cmd / Ctrl)
-    function selectRecords(rows, add) {
+    // mode: 'replace', 'add' or 'remove' (records chosen on the map of the patients)
+    function selectRecords(rows, mode = 'replace') {
         if (!V || !V.nn) return;
-        const rec = add && V.rec ? new Set(V.rec) : add ? new Set(selectedRecords()) : new Set();
-        rows.forEach(i => rec.add(i));
+        if (mode === true) mode = 'add';
+        const rec = mode === 'replace' ? new Set() : new Set(V.rec ? V.rec : selectedRecords());
+        rows.forEach(i => { if (mode === 'remove') rec.delete(i); else rec.add(i); });
         V.rec = rec.size ? rec : null; V.sel = new Set([...rec].map(i => V.nn.map.bmu[i])); V.picked = null; V.page = 0;
         draw();
     }
@@ -137,10 +150,16 @@
         V.rec = null; V.picked = V.sel.has(u) ? { i, u } : null; V.page = 0;
         draw();
     }
+    function clear() { if (!V) return; V.sel.clear(); V.rec = null; V.picked = null; V.page = 0; draw(); }
+    function hasSelection() { return !!(V && V.sel && V.sel.size); }
+    // Escape clears the selection (not while typing in a text or number box; a drop-down keeping the focus after a
+    // choice does not stop it, as clicking a map does not move the focus)
+    const typing = t => !!t && (t.tagName === 'TEXTAREA' || t.isContentEditable || (t.tagName === 'INPUT' && !/^(checkbox|radio|button|submit|range|color|file)$/i.test(t.type || '')));
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && hasSelection() && !typing(e.target)) clear(); });
     function render(ctx) {
         if (!V || V.key !== ctx.S.result) V = { key: ctx.S.result, sel: new Set(), sortCol: null, sortDir: 1, page: 0 };
         Object.assign(V, { S: ctx.S, P: ctx.P, nn: ctx.S.result.neural, labels: ctx.S.result.labels, k: ctx.S.result.k });
         draw();
     }
-    root.UMESom = { render, selectRecord, selectRecords, _state: () => V };
+    root.UMESom = { render, selectRecord, selectRecords, clear, hasSelection, _state: () => V };
 })(typeof window !== 'undefined' ? window : globalThis);

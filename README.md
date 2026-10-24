@@ -43,7 +43,8 @@ referral patterns (`tools/make_referral_demo.py`).
   sample weights; on the 8,000-referral demo it recovers the five patterns as well as k-means (adjusted Rand 0.80).
   The map in step 6 is interactive: drag a rectangle (or click units, Shift / Cmd / Ctrl to add, or select a
   whole cluster) and a table lists only the records on the selected units, with how they differ from all
-  records, sorting, paging and a CSV download; the same records are highlighted on the map of the patients. Conversely, on the map of the patients, click a point (its unit), drag a rectangle, or hold Option (Alt) and drag with either button for a freehand outline: exactly those records are listed, and their units are outlined on the self-organising map (dashed where only some of a unit's records are selected).
+  records, sorting, paging and a CSV download; the same records are highlighted on the map of the patients. Conversely, on the map of the patients, click a point (its unit), drag a rectangle, or hold Option (Alt) and drag with either button for a freehand outline: exactly those records are listed, and their units are outlined on the self-organising map (dashed where only some of a unit's records are selected). On either map, Shift adds and Cmd (Ctrl) removes;
+  "Clear selection", Escape or a click on an empty area deselects.
   An autoencoder followed by k-means, and IDEC deep clustering, were tried first and recovered the patterns poorly
   (about 0.45), in line with the literature on deep clustering of tabular data, so they are not used.
 - **Large datasets:** above 3,000 records, silhouettes and maps use a random sample of 2,000; PAM and Ward (which

@@ -199,7 +199,17 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         await p.mouse.up(); await p.keyboard.up('Alt');
         const r2 = await recState();
         check(r2.rec > 0 && r2.rec !== r1.rec && r2.unitsOk && r2.table === r2.rec, `${name}: a closed freehand outline (Option + drag) selects ${r2.rec} records and replaces the previous selection`);
-        await p.click('#som-clear');
+        // Removing and deselecting: Cmd/Ctrl-drag removes an area; Escape and a click on empty space clear
+        const dragOn = async (from, to, mods = []) => { await mp.scrollIntoViewIfNeeded(); const bx = await mp.boundingBox(); for (const k of mods) await p.keyboard.down(k); await p.mouse.move(bx.x + bx.width * from[0], bx.y + bx.height * from[1]); await p.mouse.down(); await p.mouse.move(bx.x + bx.width * to[0], bx.y + bx.height * to[1], { steps: 6 }); await p.mouse.up(); for (const k of mods.slice().reverse()) await p.keyboard.up(k); };
+        await dragOn([0.1, 0.1], [0.95, 0.9]); const rAll = await recState();
+        await dragOn([0.1, 0.1], [0.5, 0.9], ['Control']); const rLess = await recState();
+        check(rLess.rec > 0 && rLess.rec < rAll.rec && rLess.unitsOk && rLess.table === rLess.rec, `${name}: Cmd / Ctrl + drag removes an area from the selection (${rAll.rec} to ${rLess.rec} records)`);
+        await p.keyboard.press('Escape');
+        const rEsc = await recState();
+        await dragOn([0.1, 0.1], [0.95, 0.9]); await mp.scrollIntoViewIfNeeded(); const bx2 = await mp.boundingBox(); await p.mouse.click(bx2.x + bx2.width * 0.02, bx2.y + bx2.height * 0.5);
+        const rEmpty = await recState();
+        check(rEsc.rec === 0 && rEsc.units === 0 && rEmpty.rec === 0 && rEmpty.units === 0, `${name}: Escape and a click on an empty area clear the selection`);
+        await p.click('[data-selc="0"]'); await p.click('#som-clear');
         check(/No units selected/.test(await p.locator('#som-table').innerText()) && (await p.$$eval('#map-panel circle.hl, #map-panel circle.dim', c => c.length)) === 0, `${name}: clearing the selection empties the table and removes the highlight`);
         // Regression: the test of "no real sub-groups" with categories of several levels (missing values filled)
         await p.click('.tab[data-step="4"]'); await p.selectOption('#missing', 'fill'); await p.click('#explore-btn'); await p.waitForSelector('#describe-btn', { timeout: 600000 });

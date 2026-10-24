@@ -155,8 +155,8 @@
             const tr = trustOf(map);
             const hlShown = HL ? map.idx.filter(i => HL.has(i)).length : 0;
             body = `${svg}${c.legend}
-                ${M.ctx.S.result.neural && M.ctx.S.result.neural.unitLabels ? '<p class="muted small">Select patients here: click a point, drag a rectangle, or hold Option (Alt) and drag (with either mouse button) for a freehand outline; Shift adds. The self-organising map below shows where they are.</p>' : ''}
-                ${HL ? `<p class="small note">Highlighted: the ${HL.size.toLocaleString('en-GB')} record(s) selected ${root.UMESom && root.UMESom._state() && root.UMESom._state().rec ? 'here' : 'on the self-organising map below'}${hlShown < HL.size ? ` (${hlShown.toLocaleString('en-GB')} of them are on this map, which shows a sample)` : ''}. "Clear selection" under the self-organising map removes the highlight.</p>` : ''}
+                ${M.ctx.S.result.neural && M.ctx.S.result.neural.unitLabels ? '<p class="muted small">Select patients here: click a point, drag a rectangle, or hold Option (Alt) and drag (with either mouse button) for a freehand outline. Hold Shift to add, Cmd (Ctrl on Windows) to remove. Deselect: click an empty area, press Escape, or "Clear selection". The self-organising map below shows where they are.</p>' : ''}
+                ${HL ? `<p class="small note">Highlighted: the ${HL.size.toLocaleString('en-GB')} record(s) selected ${root.UMESom && root.UMESom._state() && root.UMESom._state().rec ? 'here' : 'on the self-organising map below'}${hlShown < HL.size ? ` (${hlShown.toLocaleString('en-GB')} of them are on this map, which shows a sample)` : ''}. <button type="button" class="btn small" id="map-clear">Clear selection</button></p>` : ''}
                 ${map.history ? `<details><summary class="small">Training curve</summary>${CH.lineChart({ series: [{ name: 'Training patients', cls: 0, points: map.history.map(h => ({ x: h.epoch, y: h.train })) }, { name: 'Held-back patients', cls: 1, points: map.history.map(h => ({ x: h.epoch, y: h.val })) }], xLabel: 'Epoch', yLabel: 'Reconstruction error', aria: 'Training curve of the autoencoder', H: 220 })}${CH.legend(['Training patients', 'Held-back patients'])}<p class="muted small">If the error on held-back patients rises while the training error keeps falling, the network is learning the noise of these patients (overfitting); the weights from the lowest held-back error are used.</p></details>` : ''}
                 <p class="muted small"><strong>${NAMES[M.kind]}</strong>${map.extra ? ` (${esc(map.extra)})` : ''}. ${esc(NOTES[M.kind])}</p>
                 <p class="muted small">Trustworthiness ${tr.toFixed(3)}: how well the map keeps each patient's ${map.k} nearest neighbours (1 = perfectly; above 0.9 good).${map.idx.length < n ? ` Map of a random sample of ${map.idx.length} of the ${n} patients.` : ''}</p>`;
@@ -170,6 +170,7 @@
         const somOn = root.UMESom && root.UMESom.selectRecord && M.ctx.S.result.neural && M.ctx.S.result.neural.unitLabels;
         const svgEl = el.querySelector('svg.chart');
         if (somOn && svgEl) { svgEl.classList.add('pickable'); wireRegion(svgEl); }
+        const mc = el.querySelector('#map-clear'); if (mc) mc.addEventListener('click', () => root.UMESom.clear());
         el.querySelectorAll('[data-map]').forEach(b => b.addEventListener('click', () => { const k = b.dataset.map; if (M.maps[k]) { M.kind = k; draw(); } else compute(k); }));
         $('map-colour').addEventListener('change', e => { M.colourBy = e.target.value; draw(); });
     }
@@ -219,7 +220,8 @@
             const shape = document.createElementNS(NS, e.altKey ? 'path' : 'rect');
             shape.setAttribute('class', 'band');
             svg.appendChild(shape);
-            drag = { start: pt(e), pts: [pt(e)], lasso: e.altKey, add: e.shiftKey || e.metaKey || e.ctrlKey, shape, target: e.target };
+            drag = { start: pt(e), pts: [pt(e)], lasso: e.altKey, mode: e.metaKey || e.ctrlKey ? 'remove' : e.shiftKey ? 'add' : 'replace', shape, target: e.target };
+            if (drag.mode === 'remove') shape.classList.add('remove');
             svg.setPointerCapture(e.pointerId); e.preventDefault();
         });
         svg.addEventListener('pointermove', e => {
@@ -234,11 +236,16 @@
             // A drag, not a click, if the pointer went more than 3 units from where it started at any time (a closed
             // freehand outline ends where it began)
             const end = pt(e), moved = d.pts.concat([end]).some(q => Math.hypot(q[0] - d.start[0], q[1] - d.start[1]) > 3);
-            if (!moved) { const t = d.target; if (t && t.dataset && t.dataset.row !== undefined) root.UMESom.selectRecord(Number(t.dataset.row), d.add); return; }
+            if (!moved) {
+                const t = d.target;
+                // A click on a point selects (or with Shift / Cmd / Ctrl toggles) its unit; a click on empty space clears
+                if (t && t.dataset && t.dataset.row !== undefined) root.UMESom.selectRecord(Number(t.dataset.row), d.mode !== 'replace'); else root.UMESom.clear();
+                return;
+            }
             const inside = d.lasso ? (x, y) => { let c = false; for (let i = 0, j = d.pts.length - 1; i < d.pts.length; j = i++) { const [xi, yi] = d.pts[i], [xj, yj] = d.pts[j]; if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) c = !c; } return c; }
                 : (x, y) => x >= Math.min(d.start[0], end[0]) && x <= Math.max(d.start[0], end[0]) && y >= Math.min(d.start[1], end[1]) && y <= Math.max(d.start[1], end[1]);
             const rows = [...svg.querySelectorAll('circle[data-row]')].filter(c => inside(Number(c.getAttribute('cx')), Number(c.getAttribute('cy')))).map(c => Number(c.dataset.row));
-            root.UMESom.selectRecords(rows, d.add);
+            root.UMESom.selectRecords(rows, d.mode);
         };
         svg.addEventListener('pointerup', finish);
         svg.addEventListener('pointercancel', () => { if (drag) { drag.shape.remove(); drag = null; } });
