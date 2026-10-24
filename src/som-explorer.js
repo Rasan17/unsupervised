@@ -11,25 +11,29 @@
 
     function cellSize(m) { return Math.max(12, Math.min(30, Math.floor(440 / Math.max(m.rows, m.cols)))); }
     function chart() {
-        const m = V.nn.map, cell = cellSize(m), W = m.cols * cell, H = m.rows * cell, maxHits = Math.max(...m.hits), any = V.sel.size > 0;
+        const m = V.nn.map, cell = cellSize(m), W = m.cols * cell, H = m.rows * cell, maxHits = Math.max(...m.hits), any = V.sel.size > 0, part = partial();
         let g = `<svg class="chart som" id="som-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Self-organising map of the records coloured by cluster">`;
         m.pos.forEach(([r, c], u) => {
             const hits = m.hits[u], op = hits ? (0.25 + 0.75 * Math.sqrt(hits / maxHits)).toFixed(2) : 1;
-            const cls = `${hits ? `bar s${V.nn.unitLabels[u] % 8}` : 'pt na'}${V.sel.has(u) ? ' sel' : any ? ' dim' : ''}${V.picked && V.picked.u === u ? ' picked' : ''}`;
+            const cls = `${hits ? `bar s${V.nn.unitLabels[u] % 8}` : 'pt na'}${V.sel.has(u) ? (part.has(u) ? ' sel part' : ' sel') : any ? ' dim' : ''}${V.picked && V.picked.u === u ? ' picked' : ''}`;
             g += `<rect class="${cls}" data-unit="${u}" x="${c * cell + 1}" y="${r * cell + 1}" width="${cell - 2}" height="${cell - 2}" rx="2" fill-opacity="${op}"><title>Unit ${u + 1}: ${hits} record(s)${hits ? `, cluster ${V.nn.unitLabels[u] + 1}` : ''}</title></rect>`;
         });
         return g + '<rect id="som-band" class="band" x="0" y="0" width="0" height="0" display="none"/></svg>';
     }
     const recordLabel = i => { const id = V.S.data.headers.find(h => V.S.vars[h].role === 'ignore' && /(^|[\s_-])(id|mrn|nhs|number|record)$/i.test(h)); const v = id ? String(V.P.rows[i][id] ?? '').trim() : ''; return v || `row ${i + 1}`; };
-    const selectedRecords = () => V.P.rows.map((_, i) => i).filter(i => V.sel.has(V.nn.map.bmu[i]));
+    // Selected records: those chosen on the map of the patients (V.rec), otherwise all records on the selected units
+    function selectedRecords() { return V.rec ? [...V.rec].sort((a, b) => a - b) : V.P.rows.map((_, i) => i).filter(i => V.sel.has(V.nn.map.bmu[i])); }
+    // Units holding some but not all of the records chosen on the map of the patients
+    function partial() { if (!V.rec) return new Set(); const n = new Map(); V.rec.forEach(i => { const u = V.nn.map.bmu[i]; n.set(u, (n.get(u) || 0) + 1); }); return new Set([...n].filter(([u, c]) => c < V.nn.map.hits[u]).map(([u]) => u)); }
     function draw() {
         const el = $('som-view'); if (!el) return;
         const k = V.k;
         el.innerHTML = `
             <div class="grid2"><div>${chart()}${CH.legend(Array.from({ length: k }, (_, c) => `Cluster ${c + 1}`))}</div>
             <div class="small"><p class="muted">Each square is a unit of the map: records with similar values fall on the same or neighbouring units. Colour: the cluster of the unit; the stronger the colour, the more records it holds (hover for the number). Units without records are grey.</p>
-                <p><strong>Select a region:</strong> drag a rectangle over the map, or click a unit. Hold Shift (or Cmd / Ctrl) to add to the selection. The records on the selected units are listed below.</p>
+                <p><strong>Select a region:</strong> drag a rectangle over this map, or click a unit. Hold Shift (or Cmd / Ctrl) to add to the selection. The records on the selected units are listed below. You can also select patients on the map of the patients above: click a point, drag a rectangle, or hold Option (Alt) and drag for a freehand outline.</p>
                 <div class="row" role="group" aria-label="Select the units of a cluster">${Array.from({ length: k }, (_, c) => `<button type="button" class="btn small" data-selc="${c}"><i class="sw s${c % 8}"></i>Cluster ${c + 1}</button>`).join('')}<button type="button" class="btn small" id="som-clear"${V.sel.size ? '' : ' disabled'}>Clear selection</button></div></div></div>
+            ${V.rec ? `<p class="small note">Selected on the map of the patients: ${V.rec.size.toLocaleString('en-GB')} record(s), on the ${V.sel.size} unit(s) outlined here (dashed: only some of the unit's records are selected). The table lists exactly these records.</p>` : ''}
             ${V.picked && V.sel.has(V.picked.u) ? `<p class="small note">Selected from the map of the patients: record ${esc(recordLabel(V.picked.i))} is on unit ${V.picked.u + 1} (outlined), with ${V.nn.map.hits[V.picked.u]} record(s).</p>` : ''}
             <div id="som-table"></div>`;
         wire();
@@ -60,15 +64,15 @@
                 const u = toUnit(e) ?? (() => { const c = Math.floor(start[0] / cell), r = Math.floor(start[1] / cell); return r >= 0 && r < m.rows && c >= 0 && c < m.cols ? r * m.cols + c : null; })();
                 if (u !== null) { if (add) { if (V.sel.has(u)) V.sel.delete(u); else V.sel.add(u); } else if (V.sel.size === 1 && V.sel.has(u)) V.sel.clear(); else { V.sel.clear(); V.sel.add(u); } }
             }
-            start = null; V.page = 0; V.picked = null; draw();
+            start = null; V.page = 0; V.picked = null; V.rec = null; draw();
         });
         svg.addEventListener('pointercancel', () => { start = null; band.setAttribute('display', 'none'); });
         document.querySelectorAll('#som-view [data-selc]').forEach(b => b.addEventListener('click', e => {
             const c = Number(b.dataset.selc), units = V.nn.unitLabels.map((l, u) => (l === c && V.nn.map.hits[u] ? u : -1)).filter(u => u >= 0);
             if (!(e.shiftKey || e.metaKey || e.ctrlKey)) V.sel.clear();
-            units.forEach(u => V.sel.add(u)); V.page = 0; V.picked = null; draw();
+            units.forEach(u => V.sel.add(u)); V.page = 0; V.picked = null; V.rec = null; draw();
         }));
-        $('som-clear').addEventListener('click', () => { V.sel.clear(); V.page = 0; V.picked = null; draw(); });
+        $('som-clear').addEventListener('click', () => { V.sel.clear(); V.page = 0; V.picked = null; V.rec = null; draw(); });
     }
     // Summary of the selection against all records, then the records themselves
     function summary(idx) {
@@ -88,7 +92,7 @@
             const best = levels.map(l => ({ l, a: share(idx, l), b: share(all, l) })).sort((x, y) => (y.a - y.b) - (x.a - x.b))[0];
             return best ? `<tr><td>${esc(col)}</td><td>"${esc(best.l)}" ${Math.round(100 * best.a)}%</td><td>${Math.round(100 * best.b)}%</td></tr>` : '';
         }).join('');
-        return `<p><strong>${idx.length.toLocaleString('en-GB')} record(s) selected</strong> on ${V.sel.size} unit(s)${idx.length ? ': ' + mix.map((v, c) => (v ? `cluster ${c + 1} ${Math.round(100 * v / idx.length)}%` : '')).filter(Boolean).join(', ') : ''}.</p>
+        return `<p><strong>${idx.length.toLocaleString('en-GB')} record(s) selected</strong> ${V.rec ? 'on the map of the patients, on' : 'on'} ${V.sel.size} unit(s)${idx.length ? ': ' + mix.map((v, c) => (v ? `cluster ${c + 1} ${v / idx.length < 0.005 ? '<1' : Math.round(100 * v / idx.length)}%` : '')).filter(Boolean).join(', ') : ''}.</p>
             <details${idx.length ? ' open' : ''}><summary class="small">How the selection differs from all ${all.length.toLocaleString('en-GB')} records</summary><div class="table-wrap"><table><thead><tr><th>Variable</th><th>Selected</th><th>All records</th></tr></thead><tbody>${rowsOut}</tbody></table></div><p class="muted small">Numbers: mean. Categories and grades: the category most over-represented in the selection, and its share among all records.</p></details>`;
     }
     function table() {
@@ -119,11 +123,18 @@
         });
     }
     // From the map of the patients: select the unit of a clicked record (toggle; add with Shift / Cmd / Ctrl)
+    function selectRecords(rows, add) {
+        if (!V || !V.nn) return;
+        const rec = add && V.rec ? new Set(V.rec) : add ? new Set(selectedRecords()) : new Set();
+        rows.forEach(i => rec.add(i));
+        V.rec = rec.size ? rec : null; V.sel = new Set([...rec].map(i => V.nn.map.bmu[i])); V.picked = null; V.page = 0;
+        draw();
+    }
     function selectRecord(i, add) {
         if (!V || !V.nn) return;
         const u = V.nn.map.bmu[i];
         if (add) { if (V.sel.has(u)) V.sel.delete(u); else V.sel.add(u); } else if (V.sel.size === 1 && V.sel.has(u)) V.sel.clear(); else { V.sel.clear(); V.sel.add(u); }
-        V.picked = V.sel.has(u) ? { i, u } : null; V.page = 0;
+        V.rec = null; V.picked = V.sel.has(u) ? { i, u } : null; V.page = 0;
         draw();
     }
     function render(ctx) {
@@ -131,5 +142,5 @@
         Object.assign(V, { S: ctx.S, P: ctx.P, nn: ctx.S.result.neural, labels: ctx.S.result.labels, k: ctx.S.result.k });
         draw();
     }
-    root.UMESom = { render, selectRecord, _state: () => V };
+    root.UMESom = { render, selectRecord, selectRecords, _state: () => V };
 })(typeof window !== 'undefined' ? window : globalThis);

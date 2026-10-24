@@ -155,7 +155,8 @@
             const tr = trustOf(map);
             const hlShown = HL ? map.idx.filter(i => HL.has(i)).length : 0;
             body = `${svg}${c.legend}
-                ${HL ? `<p class="small note">Highlighted: the ${HL.size.toLocaleString('en-GB')} record(s) selected on the self-organising map below${hlShown < HL.size ? ` (${hlShown.toLocaleString('en-GB')} of them are on this map, which shows a sample)` : ''}. Clear the selection there to remove the highlight.</p>` : ''}
+                ${M.ctx.S.result.neural && M.ctx.S.result.neural.unitLabels ? '<p class="muted small">Select patients here: click a point, drag a rectangle, or hold Option (Alt) and drag (with either mouse button) for a freehand outline; Shift adds. The self-organising map below shows where they are.</p>' : ''}
+                ${HL ? `<p class="small note">Highlighted: the ${HL.size.toLocaleString('en-GB')} record(s) selected ${root.UMESom && root.UMESom._state() && root.UMESom._state().rec ? 'here' : 'on the self-organising map below'}${hlShown < HL.size ? ` (${hlShown.toLocaleString('en-GB')} of them are on this map, which shows a sample)` : ''}. "Clear selection" under the self-organising map removes the highlight.</p>` : ''}
                 ${map.history ? `<details><summary class="small">Training curve</summary>${CH.lineChart({ series: [{ name: 'Training patients', cls: 0, points: map.history.map(h => ({ x: h.epoch, y: h.train })) }, { name: 'Held-back patients', cls: 1, points: map.history.map(h => ({ x: h.epoch, y: h.val })) }], xLabel: 'Epoch', yLabel: 'Reconstruction error', aria: 'Training curve of the autoencoder', H: 220 })}${CH.legend(['Training patients', 'Held-back patients'])}<p class="muted small">If the error on held-back patients rises while the training error keeps falling, the network is learning the noise of these patients (overfitting); the weights from the lowest held-back error are used.</p></details>` : ''}
                 <p class="muted small"><strong>${NAMES[M.kind]}</strong>${map.extra ? ` (${esc(map.extra)})` : ''}. ${esc(NOTES[M.kind])}</p>
                 <p class="muted small">Trustworthiness ${tr.toFixed(3)}: how well the map keeps each patient's ${map.k} nearest neighbours (1 = perfectly; above 0.9 good).${map.idx.length < n ? ` Map of a random sample of ${map.idx.length} of the ${n} patients.` : ''}</p>`;
@@ -168,10 +169,7 @@
         // With a self-organising map: clicking a patient selects its unit there (Shift / Cmd / Ctrl adds)
         const somOn = root.UMESom && root.UMESom.selectRecord && M.ctx.S.result.neural && M.ctx.S.result.neural.unitLabels;
         const svgEl = el.querySelector('svg.chart');
-        if (somOn && svgEl) {
-            svgEl.classList.add('pickable');
-            svgEl.addEventListener('click', e => { const t = e.target; if (t && t.dataset && t.dataset.row !== undefined) root.UMESom.selectRecord(Number(t.dataset.row), e.shiftKey || e.metaKey || e.ctrlKey); });
-        }
+        if (somOn && svgEl) { svgEl.classList.add('pickable'); wireRegion(svgEl); }
         el.querySelectorAll('[data-map]').forEach(b => b.addEventListener('click', () => { const k = b.dataset.map; if (M.maps[k]) { M.kind = k; draw(); } else compute(k); }));
         $('map-colour').addEventListener('change', e => { M.colourBy = e.target.value; draw(); });
     }
@@ -208,6 +206,42 @@
             <div class="grid2"><div>${scree}</div><div><ol class="small dims">${Array.from({ length: dims }, (_, s) => describe(s)).join('')}</ol></div></div>
             <h4>Contribution of each variable to the dimensions</h4>${table}
             <p class="muted small">Contributions add up to 100% for each dimension; bold: above the average share (${avgContrib.toFixed(0)}%). Numbers are standardised; categories are coded as in MCA; grades are treated as numbers.${P.mice ? ' With multiple imputation the first imputed dataset is used.' : P.raw.some(r => r.some(v => v === null)) ? ' Missing values are replaced by the mean (numbers) or by the category shares.' : ''} If the clusters lie next to each other along a dimension without gaps (see the map), patients may differ by degree along a continuum rather than form distinct types.</p>`;
+    }
+    // Selecting patients on the map: click a point (its unit on the self-organising map); drag for a rectangle; Option
+    // (Alt) + drag, or Option + right-button drag, for a freehand outline. Shift / Cmd / Ctrl adds to the selection.
+    function wireRegion(svg) {
+        const NS = 'http://www.w3.org/2000/svg';
+        const pt = e => { const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; const q = p.matrixTransform(svg.getScreenCTM().inverse()); return [q.x, q.y]; };
+        let drag = null;
+        svg.addEventListener('contextmenu', e => { if (e.altKey || drag) e.preventDefault(); });
+        svg.addEventListener('pointerdown', e => {
+            if (e.button !== 0 && !(e.button === 2 && e.altKey)) return;
+            const shape = document.createElementNS(NS, e.altKey ? 'path' : 'rect');
+            shape.setAttribute('class', 'band');
+            svg.appendChild(shape);
+            drag = { start: pt(e), pts: [pt(e)], lasso: e.altKey, add: e.shiftKey || e.metaKey || e.ctrlKey, shape, target: e.target };
+            svg.setPointerCapture(e.pointerId); e.preventDefault();
+        });
+        svg.addEventListener('pointermove', e => {
+            if (!drag) return;
+            const p = pt(e); drag.pts.push(p);
+            if (drag.lasso) drag.shape.setAttribute('d', 'M' + drag.pts.map(q => q.map(v => v.toFixed(1)).join(',')).join(' L') + ' Z');
+            else { const [x0, y0] = drag.start; drag.shape.setAttribute('x', Math.min(x0, p[0])); drag.shape.setAttribute('y', Math.min(y0, p[1])); drag.shape.setAttribute('width', Math.abs(p[0] - x0)); drag.shape.setAttribute('height', Math.abs(p[1] - y0)); }
+        });
+        const finish = e => {
+            if (!drag) return;
+            const d = drag; drag = null; d.shape.remove();
+            // A drag, not a click, if the pointer went more than 3 units from where it started at any time (a closed
+            // freehand outline ends where it began)
+            const end = pt(e), moved = d.pts.concat([end]).some(q => Math.hypot(q[0] - d.start[0], q[1] - d.start[1]) > 3);
+            if (!moved) { const t = d.target; if (t && t.dataset && t.dataset.row !== undefined) root.UMESom.selectRecord(Number(t.dataset.row), d.add); return; }
+            const inside = d.lasso ? (x, y) => { let c = false; for (let i = 0, j = d.pts.length - 1; i < d.pts.length; j = i++) { const [xi, yi] = d.pts[i], [xj, yj] = d.pts[j]; if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) c = !c; } return c; }
+                : (x, y) => x >= Math.min(d.start[0], end[0]) && x <= Math.max(d.start[0], end[0]) && y >= Math.min(d.start[1], end[1]) && y <= Math.max(d.start[1], end[1]);
+            const rows = [...svg.querySelectorAll('circle[data-row]')].filter(c => inside(Number(c.getAttribute('cx')), Number(c.getAttribute('cy')))).map(c => Number(c.dataset.row));
+            root.UMESom.selectRecords(rows, d.add);
+        };
+        svg.addEventListener('pointerup', finish);
+        svg.addEventListener('pointercancel', () => { if (drag) { drag.shape.remove(); drag = null; } });
     }
     function highlight(set) { HL = set && set.size ? set : null; if (M) draw(); }
     root.UMEMaps = { highlight, render, renderDimensions: () => drawDimensions(), _state: () => M };

@@ -181,9 +181,24 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         check(c1 && /cluster 1 100%/.test(await p.locator('#som-table p').first().innerText()), `${name}: the cluster button selects that cluster's units and records`);
         // Conversely: clicking a patient on the map of the patients selects its unit on the self-organising map
         await p.click('#som-clear');
-        await p.locator('#map-panel circle[data-row="123"]').dispatchEvent('click');
-        const pick = await p.evaluate(() => { const V = window.UMESom._state(); return { sel: [...V.sel], unit: V.nn.map.bmu[123], hits: V.nn.map.hits[V.nn.map.bmu[123]] }; });
+        const dot = p.locator('#map-panel circle[data-row="123"]'); await dot.scrollIntoViewIfNeeded();
+        const db = await dot.boundingBox(); await p.mouse.click(db.x + db.width / 2, db.y + db.height / 2);
+        const pick = await p.evaluate(() => { const V = window.UMESom._state(), i = V.picked ? V.picked.i : -1; return { sel: [...V.sel], unit: i >= 0 ? V.nn.map.bmu[i] : -2, hits: i >= 0 ? V.nn.map.hits[V.nn.map.bmu[i]] : -1 }; });
         check(pick.sel.length === 1 && pick.sel[0] === pick.unit && (await p.locator(`#som-svg rect.picked[data-unit="${pick.unit}"]`).count()) === 1 && (await p.$$eval('#map-panel circle.hl', c => c.length)) === pick.hits && /Selected from the map of the patients/.test(await p.locator('#som-view').innerText()), `${name}: clicking a patient on the map selects and outlines its unit on the self-organising map (${pick.hits} records)`);
+        // Region on the map of the patients: a rectangle, then a closed freehand outline (Option / Alt + drag)
+        await p.click('#som-clear');
+        const mp = p.locator('#map-panel svg.chart').first(); await mp.scrollIntoViewIfNeeded(); let mb = await mp.boundingBox();
+        await p.mouse.move(mb.x + mb.width * 0.15, mb.y + mb.height * 0.55); await p.mouse.down(); await p.mouse.move(mb.x + mb.width * 0.4, mb.y + mb.height * 0.85, { steps: 6 }); await p.mouse.up();
+        const recState = () => p.evaluate(() => { const V = window.UMESom._state(); return { rec: V.rec ? V.rec.size : 0, units: V.sel.size, unitsOk: V.rec ? [...V.sel].every(u => [...V.rec].some(i => V.nn.map.bmu[i] === u)) : false, hl: document.querySelectorAll('#map-panel circle.hl').length, table: Number(((document.querySelector('#som-table p') || {}).textContent || '').match(/^([\d,]+)/)?.[1].replace(/,/g, '')) }; });
+        const r1 = await recState();
+        check(r1.rec > 0 && r1.unitsOk && r1.hl === r1.rec && r1.table === r1.rec, `${name}: a rectangle on the map of the patients selects ${r1.rec} records, shown on ${r1.units} units of the self-organising map and listed exactly in the table`);
+        await mp.scrollIntoViewIfNeeded(); mb = await mp.boundingBox();
+        const loop = [[0.6, 0.3], [0.85, 0.35], [0.8, 0.7], [0.6, 0.75], [0.55, 0.5], [0.6, 0.3]];
+        await p.keyboard.down('Alt'); await p.mouse.move(mb.x + mb.width * loop[0][0], mb.y + mb.height * loop[0][1]); await p.mouse.down();
+        for (const [x, y] of loop.slice(1)) await p.mouse.move(mb.x + mb.width * x, mb.y + mb.height * y, { steps: 5 });
+        await p.mouse.up(); await p.keyboard.up('Alt');
+        const r2 = await recState();
+        check(r2.rec > 0 && r2.rec !== r1.rec && r2.unitsOk && r2.table === r2.rec, `${name}: a closed freehand outline (Option + drag) selects ${r2.rec} records and replaces the previous selection`);
         await p.click('#som-clear');
         check(/No units selected/.test(await p.locator('#som-table').innerText()) && (await p.$$eval('#map-panel circle.hl, #map-panel circle.dim', c => c.length)) === 0, `${name}: clearing the selection empties the table and removes the highlight`);
         // Regression: the test of "no real sub-groups" with categories of several levels (missing values filled)
