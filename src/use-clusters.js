@@ -115,6 +115,7 @@
         U.cv = U.depthTable.find(r => r.d === U.depth);
         U.apparent = T.filter((x, i) => CE.predictTree(U.tree, x) === labels[i]).length / labels.length;
         U.vars = vars;
+        U.hasMissing = vars.map((_, j) => T.some(r => r[j] === null));
     }
 
     // ---------------------------------------------------------------------------------- full-clustering assignment
@@ -240,7 +241,7 @@
                 <li><strong>Report fully</strong>: the variables, method, number of clusters and how it was chosen, missing data handling, stability, and these rules, so others can reproduce the classification.</li>
                 <li><strong>Do not use it for treatment decisions</strong> for individual patients until it has been validated.</li>
             </ol>
-            <div class="row"><button id="sheet-btn" class="btn" type="button">Download the classification sheet (.txt)</button></div>`;
+            <div class="row"><button id="sheet-btn" class="btn" type="button">Download the classification sheet (.txt)</button><button id="to-tree" class="btn primary" type="button">Next: the decision tree</button></div>`;
         for (let c = 0; c < k; c++) $(`name-${c}`).addEventListener('change', e => { U.names[c] = e.target.value.trim(); draw(); });
         $('rule-depth').addEventListener('change', e => { U.depth = Number(e.target.value); fitRules(); draw(); });
         $('np-go').addEventListener('click', classifyNew);
@@ -304,5 +305,96 @@
         const T = tableOf(ctx.P);
         return { names: ctx.S.result.labels.map(l => classLabel(l)), rules: T.map(x => classLabel(CE.predictTree(U.tree, x))) };
     }
-    root.UMEUse = { render, exportColumns, _state: U };
+
+    // ---------------------------------------------------------------------------------- step 8: the decision tree
+    // The same tree as the bedside rules, drawn as a diagram. Colours are passed as attributes (not CSS), so the
+    // downloaded file looks the same outside the page.
+    const LIGHT = { bg: '#ffffff', ink: '#14212a', muted: '#50626c', line: '#b8c6cc', node: '#f6f8f9', c: ['#0b6c84', '#c0582a', '#5b8f2a', '#8a4fa8', '#c4972b', '#2a6fc0', '#a8466e', '#4f6a74'] };
+    function pagePalette() {
+        const cs = getComputedStyle(document.documentElement), v = k => cs.getPropertyValue(k).trim();
+        const ok = x => (/^#[0-9a-f]{3,8}$/i.test(x) ? x : null);
+        return { bg: null, ink: ok(v('--ink')) || LIGHT.ink, muted: ok(v('--muted')) || LIGHT.muted, line: ok(v('--line')) || LIGHT.line, node: ok(v('--soft')) || ok(v('--surface')) || LIGHT.node, c: LIGHT.c.map((d, i) => ok(v(`--c${i}`)) || d) };
+    }
+    function question(node) {
+        const v = U.vars[node.variable];
+        if (node.kind === 'is') return `${pretty(v.name)} is "${node.level}"?`;
+        if (v.type === 'ordinal') return `${pretty(v.name)} ${v.levels[node.threshold]} or lower?`;
+        return `${pretty(v.name)} ≤ ${num(node.threshold)}?`;
+    }
+    function wrap(text, max) {
+        const words = String(text).split(' '), lines = [''];
+        words.forEach(w => { const cur = lines[lines.length - 1]; if ((cur + ' ' + w).trim().length > max && cur) lines.push(w); else lines[lines.length - 1] = (cur + ' ' + w).trim(); });
+        return lines.slice(0, 2).map((l, i, a) => (i === 1 && a.length === 2 && words.join(' ').length > a.join(' ').length ? l.slice(0, max - 1) + '…' : l));
+    }
+    function treeSvg(pal) {
+        const W = 190, H = 92, GX = 16, GY = 58, k = ctx.S.result.k;
+        // Layout: leaves in order from left to right, parents centred over their children
+        const nodes = [];
+        let slot = 0;
+        (function place(node, depth) {
+            const rec = { node, depth };
+            nodes.push(rec);
+            if (node.left) { const l = place(node.left, depth + 1), r = place(node.right, depth + 1); rec.x = (l.x + r.x) / 2; rec.kids = [l, r]; } else rec.x = slot++ * (W + GX);
+            return rec;
+        })(U.tree.root, 0);
+        const depth = Math.max(...nodes.map(r => r.depth)), width = Math.max(W, slot * (W + GX) - GX), height = (depth + 1) * (H + GY) - GY + 8;
+        const t = (x, y, str, { size = 12, fill = pal.ink, weight = 400, anchor = 'middle' } = {}) => `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" font-size="${size}" font-weight="${weight}" fill="${fill}" text-anchor="${anchor}" font-family="system-ui, -apple-system, Segoe UI, sans-serif">${esc(str)}</text>`;
+        const bar = (x, y, w, counts) => { const n = counts.reduce((a, b) => a + b, 0); let cx = x, out = ''; counts.forEach((c, i) => { if (!c) return; const bw = (w * c) / n; out += `<rect x="${cx.toFixed(1)}" y="${y}" width="${bw.toFixed(1)}" height="7" fill="${pal.c[i % 8]}"><title>${esc(classLabel(i))}: ${c}</title></rect>`; cx += bw; }); return out; };
+        let g = `<svg class="tree" xmlns="http://www.w3.org/2000/svg" viewBox="-4 -4 ${width + 8} ${height + 8}" width="${width + 8}" height="${height + 8}" role="img" aria-label="Decision tree that assigns patients to the ${k} classes">`;
+        if (pal.bg) g += `<rect x="-4" y="-4" width="${width + 8}" height="${height + 8}" fill="${pal.bg}"/>`;
+        nodes.forEach(r => {   // edges first
+            if (!r.kids) return;
+            const y0 = r.depth * (H + GY) + H, xc = r.x + W / 2;
+            r.kids.forEach((ch, side) => {
+                const x1 = ch.x + W / 2, y1 = ch.depth * (H + GY), ym = (y0 + y1) / 2;
+                g += `<path d="M${xc},${y0} C${xc},${ym} ${x1},${ym} ${x1},${y1}" fill="none" stroke="${pal.line}" stroke-width="1.5"/>`;
+                g += t((xc + x1) / 2 + (side ? 10 : -10), ym - 2, side ? 'no' : 'yes', { size: 11, fill: pal.muted, weight: 600 });
+            });
+        });
+        nodes.forEach(r => {
+            const x = r.x, y = r.depth * (H + GY), nd = r.node, n = nd.n;
+            if (r.kids) {
+                g += `<rect x="${x}" y="${y}" width="${W}" height="${H}" rx="8" fill="${pal.node}" stroke="${pal.line}"/>`;
+                wrap(question(nd), 26).forEach((ln, i) => { g += t(x + W / 2, y + 20 + i * 15, ln, { weight: 600 }); });
+                g += t(x + W / 2, y + 60, `${n} patients${nd.missLeft !== undefined && U.hasMissing[nd.variable] ? ` · not recorded: ${nd.missLeft ? 'yes' : 'no'}` : ''}`, { size: 10.5, fill: pal.muted });
+                g += bar(x + 10, y + H - 17, W - 20, nd.counts);
+            } else {
+                const c = nd.predict, pc = nd.counts[c] / n;
+                g += `<rect x="${x}" y="${y}" width="${W}" height="${H}" rx="8" fill="${pal.node}" stroke="${pal.c[c % 8]}" stroke-width="2.5"/>`;
+                g += `<rect x="${x + 10}" y="${y + 11}" width="12" height="12" rx="2" fill="${pal.c[c % 8]}"/>`;
+                const name = classLabel(c), lines = wrap(name, 23);
+                lines.forEach((ln, i) => { g += `<text x="${x + 28}" y="${y + 22 + i * 15}" font-size="12.5" font-weight="700" fill="${pal.ink}" font-family="system-ui, -apple-system, Segoe UI, sans-serif">${esc(ln)}<title>${esc(name)}</title></text>`; });
+                g += t(x + W / 2, y + 52, `${n} patients`, { size: 11, fill: pal.muted });
+                g += t(x + W / 2, y + 66, `${Math.round(100 * pc)}% of them in class ${LETTERS[c]}`, { size: 11, fill: pal.muted });
+                g += bar(x + 10, y + H - 15, W - 20, nd.counts);
+            }
+        });
+        return g + '</svg>';
+    }
+    function drawTree() {
+        const el = $('tree-out'); if (!el) return;
+        const { S } = ctx, { k, stab, test } = S.result, weakest = Math.min(...stab.perCluster.map(c => c.meanJaccard ?? 0)), trustworthy = weakest >= 0.75 && (!test || test.pValue <= 0.05);
+        const leaves = CE.treeRules(U.tree).length;
+        el.innerHTML = `
+            ${trustworthy ? '' : '<div class="verdict bad">Caution: the clusters chosen did not pass the checks (stability and the test of no real sub-groups). The tree is shown to illustrate how it would work, not for use.</div>'}
+            <p>Start at the top and answer each question for the patient: <strong>yes</strong> goes down to the left, <strong>no</strong> to the right, until you reach a coloured box, which gives the class. If a value is not recorded, follow the branch shown in the box ("not recorded: yes" or "no"), the one most patients took.</p>
+            <div class="row"><label for="tree-depth">Most questions on a path</label><select id="tree-depth">${[1, 2, 3, 4].map(d => `<option value="${d}"${d === U.depth ? ' selected' : ''}>${d}</option>`).join('')}</select>
+                <button id="tree-download" class="btn small" type="button">Download the diagram (.svg)</button></div>
+            <div class="tree-wrap">${treeSvg(pagePalette())}</div>
+            ${CH.legend(Array.from({ length: k }, (_, c) => classLabel(c)))}
+            <p class="lead small">${leaves} end points. The tree gives the same class as the full clustering for <strong>${pct(U.cv.agree)}</strong> of patients not used to build it (10-fold cross-validation; Cohen's kappa ${U.cv.kappa.toFixed(2)}). The bar in each box shows how that box's patients divide between the classes (colours as in the legend).</p>
+            <p class="muted small">The tree is a classification tree (CART, Gini impurity) fitted to the clusters, with at least ${minLeafFor(S.result.labels.length)} patients in each end point; the depth suggested is the simplest within 2 percentage points of the best cross-validated agreement. Class names and the depth are shared with step 7. Like the clusters themselves, the tree needs validation in another cohort before clinical use.</p>`;
+        $('tree-depth').addEventListener('change', e => { U.depth = Number(e.target.value); fitRules(); draw(); drawTree(); });
+        $('tree-download').addEventListener('click', () => {
+            const svg = '<?xml version="1.0" encoding="UTF-8"?>\n' + treeSvg(LIGHT).replace('<svg class="tree" ', '<svg ');
+            const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+            const a = document.createElement('a'); a.href = url; a.download = `decision_tree_${String(S.data.name).replace(/\.[^.]+$/, '').replace(/[^\w-]+/g, '_')}.svg`;
+            document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+        });
+    }
+    function renderTree(c) {
+        if (!U.key || U.key !== c.S.result || !U.tree) render(c); else ctx = c;
+        drawTree();
+    }
+    root.UMEUse = { render, renderTree, exportColumns, _state: U };
 })(typeof window !== 'undefined' ? window : globalThis);

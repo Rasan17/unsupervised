@@ -8,7 +8,7 @@ data never leave the computer.
 **Status:** the five planned stages are complete and verified (statistical engine, phenotype discovery, maps,
 data checks and unusual patients, autoencoders). Next: testing on real cohorts and review by a statistician.
 
-The interface (`index.html`) works end to end in seven steps: load a CSV (or a demo cohort); choose the variables to
+The interface (`index.html`) works end to end in eight steps: load a CSV (or a demo cohort); choose the variables to
 cluster on and those only to describe; optionally check the data for likely entry errors and unusual patients, and
 leave patients out; choose a method (an advisor suggests one for the data); compare 2 to 10 clusters (silhouette,
 stability, gap statistic or BIC); describe the chosen clusters with a verdict on whether they are more than chance,
@@ -16,7 +16,8 @@ a silhouette plot, maps of the patients (PCA or FAMD, t-SNE, UMAP, autoencoder),
 profile table; and use the clusters as a classification for clinicians: draft names and descriptions of each class
 (editable), short bedside rules from a classification tree with cross-validated agreement with the clusters, a
 calculator for a new patient, outcomes by class, what is needed before clinical use, and a downloadable
-classification sheet.
+classification sheet; and see the decision tree behind the bedside rules as a diagram (questions with yes/no
+branches, patients and class mix in every box, end points coloured by class), downloadable as an SVG image.
 
 After changing a script or `style.css`, raise its `?v=` number in `index.html` so browsers do not keep the old copy.
 

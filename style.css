@@ -92,3 +92,4 @@ td.diag { font-weight: 700; }
 .map-controls { gap: 6px; } .map-controls label { margin-left: 8px; }
 .dims li { margin: 6px 0; } h4 { margin: 10px 0 4px; font-size: 15px; }
 .bulk { gap: 6px; margin: 4px 0 6px; }
+.tree-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; padding: 10px; } .tree-wrap svg.tree { display: block; margin: 0 auto; max-width: none; }

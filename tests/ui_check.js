@@ -82,6 +82,17 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         check(/By the rules:/.test(np) && (method === 'lca' ? /By the latent class model: .*probability \d+%/ : /By the full clustering:/).test(np), `${name}: a new patient is classified by the rules and by the ${method === 'lca' ? 'latent class model (with probabilities)' : 'full clustering'}`);
         await p.fill('#name-0', 'Classic CSF-dynamic'); await p.locator('#name-0').dispatchEvent('change');
         check(/A · Classic CSF-dynamic/.test(await p.locator('#use-out').innerText()), `${name}: renaming a class updates the rules`);
+        // Step 8: decision tree diagram, consistent with the bedside rules of step 7
+        await p.click('#to-tree');
+        await p.waitForSelector('#tree-out svg.tree', { timeout: 60000 });
+        const nRules = await p.evaluate(() => window.ClusterEngine.treeRules(window.UMEUse._state.tree).length);
+        const leafBoxes = await p.$$eval('#tree-out svg.tree rect[stroke-width="2.5"]', r => r.length);
+        check(leafBoxes === nRules && /yes<\/text>/.test(await p.locator('#tree-out .tree-wrap').innerHTML()) && /Classic CSF-dynamic/.test(await p.locator('#tree-out').innerText()), `${name}: decision tree drawn with one end point per bedside rule (${leafBoxes}), yes/no branches and the class names from step 7`);
+        await p.selectOption('#tree-depth', '1');
+        check(await p.$$eval('#tree-out svg.tree rect[stroke-width="2.5"]', r => r.length) === 2 && await p.evaluate(() => window.UMEUse._state.depth) === 1, `${name}: changing the depth redraws the tree (depth 1: 2 end points) and is shared with step 7`);
+        const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#tree-download')]);
+        const svgText = require('fs').readFileSync(await dl.path(), 'utf8');
+        check(/^<\?xml/.test(svgText) && /<svg xmlns="http:\/\/www.w3.org\/2000\/svg"/.test(svgText) && /fill="#ffffff"/.test(svgText), `${name}: the diagram downloads as a stand-alone SVG on a white background`);
         await p.click('.tab[data-step="2"]');
         check(JSON.stringify(await visibleSteps()) === '["2"]', `${name}: clicking the "2 Variables" tab shows only that step`);
         await p.click('.tab[data-step="6"]');
@@ -93,7 +104,7 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         for (const [w, label] of [[1200, 'desktop'], [375, 'phone']]) {
             await p.setViewportSize({ width: w, height: 900 });
             const bad = [];
-            for (const st of ['1', '2', '3', '4', '5', '6', '7']) { await p.click(`.tab[data-step="${st}"]`); if (await overflow()) bad.push(st); }
+            for (const st of ['1', '2', '3', '4', '5', '6', '7', '8']) { await p.click(`.tab[data-step="${st}"]`); if (await overflow()) bad.push(st); }
             check(bad.length === 0, `${name}: nothing spills past the page edge (${label} width)${bad.length ? ': steps ' + bad.join(', ') : ''}`);
         }
         check(errs.length === 0, `${name}: no page errors${errs.length ? ': ' + errs.join(' | ') : ''}`);

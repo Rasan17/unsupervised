@@ -28,6 +28,7 @@
         window.scrollTo(0, 0);
         if (String(step) === '7' && S.result && !$('use-out').innerHTML) renderUse();
         if (String(step) === '3' && S.data) renderChecks();
+        if (String(step) === '8' && S.result) { try { window.UMEUse.renderTree({ S, P: S.explore.P, METHOD, profileTable }); } catch (e) { $('tree-out').innerHTML = `<p class="status bad">The tree could not be drawn: ${esc(e.message)}</p>`; } }
     }
     // Exclusions from the data checks invalidate later results
     function renderChecks() { window.UMEChecks.render({ S, onChange: () => { S.explore = null; S.result = null; enableTabs(4); } }); }
@@ -314,7 +315,7 @@
             S.result = { k, labels, stab, test, sil, pca, posterior: ex.posterior, model: ex.model, entropy: ex.entropy };
             renderClusters();
             status('clusters-status', '');
-            enableTabs(7);
+            enableTabs(8);
         } catch (e) { status('clusters-status', `The analysis stopped: ${e.message}`, 'bad'); }
     }
     // opts.only = 'describe': outcome variables only; opts.names(c): column heading for cluster c
@@ -380,6 +381,7 @@
             <div class="row"><button id="to-use" class="btn primary" type="button">Next: use the clusters</button><button id="export-btn" class="btn" type="button">Download patients with their cluster (.CSV)</button></div>`;
         $('export-btn').addEventListener('click', exportCsv);
         $('to-use').addEventListener('click', () => goTo(7));
+        $('tree-out').innerHTML = '';
         window.UMEMaps.render({ S, P });
     }
     function exportCsv() {
@@ -407,7 +409,11 @@
         $('check-next').addEventListener('click', () => { enableTabs(4); goTo(4); });
         $('method').addEventListener('change', () => { S.methodTouched = true; updateVarSummary(); });
         $('explore-btn').addEventListener('click', () => { goTo(5); explore(); });
-        $('theme').addEventListener('click', () => { const d = document.documentElement, dark = d.getAttribute('data-theme') !== 'dark' && !(d.getAttribute('data-theme') !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches); d.setAttribute('data-theme', dark ? 'dark' : 'light'); });
+        document.addEventListener('click', e => { if (e.target && e.target.id === 'to-tree') goTo(8); });
+        $('theme').addEventListener('click', () => { const d = document.documentElement, dark = d.getAttribute('data-theme') !== 'dark' && !(d.getAttribute('data-theme') !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches); d.setAttribute('data-theme', dark ? 'dark' : 'light');
+            // The tree diagram takes its colours from the theme
+            if (S.result && !document.querySelector('section.step[data-step="8"]').hidden) window.UMEUse.renderTree({ S, P: S.explore.P, METHOD, profileTable });
+        });
         enableTabs(1); goTo(1);
     });
     window.UMEApp = { state: S, prepare, loadText };
