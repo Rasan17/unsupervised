@@ -430,6 +430,7 @@
         $('export-btn').addEventListener('click', exportCsv);
         $('to-use').addEventListener('click', () => goTo(7));
         $('tree-out').innerHTML = '';
+        window.UMEMaps.highlight(null);
         window.UMEMaps.render({ S, P });
         if (S.result.neural && S.result.neural.unitLabels) window.UMESom.render({ S, P });
     }

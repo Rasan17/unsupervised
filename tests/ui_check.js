@@ -174,11 +174,13 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         const sel = await p.evaluate(() => { const V = window.UMESom._state(), m = V.nn.map; return { units: V.sel.size, records: V.P.rows.filter((_, i) => V.sel.has(m.bmu[i])).length }; });
         const txt = await p.locator('#som-table p').first().innerText(), n1 = Number((txt.match(/^([\d,]+) record/) || [])[1]?.replace(/,/g, ''));
         check(sel.units > 0 && n1 === sel.records && (await p.$$eval('#som-table table.records tbody tr', r => r.length)) === Math.min(50, sel.records), `${name}: dragging over the map selects ${sel.units} units and the table lists exactly their ${sel.records} records`);
+        const hlCount = await p.$$eval('#map-panel circle.hl', c => c.length), onMap = await p.evaluate(() => { const V = window.UMESom._state(), M = window.UMEMaps._state(), map = M.maps[M.kind]; return map.idx.filter(i => V.sel.has(V.nn.map.bmu[i])).length; });
+        check(hlCount === onMap && hlCount > 0 && /Highlighted: the [\d,]+ record\(s\) selected on the self-organising map/.test(await p.locator('#map-panel').innerText()), `${name}: the selected records are highlighted on the map of the patients (${hlCount})`);
         await p.click('[data-selc="0"]');
         const c1 = await p.evaluate(() => { const V = window.UMESom._state(), m = V.nn.map; return V.P.rows.map((_, i) => i).filter(i => V.sel.has(m.bmu[i])).every(i => V.labels[i] === 0); });
         check(c1 && /cluster 1 100%/.test(await p.locator('#som-table p').first().innerText()), `${name}: the cluster button selects that cluster's units and records`);
         await p.click('#som-clear');
-        check(/No units selected/.test(await p.locator('#som-table').innerText()), `${name}: clearing the selection empties the table`);
+        check(/No units selected/.test(await p.locator('#som-table').innerText()) && (await p.$$eval('#map-panel circle.hl, #map-panel circle.dim', c => c.length)) === 0, `${name}: clearing the selection empties the table and removes the highlight`);
         // Regression: the test of "no real sub-groups" with categories of several levels (missing values filled)
         await p.click('.tab[data-step="4"]'); await p.selectOption('#missing', 'fill'); await p.click('#explore-btn'); await p.waitForSelector('#describe-btn', { timeout: 600000 });
         await p.selectOption('#k-choice', '5'); await p.click('#describe-btn'); await p.waitForSelector('#to-use', { timeout: 600000 });

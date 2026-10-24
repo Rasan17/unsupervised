@@ -39,15 +39,17 @@
         return g + '</svg>';
     }
     /** Scatter map: points [{x, y, group, tip}] coloured by group, or by colour (a hex value, for a colour scale);
-     *  group null and no colour: drawn grey (value not recorded). noAxes: for t-SNE / UMAP, whose axes have no units. */
+     *  group null and no colour: drawn grey (value not recorded). mark: 'hl' (highlighted, larger, drawn last) or 'dim'.
+     *  noAxes: for t-SNE / UMAP, whose axes have no units. */
     function scatter({ points, xLabel, yLabel, aria, W = 440, H = 340, noAxes = false }) {
         if (!points.length) return '';
         const f = frame(W, H, { l: 46, r: 14, t: 12, b: 40 }, points.map(p => p.x), points.map(p => p.y), xLabel, yLabel, aria);
         let g = noAxes ? f.g.replace(/<text class="tick"[^>]*>[^<]*<\/text>/g, '') : f.g;
         const hex = /^#[0-9a-f]{6}$/i;
-        points.forEach(p => {
+        points.slice().sort((a, b) => (a.mark === 'hl') - (b.mark === 'hl')).forEach(p => {
             const cls = p.color && hex.test(p.color) ? 'pt' : p.group === null || p.group === undefined ? 'pt na' : `pt s${p.group % 8}`;
-            g += `<circle class="${cls}"${p.color && hex.test(p.color) ? ` fill="${p.color}"` : ''} cx="${f.sx(p.x).toFixed(1)}" cy="${f.sy(p.y).toFixed(1)}" r="3"><title>${esc(p.tip)}</title></circle>`;
+            const extra = p.mark === 'hl' ? ' hl' : p.mark === 'dim' ? ' dim' : '';
+            g += `<circle class="${cls}${extra}"${p.color && hex.test(p.color) ? ` fill="${p.color}"` : ''} cx="${f.sx(p.x).toFixed(1)}" cy="${f.sy(p.y).toFixed(1)}" r="${p.mark === 'hl' ? 4.5 : 3}"><title>${esc(p.tip)}</title></circle>`;
         });
         return g + '</svg>';
     }

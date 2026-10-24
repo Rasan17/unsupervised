@@ -24,6 +24,7 @@
         ae: 'An autoencoder is a small neural network (deep learning) trained to compress each patient into two numbers and to rebuild all the variables from them: a non-linear generalisation of PCA. With a few hundred patients it can overfit, so training stops when the error on held-back patients stops improving (see the curve). Distances on this map are not to scale, and another random seed gives a somewhat different map.',
         umap: 'UMAP keeps close neighbours together and more of the overall layout than t-SNE, but still distorts sizes and distances, and apparent groups are not evidence of sub-groups. Use it to see whether the clusters found are coherent.'
     };
+    let HL = null;  // records highlighted from the self-organising map (original row numbers), or null
     let M = null;   // { key, kind, colourBy, maps: { kind: { Y, idx, trust, xLabel, yLabel } }, busy }
 
     // The clustering dissimilarities; for large datasets they cover a random sample, whose original row numbers are
@@ -150,9 +151,11 @@
         let body = '<p class="muted">No map is available for these data.</p>';
         if (map) {
             const c = colouring(map);
-            const svg = CH.scatter({ points: map.idx.map((i, r) => ({ x: map.Y[r][0], y: map.Y[r][1], ...c.pts(i) })), xLabel: map.xLabel, yLabel: map.yLabel, noAxes: M.kind === 'tsne' || M.kind === 'umap' || M.kind === 'ae', aria: `${NAMES[M.kind]} map of the patients` });
+            const svg = CH.scatter({ points: map.idx.map((i, r) => ({ x: map.Y[r][0], y: map.Y[r][1], ...c.pts(i), ...(HL ? { mark: HL.has(i) ? 'hl' : 'dim' } : {}) })), xLabel: map.xLabel, yLabel: map.yLabel, noAxes: M.kind === 'tsne' || M.kind === 'umap' || M.kind === 'ae', aria: `${NAMES[M.kind]} map of the patients` });
             const tr = trustOf(map);
+            const hlShown = HL ? map.idx.filter(i => HL.has(i)).length : 0;
             body = `${svg}${c.legend}
+                ${HL ? `<p class="small note">Highlighted: the ${HL.size.toLocaleString('en-GB')} record(s) selected on the self-organising map below${hlShown < HL.size ? ` (${hlShown.toLocaleString('en-GB')} of them are on this map, which shows a sample)` : ''}. Clear the selection there to remove the highlight.</p>` : ''}
                 ${map.history ? `<details><summary class="small">Training curve</summary>${CH.lineChart({ series: [{ name: 'Training patients', cls: 0, points: map.history.map(h => ({ x: h.epoch, y: h.train })) }, { name: 'Held-back patients', cls: 1, points: map.history.map(h => ({ x: h.epoch, y: h.val })) }], xLabel: 'Epoch', yLabel: 'Reconstruction error', aria: 'Training curve of the autoencoder', H: 220 })}${CH.legend(['Training patients', 'Held-back patients'])}<p class="muted small">If the error on held-back patients rises while the training error keeps falling, the network is learning the noise of these patients (overfitting); the weights from the lowest held-back error are used.</p></details>` : ''}
                 <p class="muted small"><strong>${NAMES[M.kind]}</strong>${map.extra ? ` (${esc(map.extra)})` : ''}. ${esc(NOTES[M.kind])}</p>
                 <p class="muted small">Trustworthiness ${tr.toFixed(3)}: how well the map keeps each patient's ${map.k} nearest neighbours (1 = perfectly; above 0.9 good).${map.idx.length < n ? ` Map of a random sample of ${map.idx.length} of the ${n} patients.` : ''}</p>`;
@@ -199,5 +202,6 @@
             <h4>Contribution of each variable to the dimensions</h4>${table}
             <p class="muted small">Contributions add up to 100% for each dimension; bold: above the average share (${avgContrib.toFixed(0)}%). Numbers are standardised; categories are coded as in MCA; grades are treated as numbers.${P.mice ? ' With multiple imputation the first imputed dataset is used.' : P.raw.some(r => r.some(v => v === null)) ? ' Missing values are replaced by the mean (numbers) or by the category shares.' : ''} If the clusters lie next to each other along a dimension without gaps (see the map), patients may differ by degree along a continuum rather than form distinct types.</p>`;
     }
-    root.UMEMaps = { render, renderDimensions: () => drawDimensions(), _state: () => M };
+    function highlight(set) { HL = set && set.size ? set : null; if (M) draw(); }
+    root.UMEMaps = { highlight, render, renderDimensions: () => drawDimensions(), _state: () => M };
 })(typeof window !== 'undefined' ? window : globalThis);

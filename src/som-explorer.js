@@ -32,6 +32,8 @@
             <div id="som-table"></div>`;
         wire();
         table();
+        // The same records highlighted on the map of the patients (FAMD, t-SNE, UMAP or autoencoder) above
+        if (root.UMEMaps && root.UMEMaps.highlight) root.UMEMaps.highlight(V.sel.size ? new Set(selectedRecords()) : null);
     }
     function wire() {
         const svg = $('som-svg'), band = $('som-band');
