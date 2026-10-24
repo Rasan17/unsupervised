@@ -46,8 +46,12 @@
      * ranks scaled by their range, categories compared as same / different; a variable missing in either patient
      * is left out of that pair (the remaining variables are averaged). vars: [{ type: 'continuous' | 'ordinal' |
      * 'nominal', levels? (ordinal order) }]; rows: arrays of raw values (null for missing).
+     * weights: null (equal, classic Gower), an array, or 'balanced': each variable weighted by 1 / its mean
+     * contribution over all pairs, so that every variable contributes equally on average (Hennig & Liao 2013).
+     * Without balancing, a yes/no variable (mean contribution about 0.5) outweighs a measurement (about 0.2-0.3)
+     * and can split patients into artefactual groups. Returns { n, D, weights }.
      */
-    function gowerMatrix(rows, vars) {
+    function gowerMatrix(rows, vars, { weights = null } = {}) {
         const n = rows.length, p = vars.length;
         if (!n || !p) throw new Error('No patients or variables to analyse.');
         const val = vars.map((v, j) => rows.map(r => {
@@ -58,21 +62,31 @@
             const num = Number(x); return Number.isFinite(num) ? num : null;
         }));
         const range = vars.map((v, j) => { if (v.type === 'nominal') return 1; const xs = val[j].filter(x => x !== null); if (!xs.length) return 0; let lo = Infinity, hi = -Infinity; for (const x of xs) { if (x < lo) lo = x; if (x > hi) hi = x; } return hi - lo; });
+        const dj = (j, a, b) => (vars[j].type === 'nominal' ? (a === b ? 0 : 1) : range[j] > 0 ? Math.abs(a - b) / range[j] : 0);
+        let wt = new Array(p).fill(1);
+        if (Array.isArray(weights)) wt = weights.slice();
+        else if (weights === 'balanced') {
+            wt = vars.map((v, j) => {
+                let s = 0, c = 0;
+                for (let i = 0; i < n; i++) { const a = val[j][i]; if (a === null) continue; for (let k = i + 1; k < n; k++) { const b = val[j][k]; if (b === null) continue; s += dj(j, a, b); c++; } }
+                return s > 0 ? c / s : 0;   // a constant variable gets no weight
+            });
+        }
         const D = new Float64Array(n * n);
         let undefinedPairs = 0;
         for (let i = 0; i < n; i++) for (let k = i + 1; k < n; k++) {
             let s = 0, w = 0;
             for (let j = 0; j < p; j++) {
                 const a = val[j][i], b = val[j][k];
-                if (a === null || b === null) continue;
-                if (vars[j].type === 'nominal') { s += a === b ? 0 : 1; w += 1; } else if (range[j] > 0) { s += Math.abs(a - b) / range[j]; w += 1; } else { w += 1; }
+                if (a === null || b === null || !(wt[j] > 0)) continue;
+                s += wt[j] * dj(j, a, b); w += wt[j];
             }
             const d = w ? s / w : NaN;
             if (!w) undefinedPairs++;
             D[i * n + k] = d; D[k * n + i] = d;
         }
         if (undefinedPairs) throw new Error(`${undefinedPairs} pair(s) of patients share no recorded variable, so their dissimilarity is undefined: remove patients with very few recorded values.`);
-        return { n, D };
+        return { n, D, weights: wt };
     }
 
     // ------------------------------------------------------------------------------------------- k-means
@@ -648,12 +662,16 @@
         const num = Number(x); return Number.isFinite(num) ? num : null;
     }
     /** Gower dissimilarity of one new patient to each reference patient, with the variable ranges of the reference data */
-    function gowerDistances(x, rows, vars) {
+    function gowerDistances(x, rows, vars, weights = null) {
         const val = vars.map((v, j) => rows.map(r => codeValue(r[j], v))), xv = vars.map((v, j) => codeValue(x[j], v));
         const range = vars.map((v, j) => { if (v.type === 'nominal') return 1; const xs = val[j].filter(a => a !== null); return xs.length ? Math.max(...xs) - Math.min(...xs) : 0; });
         return rows.map((_, i) => {
             let s = 0, w = 0;
-            vars.forEach((v, j) => { const a = xv[j], b = val[j][i]; if (a === null || b === null) return; w++; if (v.type === 'nominal') s += a === b ? 0 : 1; else if (range[j] > 0) s += Math.min(1, Math.abs(a - b) / range[j]); });
+            vars.forEach((v, j) => {
+                const a = xv[j], b = val[j][i], wj = weights ? weights[j] : 1;
+                if (a === null || b === null || !(wj > 0)) return;
+                w += wj; if (v.type === 'nominal') s += wj * (a === b ? 0 : 1); else if (range[j] > 0) s += wj * Math.min(1, Math.abs(a - b) / range[j]);
+            });
             return w ? s / w : NaN;
         });
     }

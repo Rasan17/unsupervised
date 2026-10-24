@@ -153,7 +153,7 @@
         if (!ref) return null;
         let d;
         if (ref.kind === 'medoid') {
-            const vars = varsOf(P), dist = CE.gowerDistances(x, ref.medoids.map(i => P.raw[i]), vars);
+            const vars = varsOf(P), dist = CE.gowerDistances(x, ref.medoids.map(i => P.raw[i]), vars, P.gower.weights);
             d = dist;
         } else {
             const e = encodeNew(P, x), z = e.map((v, j) => (v === null ? null : (v - P.zstat.mean[j]) / P.zstat.sd[j]));

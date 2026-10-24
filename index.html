@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>Unsupervised Medical Explorer</title>
-<link rel="stylesheet" href="style.css?v=6">
+<link rel="stylesheet" href="style.css?v=8">
 <link rel="icon" href="data:,">
 </head>
 <body>
@@ -58,6 +58,11 @@
         <option value="gmm" id="method-gmm">Gaussian mixture model (numerical variables only)</option>
       </select>
       <p id="method-hint" class="muted small"></p>
+      <label for="gower-weights">Weighting of the variables (Gower)</label>
+      <select id="gower-weights">
+        <option value="balanced" selected>Balanced: each variable contributes equally on average (recommended)</option>
+        <option value="equal">Equal weights (classic Gower; yes/no variables count for more)</option>
+      </select>
       <label for="missing">Missing values</label>
       <select id="missing">
         <option value="fill" selected>Fill with the median or most frequent value</option>
@@ -98,10 +103,10 @@
   <p>Conceived, designed and directed by Dr G Narenthiran · implemented with AI pair programming (Anthropic Claude Code) · © 2026 Dr G Narenthiran. All rights reserved.</p>
   <p>For research and education only; not a medical device. Clusters found in one dataset are hypotheses: replicate them in another cohort before any clinical use.</p>
 </footer>
-<script src="data-engine.js?v=6"></script>
-<script src="cluster-engine.js?v=6"></script>
-<script src="src/charts.js?v=6"></script>
-<script src="src/use-clusters.js?v=6"></script>
-<script src="src/app.js?v=6"></script>
+<script src="data-engine.js?v=8"></script>
+<script src="cluster-engine.js?v=8"></script>
+<script src="src/charts.js?v=8"></script>
+<script src="src/use-clusters.js?v=8"></script>
+<script src="src/app.js?v=8"></script>
 </body>
 </html>

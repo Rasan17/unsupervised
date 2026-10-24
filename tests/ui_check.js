@@ -27,8 +27,13 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         await p.goto(url);
         const visibleSteps = () => p.$$eval('section.step', ss => ss.filter(s => s.offsetParent !== null).map(s => s.dataset.step));
         check(JSON.stringify(await visibleSteps()) === '["1"]', `${name}: only step 1 is shown at the start`);
-        await p.click(demo); await p.click('#to-step3');
-        if (expectReal) await p.selectOption('#missing', 'mice');
+        await p.click(demo);
+        await p.waitForSelector('#var-table table');
+        const roles = await p.evaluate(() => ['Age', 'Sex'].map(h => window.UMEApp.state.vars[h].role));
+        check(roles.every(r => r === 'describe'), `${name}: age and sex start as "describe only"`);
+        await p.click('#to-step3');
+        if (expectReal) { await p.selectOption('#method', 'kmeans'); await p.selectOption('#missing', 'mice'); }
+        else check(!(await p.isDisabled('#gower-weights')) && (await p.inputValue('#gower-weights')) === 'balanced', `${name}: PAM / Gower uses balanced weighting by default`);
         await p.click('#explore-btn');
         await p.waitForSelector('#describe-btn', { timeout: 300000 });
         const lead = await p.locator('#explore-out .lead').innerText();

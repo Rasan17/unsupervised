@@ -65,6 +65,21 @@ for key, vals in [('kw', t['agev']), ('kwTies', [grades.index(v) for v in t['gra
     chk(f'Kruskal-Wallis test ({key}): statistic and p (vs SciPy)', [t[key]['statistic'], t[key]['p']], [h, pv], 1e-10)
 from scipy.special import gammaincc
 chk('Regularised upper incomplete gamma function (vs SciPy)', t['q'], [gammaincc(2.5, 3.1), gammaincc(10, 4), gammaincc(0.5, 20)], 1e-12)
+# Balanced Gower weights: 1 / mean pairwise contribution of each variable (independent computation)
+import csv as _csv, itertools
+rowsM = list(_csv.reader(open(os.path.join(here, 'ref_data', 'mixed.csv'))))[1:]
+def contrib(j):
+    vals = [r[j] for r in rowsM]
+    if j in (0, 1):
+        xs = [float(v) for v in vals if v != 'NA']; rg = max(xs) - min(xs)
+        f = lambda a, b: abs(float(a) - float(b)) / rg
+    elif j == 2:
+        order = ['mild', 'moderate', 'severe']; f = lambda a, b: abs(order.index(a) - order.index(b)) / 2
+    else:
+        f = lambda a, b: 0.0 if a == b else 1.0
+    d = [f(a, b) for a, b in itertools.combinations(vals, 2) if a != 'NA' and b != 'NA']
+    return len(d) / sum(d)
+chk('Balanced Gower weights (1 / mean contribution of each variable)', o['gowerBalanced']['weights'], [contrib(j) for j in range(5)], 1e-10)
 # Classification tree (rules from clusters) and Cohen's kappa
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import cohen_kappa_score
@@ -83,6 +98,7 @@ if rs:
     for row in csv.DictReader(open(os.path.join(here, 'ref_data', 'r_results.csv'))):
         R.setdefault(row['name'], []).append(float(row['value']))
     chk('Gower dissimilarity, mixed data with missing values (vs R cluster::daisy)', np.array(o['gower']['firstRows']).ravel(), R['gower_rows'], 1e-12)
+    chk('Balanced Gower (variables weighted to contribute equally) (vs R cluster::daisy with the same weights)', np.array(o['gowerBalanced']['firstRows']).ravel(), R['gower_balanced_rows'], 1e-12)
     chk('PAM on Gower dissimilarities: objective (vs R cluster::pam)', o['pamGower']['objective'], R['pam_gower_objective'], 1e-12)
     chk('PAM on Gower dissimilarities: medoids', o['pamGower']['medoids'], R['pam_gower_medoids'], 0)
     chk('Silhouette on Gower dissimilarities (vs R cluster::pam)', o['pamGower']['silhouette'], R['pam_gower_silhouette'], 1e-12)

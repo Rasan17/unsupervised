@@ -7,9 +7,12 @@
     const $ = id => document.getElementById(id);
     const yieldUI = () => new Promise(r => setTimeout(r, 0));
     const S = { data: null, vars: {}, prep: null, explore: null, result: null };
+    // Demographic columns start as "describe only": phenotypes are usually built from clinical features and then
+    // described by age and sex; yes/no variables such as sex can otherwise dominate the clusters (especially with Gower)
+    const DEMOGRAPHIC_RE = /^(age|sex|gender|ethnicity|ethnic[\s_-]?group|race)([\s_-]|$)/i;
     const OUTCOME_RE = /(response|responder|outcome|improve|mortality|death|died|surviv|revision|complication|readmission|recurrence|discharge)/i;
     const METHOD = {
-        'pam-gower': { name: 'k-medoids (PAM) with Gower dissimilarity', short: 'PAM / Gower', note: 'Recommended for clinical data that mix numbers, grades and categories, and it tolerates missing values. Each cluster is represented by a real patient (its medoid).' },
+        'pam-gower': { name: 'k-medoids (PAM) with Gower dissimilarity', short: 'PAM / Gower', note: 'Recommended for clinical data that mix numbers, grades and categories, and it tolerates missing values. Each cluster is represented by a real patient (its medoid). With balanced weighting (the default) every variable contributes equally on average; with equal weights (classic Gower), yes/no variables count for more than measurements and can split patients into artificial groups.' },
         'kmeans': { name: 'k-means on standardised variables', short: 'k-means', note: 'For numerical variables; categories are coded 0/1. Assumes roughly round clusters of similar spread.' },
         'ward': { name: 'Hierarchical clustering (Ward) on standardised variables', short: 'Hierarchical (Ward)', note: 'Builds a tree of nested groupings; cutting it gives the clusters. Similar to k-means; needs no random start.' },
         'gmm': { name: 'Gaussian mixture model (numerical variables only)', short: 'Gaussian mixture', note: 'Allows clusters of different size and spread, with BIC to compare numbers of clusters. Only meaningful for numerical variables (yes/no and graded variables make BIC unreliable).' }
@@ -39,7 +42,7 @@
         S.vars = {}; S.prep = null; S.explore = null; S.result = null;
         parsed.headers.forEach(h => {
             const a = S.data.analysis[h];
-            const role = a.role === 'meta' ? 'ignore' : (a.role === 'target' || OUTCOME_RE.test(h) || /simulated|true.?sub.?type/i.test(h)) ? 'describe' : 'cluster';
+            const role = a.role === 'meta' ? 'ignore' : (a.role === 'target' || OUTCOME_RE.test(h) || /simulated|true.?sub.?type/i.test(h) || DEMOGRAPHIC_RE.test(h)) ? 'describe' : 'cluster';
             const type = a.type === 'continuous' && a.isNumeric ? 'continuous' : a.type === 'ordinal' ? 'ordinal' : 'nominal';
             S.vars[h] = { role, type };
         });
@@ -87,17 +90,19 @@
         const types = { continuous: 0, ordinal: 0, nominal: 0 }; used.forEach(h => { types[S.vars[h].type]++; });
         $('var-summary').innerHTML = `${used.length} variable(s) used to find clusters (${types.continuous} numbers, ${types.ordinal} ordered grades, ${types.nominal} categories); ${desc.length} used only to describe them.`
             + (used.length < 2 ? ' <span class="warn">Choose at least two variables to find clusters.</span>' : '')
+            + (Object.keys(S.vars).some(h => DEMOGRAPHIC_RE.test(h) && S.vars[h].role === 'describe') ? ' <span class="muted">Age and sex start as "describe only", so that the clusters reflect clinical features rather than demographics (yes/no variables such as sex can otherwise dominate them); change this if demographics are part of the phenotype you are looking for.</span>' : '')
             + (desc.length ? '' : ' <span class="muted">Tip: outcomes (for example shunt response) are best kept as "Describe clusters only": they then show whether the clusters differ in outcome, without having shaped them.</span>');
         $('to-step3').disabled = used.length < 2;
         const onlyNumbers = used.every(h => S.vars[h].type === 'continuous');
         $('method-gmm').disabled = !onlyNumbers;
         if (!onlyNumbers && $('method').value === 'gmm') $('method').value = 'pam-gower';
+        $('gower-weights').disabled = $('method').value !== 'pam-gower';
         $('method-hint').textContent = METHOD[$('method').value].note + (onlyNumbers ? '' : ' (Gaussian mixtures need numerical variables only.)');
     }
 
     // ------------------------------------------------------------------------------------- data preparation
     function prepare() {
-        const method = $('method').value, missing = $('missing').value, cols = S.data.headers.filter(h => S.vars[h].role === 'cluster');
+        const method = $('method').value, missing = $('missing').value, gowerWeights = $('gower-weights').value, cols = S.data.headers.filter(h => S.vars[h].role === 'cluster');
         const describeCols = S.data.headers.filter(h => S.vars[h].role === 'describe');
         const specs = cols.map(h => ({ col: h, type: S.vars[h].type, levels: S.vars[h].type === 'continuous' ? null : levelsOf(h) }));
         let rows = S.data.rows.slice();
@@ -114,9 +119,9 @@
         if (missing === 'fill') rows = rows.map(r => { const c = { ...r }; cols.forEach(h => { if (isMiss(r, h)) { c[h] = fillVal[h]; filled++; } }); return c; });
         if (rows.length < 10) throw new Error(`Only ${rows.length} patients remain after handling missing values; at least 10 are needed.`);
         const seed = Number($('seed').value) || 2024, pcol = $('patient-col').value;
-        const base = { method, missing, cols, describe: describeCols, specs, rows, excluded: nAll - rows.length, filled, seed,
+        const base = { method, missing, gowerWeights, cols, describe: describeCols, specs, rows, excluded: nAll - rows.length, filled, seed,
             groups: pcol ? rows.map(r => String(r[pcol] ?? '')) : null, patientCol: pcol, allContinuous: specs.every(s => s.type === 'continuous') };
-        if (missing !== 'mice') return { ...base, ...encode(rows, specs, method, isMiss) };
+        if (missing !== 'mice') return { ...base, ...encode(rows, specs, method, isMiss, gowerWeights) };
         // Multiple imputation by chained equations (predictive mean matching), from the clustering variables only:
         // outcomes kept for description must not shape the clusters. Each imputed dataset is clustered and the
         // results are combined into a consensus (Basagana et al. 2013, Am J Epidemiol).
@@ -125,7 +130,7 @@
         const missingValues = clean.reduce((a, r) => a + cols.filter(h => DE.isMissing(r[h])).length, 0);
         const missingPatients = clean.filter(r => cols.some(h => DE.isMissing(r[h]))).length;
         const mi = DE.miceImpute(clean, cfg, { m: MICE_M, iterations: 10, seed });
-        const imps = mi.datasets.map(d => encode(d, specs, method, isMiss));
+        const imps = mi.datasets.map(d => encode(d, specs, method, isMiss, gowerWeights));
         const P = { ...base, ...imps[0], mice: { m: MICE_M, iterations: 10, missingValues, missingPatients } };
         P.impP = imps.map(e => ({ ...P, ...e }));
         // Map: principal components of the average of the imputed (standardised) datasets
@@ -133,7 +138,7 @@
         return P;
     }
     // Raw values (for Gower and the mixed-data test) and a numerical coding (for k-means, Ward, mixtures, PCA)
-    function encode(rows, specs, method, isMiss) {
+    function encode(rows, specs, method, isMiss, gowerWeights) {
         const raw = rows.map(r => specs.map(s => (isMiss(r, s.col) ? null : (s.type === 'continuous' ? Number(r[s.col]) : String(r[s.col]).trim()))));
         const complete = raw.every(r => r.every(v => v !== null));
         let X = null, Z = null, zstat = null;
@@ -143,7 +148,7 @@
             specs.forEach(s => { if (s.type === 'nominal' && s.levels.length > 2) s.levels.forEach(l => colNames.push(`${s.col} = ${l}`)); else colNames.push(s.type === 'nominal' ? `${s.col} = ${s.levels[1]}` : s.col); });
             const st = CE.standardize(X); Z = st.Z; zstat = { mean: st.mean, sd: st.sd };
         }
-        const gower = method === 'pam-gower' ? CE.gowerMatrix(raw, specs.map(s => ({ type: s.type, levels: s.levels }))) : null;
+        const gower = method === 'pam-gower' ? CE.gowerMatrix(raw, specs.map(s => ({ type: s.type, levels: s.levels })), { weights: gowerWeights === 'balanced' ? 'balanced' : null }) : null;
         const euclid = Z && method !== 'pam-gower' ? CE.euclideanMatrix(Z) : null;
         return { raw, X, Z, zstat, colNames, gower, euclid, D: gower || euclid };
     }

@@ -27,7 +27,12 @@ well clustering recovers it) and a cohort of one population, where the app shoul
   clustering (Ward, average, complete, single; nearest-neighbour chain), Gaussian mixtures (full or diagonal
   covariance, EM from k-means starts, BIC).
 - **Dissimilarities:** Euclidean; Gower for mixed clinical data (numbers, ordered grades, categories) with
-  missing values.
+  missing values, by default with balanced weights (each variable weighted by 1 / its mean contribution, so that
+  every variable contributes equally on average; Hennig & Liao 2013). Classic equal-weight Gower lets yes/no
+  variables dominate: on the one-population demo it gives a "perfectly stable" 4-cluster artefact (the four
+  combinations of two yes/no variables), which balanced weighting removes.
+- **Default variable roles:** outcomes and demographic columns (age, sex, gender, ethnicity) start as "describe
+  only", so that clusters reflect clinical features; users can change this.
 - **How many clusters, and are they real?** Silhouette, Calinski–Harabasz, Davies–Bouldin, gap statistic
   (Tibshirani's 1-SE rule), BIC; bootstrap stability of each cluster (Hennig's clusterboot: mean Jaccard); a
   test of "no real clusters" against Gaussian reference data with exactly the data's covariance (exact for
@@ -48,7 +53,7 @@ well clustering recovers it) and a cohort of one population, where the app shoul
 ## Verification
 
 ```bash
-node tests/reference_check.js && python3 tests/reference_check.py   # 43 checks against scikit-learn, SciPy and R (cluster::daisy, cluster::pam)
+node tests/reference_check.js && python3 tests/reference_check.py   # 45 checks against scikit-learn, SciPy and R (cluster::daisy, cluster::pam)
 node tests/behaviour_check.js                                       # simulations: true k found, 1 cluster when there are none, test calibration, stability
 node tests/ui_check.js                                              # browser (Playwright + Chrome): both demo cohorts end to end (incl. MICE and step 6), layout, no page errors
 npx eslint@9.39.5 -c eslint.config.mjs src cluster-engine.js         # undefined names and real mistakes
