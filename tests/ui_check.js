@@ -167,6 +167,18 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         check(ari5 >= 0.7, `${name}: 5 groups recover the simulated referral patterns (adjusted Rand ${ari5.toFixed(2)})`);
         await p.selectOption('#k-choice', '5'); await p.click('#describe-btn'); await p.waitForSelector('#to-use', { timeout: 600000 });
         check((await p.locator('#clusters-out svg[aria-label="Self-organising map of the records coloured by cluster"]').count()) === 1, `${name}: the self-organising map is drawn`);
+        // Interactive map: drag a region, then the table shows only the records on the selected units
+        await p.locator('#som-svg').scrollIntoViewIfNeeded();
+        const bb = await p.locator('#som-svg').boundingBox();
+        await p.mouse.move(bb.x + 4, bb.y + 4); await p.mouse.down(); await p.mouse.move(bb.x + bb.width * 0.4, bb.y + bb.height * 0.5, { steps: 6 }); await p.mouse.up();
+        const sel = await p.evaluate(() => { const V = window.UMESom._state(), m = V.nn.map; return { units: V.sel.size, records: V.P.rows.filter((_, i) => V.sel.has(m.bmu[i])).length }; });
+        const txt = await p.locator('#som-table p').first().innerText(), n1 = Number((txt.match(/^([\d,]+) record/) || [])[1]?.replace(/,/g, ''));
+        check(sel.units > 0 && n1 === sel.records && (await p.$$eval('#som-table table.records tbody tr', r => r.length)) === Math.min(50, sel.records), `${name}: dragging over the map selects ${sel.units} units and the table lists exactly their ${sel.records} records`);
+        await p.click('[data-selc="0"]');
+        const c1 = await p.evaluate(() => { const V = window.UMESom._state(), m = V.nn.map; return V.P.rows.map((_, i) => i).filter(i => V.sel.has(m.bmu[i])).every(i => V.labels[i] === 0); });
+        check(c1 && /cluster 1 100%/.test(await p.locator('#som-table p').first().innerText()), `${name}: the cluster button selects that cluster's units and records`);
+        await p.click('#som-clear');
+        check(/No units selected/.test(await p.locator('#som-table').innerText()), `${name}: clearing the selection empties the table`);
         // Regression: the test of "no real sub-groups" with categories of several levels (missing values filled)
         await p.click('.tab[data-step="4"]'); await p.selectOption('#missing', 'fill'); await p.click('#explore-btn'); await p.waitForSelector('#describe-btn', { timeout: 600000 });
         await p.selectOption('#k-choice', '5'); await p.click('#describe-btn'); await p.waitForSelector('#to-use', { timeout: 600000 });

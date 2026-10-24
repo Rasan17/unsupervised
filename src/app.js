@@ -395,16 +395,6 @@
         return `<div class="table-wrap"><table class="profile"><thead><tr><th>Variable</th>${groups.map((g, c) => `<th><i class="sw s${c}"></i>${esc(head(c))}<div class="muted">n = ${g.length}</div></th>`).join('')}<th>All<div class="muted">n = ${n}</div></th><th>p (describe-only variables)</th></tr></thead><tbody>${rowsOut.join('')}</tbody></table></div>
             <p class="muted small">${opts.only === 'describe' ? 'P-values: Kruskal–Wallis test (numbers, grades) or chi-square test (categories); with several variables, some small p-values occur by chance. Differences in outcome support, but do not prove, that the classes are clinically meaningful.</p>' : ''}${opts.only === 'describe' ? '<p hidden>' : '<p class="muted small">'}Variables used to form the clusters differ between clusters by construction, so no p-values are shown for them. For variables used only to describe the clusters (shaded), p-values come from the Kruskal–Wallis test (numbers, grades) or the chi-square test (categories); with several variables, some small p-values occur by chance.</p>`;
     }
-    // The self-organising map as a grid of units coloured by cluster, intensity by the records they hold
-    function somChart(nn) {
-        const m = nn.map, cell = Math.max(12, Math.min(30, Math.floor(440 / Math.max(m.rows, m.cols)))), W = m.cols * cell, H = m.rows * cell, maxHits = Math.max(...m.hits);
-        let g = `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Self-organising map of the records coloured by cluster">`;
-        m.pos.forEach(([r, c], u) => {
-            const hits = m.hits[u], op = hits ? (0.25 + 0.75 * Math.sqrt(hits / maxHits)).toFixed(2) : 1;
-            g += `<rect class="${hits ? `bar s${nn.unitLabels[u] % 8}` : 'pt na'}" x="${c * cell + 1}" y="${r * cell + 1}" width="${cell - 2}" height="${cell - 2}" rx="2" fill-opacity="${op}"><title>Unit ${u + 1}: ${hits} record(s)${hits ? `, cluster ${nn.unitLabels[u] + 1}` : ''}</title></rect>`;
-        });
-        return g + '</svg>';
-    }
     function renderClusters() {
         const { P } = S.explore, { k, labels, stab, test, sil, posterior } = S.result;
         const certainty = posterior ? Array.from({ length: k }, (_, c) => { const idx = labels.map((l, i) => (l === c ? i : -1)).filter(i => i >= 0); return idx.reduce((a, i) => a + posterior[i][c], 0) / Math.max(1, idx.length); }) : null;
@@ -428,7 +418,7 @@
                 </div>
                 <div><h3>Map of the patients</h3><div id="map-panel"></div></div>
             </div>
-            ${S.result.neural && S.result.neural.unitLabels ? `<h3>The self-organising map</h3><div class="grid2"><div>${somChart(S.result.neural)}${CH.legend(Array.from({ length: k }, (_, c) => `Cluster ${c + 1}`))}</div><div class="muted small"><p>Each square is a unit of the map: records with similar values fall on the same or neighbouring units. Colour: the cluster of the unit; the stronger the colour, the more records it holds (hover for the number). Clusters that touch on the map are similar; units without records are left grey.</p></div></div>` : ''}
+            ${S.result.neural && S.result.neural.unitLabels ? '<h3>The self-organising map</h3><div id="som-view"></div>' : ''}
             <h3>Dimensions of the data: what drives the differences between patients</h3>
             <div id="dims-panel"></div>
             <h3>How well each patient fits (silhouette)</h3>
@@ -441,6 +431,7 @@
         $('to-use').addEventListener('click', () => goTo(7));
         $('tree-out').innerHTML = '';
         window.UMEMaps.render({ S, P });
+        if (S.result.neural && S.result.neural.unitLabels) window.UMESom.render({ S, P });
     }
     function exportCsv() {
         if (!confirm('The file will contain your patients\' data (every column of the loaded file) with the cluster of each patient. Save it only where your data-governance rules allow. Continue?')) return;
