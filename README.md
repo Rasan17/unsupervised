@@ -22,9 +22,11 @@ for slides), with its legend, in light colours on white.
 
 After changing a script or `style.css`, raise its `?v=` number in `index.html` so browsers do not keep the old copy.
 
-Open `index.html` directly, or serve the folder (`python3 -m http.server`). Two demo cohorts (`tools/make_demo_cohorts.py`):
-a referral-patterns demo (`tools/make_referral_demo.py`, 8,000 referrals with five patterns), simulated iNPH patients with three sub-types (the true sub-type is included as a describe-only column, to see how
-well clustering recovers it) and a cohort of one population, where the app should find nothing.
+Open `index.html` directly, or serve the folder (`python3 -m http.server`; the demo buttons need it). Four demo
+datasets: simulated iNPH patients with three sub-types (the true sub-type is included as a describe-only column, to
+see how well clustering recovers it), the same cohort with 11 planted data problems, a cohort of one population
+where the app should find nothing (all from `tools/make_demo_cohorts.py`), and 8,000 simulated referrals with five
+referral patterns (`tools/make_referral_demo.py`).
 
 ## Statistical engine
 
