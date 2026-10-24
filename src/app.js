@@ -50,8 +50,8 @@
         try { parsed = DE.parseCSV(text); } catch (e) { status('data-status', `The file could not be read: ${e.message}`, 'bad'); return; }
         if (!parsed.rows.length) { status('data-status', 'The file has no data rows.', 'bad'); return; }
         S.data = { ...parsed, name, analysis: DE.analyzeColumns(parsed.headers, parsed.rows) };
-        const ban = $('data-banner'); ban.hidden = false; ban.className = `data-banner small${demo ? ' demo' : ''}`;
-        ban.innerHTML = demo ? `<strong>Simulated demonstration data</strong> (${esc(name)}): not real patients. Results shown on every step come from this file.` : `<strong>Your data</strong>: ${esc(name)} (${parsed.rows.length.toLocaleString('en-GB')} rows), read in this browser only.`;
+        const ban = $('data-banner'); ban.hidden = false;
+        ban.textContent = `Data: ${name}${demo ? ' (simulated demonstration, not real patients)' : ` (${parsed.rows.length.toLocaleString('en-GB')} rows, your file)`}`;
         S.data.demo = demo;
         S.vars = {}; S.prep = null; S.explore = null; S.result = null; S.methodTouched = false; S.excluded = new Set(); S.markedGenuine = new Set();
         if (window.UMEChecks) $('check-out').innerHTML = '';

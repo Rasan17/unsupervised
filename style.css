@@ -20,7 +20,7 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--s
 .skip { position: absolute; left: -9999px; } .skip:focus { left: 16px; top: 8px; background: var(--surface); padding: 6px 10px; }
 [hidden] { display: none !important; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-.top, .tabs, main, .foot { max-width: 1100px; margin-left: auto; margin-right: auto; }
+.top, .tabs, .data-banner, main, .foot { max-width: 1100px; margin-left: auto; margin-right: auto; }
 .top { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center; padding-block: 22px 12px; }
 h1 { font-size: 26px; margin: 0; } h2 { font-size: 21px; margin: 0 0 8px; } h3 { font-size: 17px; margin: 22px 0 8px; }
 .sub { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
@@ -116,5 +116,4 @@ button.sort:focus-visible { outline: 2px solid var(--accent); outline-offset: 2p
 table.axis-factors td { vertical-align: top; } table.axis-factors td .muted { font-size: 12px; }
 .form input[type="text"] { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); max-width: 100%; }
 
-.data-banner { margin: 0 0 8px; padding: 6px 12px; border-radius: 6px; background: var(--soft); border-left: 4px solid var(--accent); }
-.data-banner.demo { background: var(--warn-bg); border-left-color: var(--warn); }
+.data-banner { margin-top: 4px; margin-bottom: 6px; font-size: 0.8rem; color: var(--muted); }
