@@ -7,6 +7,9 @@ demo_inph_phenotypes.csv   360 patients with three built-in sub-types of idiopat
                            Includes outcome columns (shunt response, gait improvement) that are not used to find
                            the sub-types but to describe them afterwards, some missing values, and the simulated true
                            sub-type (to see how well clustering recovers it; keep it as "describe only").
+demo_inph_with_errors.csv  The same cohort with 11 planted data problems (decimal and typing errors, a minus sign,
+                           spelling variants, a decimal comma, a duplicate, an out-of-scale grade and one patient
+                           with an unusual combination of plausible values), described in Simulated_Planted_Problem.
 demo_no_subtypes.csv       360 patients with the same variables drawn from one population (correlated
                            variables, no sub-types): any "clusters" found here are artefacts.
 
@@ -63,6 +66,34 @@ def write(name, rows, rng, prefix):
             w.writerow([f'{prefix}-{i + 1:03d}'] + r)
 
 
+def plant_errors(src, dst):
+    """The sub-types cohort with planted data problems, for the data checks: each problem is described in the
+    describe-only column Simulated_Planted_Problem (empty for the other patients)."""
+    with open(os.path.join(ROOT, src)) as f:
+        rows = list(csv.reader(f))
+    head, body = rows[0] + ['Simulated_Planted_Problem'], [r + [''] for r in rows[1:]]
+    c = {h: i for i, h in enumerate(head)}
+    def setv(i, col, value, why):
+        body[i][c[col]] = value; body[i][c['Simulated_Planted_Problem']] = why
+    setv(10, 'Evans_Index', str(int(round(float(body[10][c['Evans_Index']]) * 100))), 'decimal point missing in Evans index')
+    setv(25, 'MMSE', str(int(body[25][c['MMSE']]) * 10), 'MMSE typed with an extra 0')
+    setv(40, 'Age', str(int(body[40][c['Age']]) // 10), 'age missing a digit')
+    setv(55, 'Callosal_Angle_Deg', '-' + body[55][c['Callosal_Angle_Deg']], 'minus sign in callosal angle')
+    setv(70, 'Sex', body[70][c['Sex']].lower(), 'sex in lower case')
+    setv(85, 'Hypertension', body[85][c['Hypertension']] + 's', 'misspelt hypertension entry')
+    i = next(k for k in range(100, 140) if body[k][c['Rout_mmHg_min_ml']])
+    setv(i, 'Rout_mmHg_min_ml', body[i][c['Rout_mmHg_min_ml']].replace('.', ','), 'decimal comma in Rout')
+    body[114][-1] = f'entered twice ({body[114][0]} and {body[114][0][:3]}999)'
+    body[115] = [body[114][0][:3] + '999'] + body[114][1:]
+    for col, v in [('Callosal_Angle_Deg', '124'), ('DESH_Sign', 'Present'), ('Tap_Test_Gait_Gain_Pct', '44'), ('Rout_mmHg_min_ml', '22.0'), ('MMSE', '17'), ('White_Matter_Fazekas', '3')]:
+        body[130][c[col]] = v
+    body[130][c['Simulated_Planted_Problem']] = 'unusual combination (each value plausible)'
+    setv(145, 'Gait_Score', '9', 'gait score 9 on a 0-4 scale')
+    setv(160, 'Tap_Test_Gait_Gain_Pct', str(int(body[160][c['Tap_Test_Gait_Gain_Pct']] or 30) * 10), 'tap-test gain typed with an extra 0')
+    with open(os.path.join(ROOT, dst), 'w', newline='') as f:
+        w = csv.writer(f, lineterminator='\n'); w.writerow(head); w.writerows(body)
+
+
 if __name__ == '__main__':
     rng = np.random.default_rng(2031)
     rows = draw(rng, 'classic', 150) + draw(rng, 'vascular', 120) + draw(rng, 'neuro', 90)
@@ -70,4 +101,5 @@ if __name__ == '__main__':
     write('demo_inph_phenotypes.csv', rows, rng, 'PH')
     rng2 = np.random.default_rng(2032)
     write('demo_no_subtypes.csv', draw(rng2, 'single', 360), rng2, 'NS')
-    print('written: demo_inph_phenotypes.csv (sub-types 150 / 120 / 90), demo_no_subtypes.csv (one population, 360)')
+    plant_errors('demo_inph_phenotypes.csv', 'demo_inph_with_errors.csv')
+    print('written: demo_inph_phenotypes.csv (sub-types 150 / 120 / 90), demo_no_subtypes.csv (one population, 360), demo_inph_with_errors.csv (11 planted problems)')

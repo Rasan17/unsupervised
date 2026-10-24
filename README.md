@@ -13,7 +13,8 @@ chance, a silhouette plot, a map of the patients (PCA, t-SNE or UMAP) and a prof
 classification for clinicians: draft names and descriptions of each class (editable), short bedside rules from a
 classification tree with cross-validated agreement with the clusters, a calculator for a new patient (by the rules
 and by the full clustering), outcomes by class, what is needed before clinical use, and a downloadable
-classification sheet. Next: anomaly detection (unusual patients and data errors), then autoencoders.
+classification sheet. Step 3, "Check the data" (optional), looks for likely data-entry errors and unusual
+patients before clustering and lets you leave patients out. Next: autoencoders.
 
 After changing a script or `style.css`, raise its `?v=` number in `index.html` so browsers do not keep the old copy.
 
@@ -54,6 +55,14 @@ well clustering recovers it) and a cohort of one population, where the app shoul
   smallest whose average silhouette is within 0.02 of the best. Low entropy is flagged for latent classes. The other stable choices are
   listed, because average silhouette tends to favour 2 clusters.
 - **PCA** with variance explained.
+- **Data checks and unusual patients** (`anomaly-engine.js`): entry errors column by column (values far from the
+  others or isolated from them, likely decimal-point or unit errors, stray minus signs, text or decimal commas in
+  number columns, spelling variants and one-off categories, duplicate rows when a chance match is implausible,
+  duplicate identifiers); skewed positive measurements are judged on the log scale. Unusual patients by three
+  methods on the clustering variables: robust Mahalanobis distance from the minimum covariance determinant
+  (FAST-MCD with reweighting, as scikit-learn; flagged above the 99.9% chi-square limit), isolation forest, and
+  local outlier factor on balanced Gower dissimilarities; each flag comes with a reason (an extreme value, a rare
+  category, or the most unusual pair of values). A demo cohort has 11 planted problems.
 - **Dimensions of the data:** FAMD (factor analysis of mixed data, as R's FactoMineR; PCA for numbers only, MCA
   for categories only): variance explained by each dimension (scree chart), the contribution and correlation of
   each variable, a plain-language description of the first three dimensions, and how strongly each dimension
@@ -69,7 +78,7 @@ well clustering recovers it) and a cohort of one population, where the app shoul
 ## Verification
 
 ```bash
-node tests/reference_check.js && python3 tests/reference_check.py   # 68 checks against scikit-learn, SciPy, umap-learn and R (poLCA, mclust, cluster, FactoMineR) (cluster::daisy, cluster::pam)
+node tests/reference_check.js && python3 tests/reference_check.py   # 76 checks against scikit-learn, SciPy, umap-learn and R (poLCA, mclust, cluster, FactoMineR) (cluster::daisy, cluster::pam)
 node tests/behaviour_check.js                                       # simulations: true k found, 1 cluster when there are none, test calibration, stability
 node tests/ui_check.js                                              # browser (Playwright + Chrome): both demo cohorts end to end (incl. MICE and step 6), layout, no page errors
 npx eslint@9.39.5 -c eslint.config.mjs src cluster-engine.js         # undefined names and real mistakes

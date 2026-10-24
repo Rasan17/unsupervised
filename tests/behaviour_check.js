@@ -6,7 +6,8 @@ const fs = require('fs'), path = require('path'), vm = require('vm');
 global.window = globalThis;
 vm.runInThisContext(fs.readFileSync(path.join(__dirname, '..', 'cluster-engine.js'), 'utf8'));
 vm.runInThisContext(fs.readFileSync(path.join(__dirname, '..', 'embed-engine.js'), 'utf8'));
-const CE = globalThis.ClusterEngine, EE = globalThis.EmbedEngine;
+vm.runInThisContext(fs.readFileSync(path.join(__dirname, '..', 'anomaly-engine.js'), 'utf8'));
+const CE = globalThis.ClusterEngine, EE = globalThis.EmbedEngine, AE = globalThis.AnomalyEngine;
 let passed = 0, failed = 0;
 function check(name, fn) {
     const t0 = Date.now();
@@ -155,6 +156,64 @@ check('Maps are reproducible: same seed, same map', () => {
     const a = EE.umap(E, { seed: 5 }).Y, b = EE.umap(E, { seed: 5 }).Y, c = EE.tsne(EE.squared(E)).Y, d = EE.tsne(EE.squared(E)).Y;
     assert(a.every((r, i) => r[0] === b[i][0] && r[1] === b[i][1]) && c.every((r, i) => r[0] === d[i][0] && r[1] === d[i][1]), 'maps differ');
     return 'identical';
+});
+// Unusual patients and data errors
+function corrData(seed, n, nOut, shift, scattered = false) {
+    const r = CE.createPRNG(seed), gz = () => { const u = r() || 1e-12, v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+    const X = [], y = [];
+    for (let i = 0; i < n; i++) { const a = gz(), b = gz(), c = gz(), d = gz(); X.push([a, 0.8 * a + 0.6 * b, 0.5 * b + 0.8 * c, 0.6 * c + 0.8 * d]); y.push(0); }
+    // Outliers: a tight group placed `shift` standard deviations out along the direction in which the clean data vary
+    // least (each single value unremarkable; a group like this inflates, and so masks, the classical distance)
+    if (nOut) {
+        const m = X[0].map((_, j) => X.reduce((a, r) => a + r[j], 0) / X.length), C = m.map((_, a) => m.map((__, b) => X.reduce((s, r) => s + (r[a] - m[a]) * (r[b] - m[b]), 0) / X.length));
+        const e = CE.symmetricEigen(C), q = e.values.length - 1, v = e.vectors[q], sd = Math.sqrt(e.values[q]);
+        for (let i = 0; i < nOut; i++) {
+            // scattered: a typical patient moved off the pattern, in a random direction along the least-variance axis
+            const base = scattered ? X[Math.floor(r() * n)] : m, sign = scattered && r() < 0.5 ? -1 : 1;
+            X.push(base.map((bj, j) => bj + sign * shift * sd * v[j] + (scattered ? 0 : 0.1 * sd * gz()))); y.push(1);
+        }
+    }
+    return { X, y };
+}
+const auc = (s, y) => { let num = 0, den = 0; y.forEach((yi, i) => { if (!yi) return; y.forEach((yj, j) => { if (yj) return; den++; num += s[i] > s[j] ? 1 : s[i] === s[j] ? 0.5 : 0; }); }); return num / den; };
+check('Robust distance finds a group of outliers that masks the classical Mahalanobis distance (10% contamination)', () => {
+    const { X, y } = corrData(51, 270, 30, 6), cut = AE.chi2Ppf(0.999, 4), R = AE.mcd(X, { seed: 1 });
+    const m = X[0].map((_, j) => X.reduce((a, r) => a + r[j], 0) / X.length), C = X[0].map((_, a) => X[0].map((__, b) => X.reduce((s, r) => s + (r[a] - m[a]) * (r[b] - m[b]), 0) / X.length));
+    const Ci = (() => { const e = CE.symmetricEigen(C); return C.map((_, a) => C.map((__, b) => e.values.reduce((s, l, q) => s + e.vectors[q][a] * e.vectors[q][b] / l, 0))); })();
+    const classical = X.map(x => x.reduce((s, xa, a) => s + (xa - m[a]) * x.reduce((t, xb, b) => t + Ci[a][b] * (xb - m[b]), 0), 0));
+    const found = R.dist.filter((d, i) => y[i] && d > cut).length, foundClassical = classical.filter((d, i) => y[i] && d > cut).length, falseR = R.dist.filter((d, i) => !y[i] && d > cut).length;
+    assert(found >= 27 && foundClassical < found && falseR <= 3, `robust ${found}/30, classical ${foundClassical}/30, false ${falseR}`);
+    return `robust distance ${found} of 30, classical ${foundClassical} of 30; false alarms ${falseR} of 270`;
+});
+check('Robust distance: about 0.1% false alarms at the 99.9% limit in clean correlated data (20 datasets x 300 patients)', () => {
+    let fa = 0, tot = 0; const cut = AE.chi2Ppf(0.999, 4);
+    for (let s = 0; s < 20; s++) { const { X } = corrData(600 + s, 300, 0, 0), R = AE.mcd(X, { seed: s }); fa += R.dist.filter(d => d > cut).length; tot += X.length; }
+    assert(fa / tot <= 0.005, `${fa} of ${tot}`);
+    return `${fa} of ${tot} (${(100 * fa / tot).toFixed(2)}%)`;
+});
+check('Isolation forest and local outlier factor rank scattered outliers that break the correlations high (AUC >= 0.85 and >= 0.95)', () => {
+    const { X, y } = corrData(52, 285, 15, 6, true), a1 = auc(AE.isolationForest(X, { seed: 2 }), y), a2 = auc(AE.lof(CE.euclideanMatrix(X), 20), y);
+    assert(a1 >= 0.85 && a2 >= 0.95, `iso ${a1}, lof ${a2}`);
+    return `AUC isolation forest ${a1.toFixed(3)}, local outlier factor ${a2.toFixed(3)}`;
+});
+check('Data checks raise (almost) no alarms in clean data, including skewed measurements: at most 2 in 6000 patients (rare genuine extremes)', () => {
+    let alarms = 0;
+    for (let s = 0; s < 20; s++) {
+        const r = CE.createPRNG(700 + s), gz = () => { const u = r() || 1e-12, v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+        const rows = Array.from({ length: 300 }, (_, i) => ({ id: `P${i}`, age: String(Math.round(70 + 8 * gz())), crp: (3 * Math.exp(0.9 * gz())).toFixed(1), grade: String(Math.min(4, Math.max(0, Math.round(2 + gz())))), sex: r() < 0.5 ? 'F' : 'M' }));
+        alarms += AE.dataChecks(rows, [{ name: 'id', kind: 'id' }, { name: 'age', kind: 'number' }, { name: 'crp', kind: 'number' }, { name: 'grade', kind: 'number' }, { name: 'sex', kind: 'category' }]).length;
+    }
+    assert(alarms <= 2, `${alarms} alarms`);
+    return `${alarms} alarm(s) in 6000 patients`;
+});
+check('Data checks find planted entry errors (decimal point, extra digit, minus sign, decimal comma, spelling, duplicate)', () => {
+    const r = CE.createPRNG(800), gz = () => { const u = r() || 1e-12, v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+    const rows = Array.from({ length: 300 }, (_, i) => ({ id: `P${i}`, evans: (0.36 + 0.02 * gz()).toFixed(2), mmse: String(Math.round(24 + 3 * gz())), angle: String(Math.round(90 + 15 * gz())), rout: (14 + 4 * gz()).toFixed(1), tap: String(Math.round(20 + 12 * gz())), sex: r() < 0.5 ? 'Female' : 'Male' }));
+    rows[3].evans = '36'; rows[9].mmse = '250'; rows[17].angle = '-95'; rows[25].evans = '0,35'; rows[40].sex = 'female'; rows[60] = { ...rows[59], id: 'P999' };
+    const found = new Set(AE.dataChecks(rows, [{ name: 'id', kind: 'id' }, { name: 'evans', kind: 'number' }, { name: 'mmse', kind: 'number' }, { name: 'angle', kind: 'number' }, { name: 'rout', kind: 'number' }, { name: 'tap', kind: 'number' }, { name: 'sex', kind: 'category' }]).map(x => x.row));
+    const want = [3, 9, 17, 25, 40, 60], hit = want.filter(i => found.has(i)), extra = [...found].filter(i => !want.includes(i));
+    assert(hit.length === want.length && extra.length === 0, `found ${hit.join(',')}, extra ${extra.join(',')}`);
+    return `all ${want.length} found, no false alarms`;
 });
 console.log(`\n${passed}/${passed + failed} behaviour checks passed`);
 process.exit(failed ? 1 : 0);

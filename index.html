@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>Unsupervised Medical Explorer</title>
-<link rel="stylesheet" href="style.css?v=13">
+<link rel="stylesheet" href="style.css?v=16">
 <link rel="icon" href="data:,">
 </head>
 <body>
@@ -20,10 +20,11 @@
 <nav class="tabs" aria-label="Steps">
   <button class="tab" type="button" data-step="1">1 Data</button>
   <button class="tab" type="button" data-step="2">2 Variables</button>
-  <button class="tab" type="button" data-step="3">3 Approach</button>
-  <button class="tab" type="button" data-step="4">4 How many clusters?</button>
-  <button class="tab" type="button" data-step="5">5 The clusters</button>
-  <button class="tab" type="button" data-step="6">6 Use the clusters</button>
+  <button class="tab" type="button" data-step="3">3 Check the data</button>
+  <button class="tab" type="button" data-step="4">4 Approach</button>
+  <button class="tab" type="button" data-step="5">5 How many clusters?</button>
+  <button class="tab" type="button" data-step="6">6 The clusters</button>
+  <button class="tab" type="button" data-step="7">7 Use the clusters</button>
 </nav>
 <main id="main">
   <section class="step" data-step="1">
@@ -34,6 +35,7 @@
       <span class="muted">or a simulated demonstration cohort:</span>
       <button id="demo-phenotypes" class="btn" type="button">iNPH with three sub-types (360 patients)</button>
       <button id="demo-none" class="btn" type="button">No real sub-types (360 patients)</button>
+      <button id="demo-errors" class="btn" type="button">iNPH with planted data errors (360 patients)</button>
     </div>
     <p id="data-status" class="status" role="status"></p>
     <div id="data-summary"></div>
@@ -44,10 +46,20 @@
     <p>Variables <strong>used to find clusters</strong> define what "similar patients" means: choose those measured before any treatment and relevant to the question. Keep outcomes as <strong>describe clusters only</strong>: they then show whether the clusters differ in outcome without having shaped them.</p>
     <p id="var-summary" class="lead"></p>
     <div id="var-table" class="table-wrap"></div>
-    <div class="row"><button id="to-step3" class="btn primary" type="button">Next: approach</button></div>
+    <div class="row"><button id="to-check" class="btn primary" type="button">Next: check the data</button><button id="to-step3" class="btn" type="button">Skip the checks: go to the approach</button></div>
   </section>
 
   <section class="step" data-step="3" hidden>
+    <h2>Check the data (optional)</h2>
+    <p>Looks for likely data-entry errors in the variables you use, and for unusual patients among the clustering variables, before the analysis. Nothing changes unless you choose to leave a patient out.</p>
+    <div class="row"><button id="check-btn" class="btn primary" type="button">Run the checks</button></div>
+    <p id="check-status" class="status" role="status"></p>
+    <div id="check-out"></div>
+    <div id="check-summary"></div>
+    <div class="row"><button id="check-next" class="btn primary" type="button">Next: approach</button></div>
+  </section>
+
+  <section class="step" data-step="4" hidden>
     <h2>Choose the approach</h2>
     <div class="form">
       <label for="method">Method</label>
@@ -85,19 +97,19 @@
     <div class="row"><button id="explore-btn" class="btn primary" type="button">Compare numbers of clusters</button></div>
   </section>
 
-  <section class="step" data-step="4" hidden>
+  <section class="step" data-step="5" hidden>
     <h2>How many clusters?</h2>
     <p id="explore-status" class="status" role="status"></p>
     <div id="explore-out"></div>
   </section>
 
-  <section class="step" data-step="5" hidden>
+  <section class="step" data-step="6" hidden>
     <h2>The clusters</h2>
     <p id="clusters-status" class="status" role="status"></p>
     <div id="clusters-out"></div>
   </section>
 
-  <section class="step" data-step="6" hidden>
+  <section class="step" data-step="7" hidden>
     <h2>Use the clusters: a classification for clinicians</h2>
     <div id="use-out"><p class="muted">Describe a set of clusters in step 5 first.</p></div>
   </section>
@@ -106,12 +118,14 @@
   <p>Conceived, designed and directed by Dr G Narenthiran · implemented with AI pair programming (Anthropic Claude Code) · © 2026 Dr G Narenthiran. All rights reserved.</p>
   <p>For research and education only; not a medical device. Clusters found in one dataset are hypotheses: replicate them in another cohort before any clinical use.</p>
 </footer>
-<script src="data-engine.js?v=13"></script>
-<script src="cluster-engine.js?v=13"></script>
-<script src="embed-engine.js?v=13"></script>
-<script src="src/charts.js?v=13"></script>
-<script src="src/maps.js?v=13"></script>
-<script src="src/use-clusters.js?v=13"></script>
-<script src="src/app.js?v=13"></script>
+<script src="data-engine.js?v=16"></script>
+<script src="cluster-engine.js?v=16"></script>
+<script src="embed-engine.js?v=16"></script>
+<script src="anomaly-engine.js?v=16"></script>
+<script src="src/charts.js?v=16"></script>
+<script src="src/maps.js?v=16"></script>
+<script src="src/checks.js?v=16"></script>
+<script src="src/use-clusters.js?v=16"></script>
+<script src="src/app.js?v=16"></script>
 </body>
 </html>

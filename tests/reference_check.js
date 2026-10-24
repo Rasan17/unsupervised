@@ -8,7 +8,8 @@ const dir = path.join(__dirname, '..');
 global.window = globalThis;
 vm.runInThisContext(fs.readFileSync(path.join(dir, 'cluster-engine.js'), 'utf8'));
 vm.runInThisContext(fs.readFileSync(path.join(dir, 'embed-engine.js'), 'utf8'));
-const CE = globalThis.ClusterEngine, EE = globalThis.EmbedEngine;
+vm.runInThisContext(fs.readFileSync(path.join(dir, 'anomaly-engine.js'), 'utf8'));
+const CE = globalThis.ClusterEngine, EE = globalThis.EmbedEngine, AE = globalThis.AnomalyEngine;
 const rng = CE.createPRNG(12345);
 const g = () => { const u = rng() || 1e-12, v = rng(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
 const out = {};
@@ -112,6 +113,18 @@ out.lcaCont = { logLik: LP.logLik, bic: LP.bic, shares: LP.model.pi.slice().sort
     const Fc = EE.famd(comp.map(r => [r[2], r[3], r[4]]), [{ name: 'grade', type: 'nominal', levels: grades }, fv[3], fv[4]], { nDim: 5 });
     const Fn = EE.famd(comp.map(r => [r[0], r[1]]), fv.slice(0, 2), { nDim: 2 });
     out.famd = { n: comp.length, eig: F.eig, scores: F.scores, varCoord: F.varCoord, contrib: F.contrib, corr: F.corr.slice(0, 3), eigCat: Fc.eig, eigNum: Fn.eig, scoresNum: Fn.scores };
+}
+// 7. Unusual patients: robust covariance (MCD), local outlier factor, isolation forest, chi-square, robust z
+{
+    const A = [], isOut = [];
+    for (let i = 0; i < 200; i++) { const z1 = g(), z2 = g(), z3 = g(); A.push([10 + 2 * z1, 5 + 1.2 * z1 + 0.8 * z2, -3 + 0.5 * z2 + z3].map(v => Number(v.toFixed(6)))); isOut.push(0); }
+    for (let i = 0; i < 15; i++) { A.push([10 + 3 * g(), 9 + g(), 2 + g()].map(v => Number(v.toFixed(6)))); isOut.push(1); }
+    writeCsv('anomaly.csv', ['a', 'b', 'c', 'outlier'], A.map((r, i) => [...r, isOut[i]]));
+    const R = AE.mcd(A, { seed: 4 });
+    const DA = CE.euclideanMatrix(A);
+    out.anomaly = { location: R.location, covariance: R.covariance, dist: R.dist, support: R.support.map(Number), rawSupport: R.rawSupport.map(Number), rawLocation: R.rawLocation,
+        lof: AE.lof(DA, 20), iso: AE.isolationForest(A, { seed: 3 }), avgPath: [1, 2, 3, 10, 256, 1000].map(AE.avgPath),
+        chi2: [[0.975, 3], [0.999, 5], [0.5, 1], [0.025, 7]].map(([q, df]) => AE.chi2Ppf(q, df)), rz: AE.robustZ(A.map(r => r[0])) };
 }
 fs.writeFileSync(path.join(__dirname, 'reference_values.json'), JSON.stringify(out));
 console.log('Engine values written to tests/reference_values.json; now run: python3 tests/reference_check.py');

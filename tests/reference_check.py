@@ -126,6 +126,33 @@ try:
     chk('UMAP map at least as trustworthy as umap-learn (within 0.01 of its mean over 3 seeds)', max(0.0, np.mean(tu) - 0.01 - em['trustUmap']), 0.0, 0)
 except ImportError:
     print('umap-learn not installed: UMAP checks skipped')
+# Unusual patients
+from sklearn.covariance import MinCovDet
+from sklearn.neighbors import LocalOutlierFactor
+from sklearn.ensemble import IsolationForest
+from sklearn.ensemble._iforest import _average_path_length
+from sklearn.metrics import roc_auc_score
+from scipy.stats import chi2 as _chi2, median_abs_deviation
+an = o['anomaly']; AA = np.loadtxt(os.path.join(here, 'ref_data', 'anomaly.csv'), delimiter=',', skiprows=1); Xa, ya = AA[:, :3], AA[:, 3]
+# FAST-MCD is a random search with near-equal local optima: ours must reach a determinant at least as small as the best
+# scikit-learn finds over 10 seeds; from the same raw subset, the corrected and reweighted results must be identical
+ours_sup = np.array(an['rawSupport'], bool); ld = lambda S: np.linalg.slogdet(np.cov(Xa[S].T, bias=True))[1]
+fits = [MinCovDet(random_state=s).fit(Xa) for s in range(10)]
+chk('Robust covariance (MCD): smallest determinant at least as small as scikit-learn MinCovDet finds (10 seeds)', max(0.0, ld(ours_sup) - min(ld(f.raw_support_) for f in fits) - 1e-12), 0.0, 0)
+same = [f for f in fits if (f.raw_support_ == ours_sup).all()]
+if same:
+    mc = same[0]
+    chk('Robust covariance (MCD), same raw subset: location and covariance after reweighting (vs scikit-learn)', np.r_[an['location'], np.ravel(an['covariance'])], np.r_[mc.location_, np.ravel(mc.covariance_)], 1e-10)
+    chk('Robust covariance (MCD), same raw subset: squared robust distances of all patients', an['dist'], mc.dist_, 1e-8)
+else:
+    chk('Robust covariance (MCD): scikit-learn reaches the same raw subset with some seed', 1.0, 0.0, 0)
+lofr = -LocalOutlierFactor(n_neighbors=20, metric='precomputed').fit(squareform(pdist(Xa))).negative_outlier_factor_
+chk('Local outlier factor (vs scikit-learn)', an['lof'], lofr, 1e-9)
+chk('Isolation forest: average path length c(n) (vs scikit-learn)', an['avgPath'], _average_path_length(np.array([1, 2, 3, 10, 256, 1000])), 1e-12)
+auc_ours = roc_auc_score(ya, an['iso']); auc_sk = np.mean([roc_auc_score(ya, -IsolationForest(random_state=s).fit(Xa).score_samples(Xa)) for s in range(5)])
+chk('Isolation forest ranks planted outliers as well as scikit-learn (AUC within 0.02 of its mean over 5 seeds)', max(0.0, auc_sk - 0.02 - auc_ours), 0.0, 0)
+chk('Chi-square quantiles (vs SciPy)', an['chi2'], [_chi2.ppf(0.975, 3), _chi2.ppf(0.999, 5), _chi2.ppf(0.5, 1), _chi2.ppf(0.025, 7)], 1e-9)
+chk('Robust z-scores: median and scaled MAD (vs SciPy)', [an['rz']['med'], an['rz']['scale']], [np.median(Xa[:, 0]), median_abs_deviation(Xa[:, 0], scale='normal')], 1e-4)
 # R: Gower (daisy), PAM
 rs = shutil.which('Rscript')
 if rs:

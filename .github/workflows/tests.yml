@@ -8,7 +8,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npx --yes eslint@9.39.5 -c eslint.config.mjs src cluster-engine.js embed-engine.js
+      - run: npx --yes eslint@9.39.5 -c eslint.config.mjs src cluster-engine.js embed-engine.js anomaly-engine.js
       - run: node tests/behaviour_check.js
       - run: npm install --no-save playwright@1.48.2 && npx playwright install --with-deps chromium
       - run: node tests/ui_check.js

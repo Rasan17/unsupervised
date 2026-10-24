@@ -33,6 +33,13 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         const roles = await p.evaluate(() => ['Age', 'Sex'].map(h => window.UMEApp.state.vars[h].role));
         check(roles.every(r => r === 'describe'), `${name}: age and sex start as "describe only"`);
         await p.click('#to-step3');
+        if (!method || method === 'kmeans') {
+            await p.click('.tab[data-step="2"]'); await p.click('#to-check'); await p.click('#check-btn'); await p.waitForSelector('#check-out h3', { timeout: 300000 });
+            const ct = await p.locator('#check-out').innerText();
+            const nUnusual = Number((ct.match(/Unusual patients \((\d+)/) || [])[1]);
+            check(/Possible data errors \(0\)/.test(ct) && nUnusual <= 0.01 * 360, `${name}: the data checks find no data errors and at most 1% unusual patients in a clean cohort (${nUnusual})`);
+            await p.click('#check-next');
+        }
         const advice = await p.locator('#method-advice').innerText();
         check(/Suggested for these data: k-medoids \(PAM\)/.test(advice) && (await p.inputValue('#method')) === 'pam-gower', `${name}: method advisor suggests and preselects PAM / Gower for these mixed data`);
         if (method) { await p.selectOption('#method', method); await p.selectOption('#missing', missing); }
@@ -74,8 +81,8 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         check(/A · Classic CSF-dynamic/.test(await p.locator('#use-out').innerText()), `${name}: renaming a class updates the rules`);
         await p.click('.tab[data-step="2"]');
         check(JSON.stringify(await visibleSteps()) === '["2"]', `${name}: clicking the "2 Variables" tab shows only that step`);
-        await p.click('.tab[data-step="5"]');
-        check(JSON.stringify(await visibleSteps()) === '["5"]', `${name}: clicking the "5 The clusters" tab shows only that step`);
+        await p.click('.tab[data-step="6"]');
+        check(JSON.stringify(await visibleSteps()) === '["6"]', `${name}: clicking the "6 The clusters" tab shows only that step`);
         const overflow = () => p.evaluate(() => {
             const de = document.documentElement, step = [...document.querySelectorAll('section.step')].find(x => x.offsetParent !== null);
             return de.scrollWidth > de.clientWidth + 1 || step.scrollWidth > step.clientWidth + 1;
@@ -83,9 +90,28 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         for (const [w, label] of [[1200, 'desktop'], [375, 'phone']]) {
             await p.setViewportSize({ width: w, height: 900 });
             const bad = [];
-            for (const st of ['1', '2', '3', '4', '5', '6']) { await p.click(`.tab[data-step="${st}"]`); if (await overflow()) bad.push(st); }
+            for (const st of ['1', '2', '3', '4', '5', '6', '7']) { await p.click(`.tab[data-step="${st}"]`); if (await overflow()) bad.push(st); }
             check(bad.length === 0, `${name}: nothing spills past the page edge (${label} width)${bad.length ? ': steps ' + bad.join(', ') : ''}`);
         }
+        check(errs.length === 0, `${name}: no page errors${errs.length ? ': ' + errs.join(' | ') : ''}`);
+        await p.close();
+    }
+    // Step 3: data checks on the cohort with planted problems, and exclusion carried into the analysis
+    {
+        const name = 'planted data errors', p = await browser.newPage({ viewport: { width: 1200, height: 900 } });
+        const errs = []; p.on('pageerror', e => errs.push(String(e))); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
+        await p.goto(url); await p.click('#demo-errors'); await p.waitForSelector('#var-table table');
+        check(await p.evaluate(() => window.UMEApp.state.vars.Rout_mmHg_min_ml.type) === 'continuous', `${name}: a number column with one decimal comma stays numerical`);
+        await p.click('#to-check'); await p.click('#check-btn'); await p.waitForSelector('#check-out h3', { timeout: 300000 });
+        const planted = await p.evaluate(() => window.UMEApp.state.data.rows.map(r => r.Simulated_Planted_Problem ? r.Patient_ID : null).filter(Boolean));
+        const found = await p.$$eval('#check-out table tbody tr td:nth-child(2)', tds => [...new Set(tds.map(td => td.textContent.trim()))]);
+        const hit = planted.filter(id => found.includes(id) || (id === 'PH-115' && found.includes('PH-999')));
+        check(hit.length >= planted.length - 0, `${name}: every planted problem is listed (${hit.length} of ${planted.length})`);
+        check(/combination of .* is unusual/.test(await p.locator('#check-out').innerText()), `${name}: the patient with an unusual combination of plausible values is explained as such`);
+        await p.locator('#check-out input.excl').first().check();
+        check(/1 patient\(s\) will be left out/.test(await p.locator('#check-summary').innerText()), `${name}: excluding a patient is summarised`);
+        await p.click('#check-next'); await p.click('#explore-btn'); await p.waitForSelector('#describe-btn', { timeout: 300000 });
+        check(/1 patient\(s\) were left out after the data checks/.test(await p.locator('#explore-out .lead').innerText()) && await p.evaluate(() => window.UMEApp.state.explore.P.rows.length) === 359, `${name}: the exclusion is applied to the analysis (359 patients)`);
         check(errs.length === 0, `${name}: no page errors${errs.length ? ': ' + errs.join(' | ') : ''}`);
         await p.close();
     }

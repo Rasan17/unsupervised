@@ -26,8 +26,11 @@
         document.querySelectorAll('.step').forEach(s => { s.hidden = s.dataset.step !== String(step); });
         document.querySelectorAll('.tab').forEach(t => { const on = t.dataset.step === String(step); t.classList.toggle('active', on); if (on) t.setAttribute('aria-current', 'step'); else t.removeAttribute('aria-current'); });
         window.scrollTo(0, 0);
-        if (String(step) === '6' && S.result && !$('use-out').innerHTML) renderUse();
+        if (String(step) === '7' && S.result && !$('use-out').innerHTML) renderUse();
+        if (String(step) === '3' && S.data) renderChecks();
     }
+    // Exclusions from the data checks invalidate later results
+    function renderChecks() { window.UMEChecks.render({ S, onChange: () => { S.explore = null; S.result = null; enableTabs(4); } }); }
     function renderUse() {
         try { window.UMEUse.render({ S, P: S.explore.P, METHOD, profileTable }); } catch (e) { $('use-out').innerHTML = `<p class="status bad">The classification could not be built: ${esc(e.message)}</p>`; }
     }
@@ -40,11 +43,18 @@
         try { parsed = DE.parseCSV(text); } catch (e) { status('data-status', `The file could not be read: ${e.message}`, 'bad'); return; }
         if (!parsed.rows.length) { status('data-status', 'The file has no data rows.', 'bad'); return; }
         S.data = { ...parsed, name, analysis: DE.analyzeColumns(parsed.headers, parsed.rows) };
-        S.vars = {}; S.prep = null; S.explore = null; S.result = null; S.methodTouched = false;
+        S.vars = {}; S.prep = null; S.explore = null; S.result = null; S.methodTouched = false; S.excluded = new Set();
+        if (window.UMEChecks) $('check-out').innerHTML = '';
         parsed.headers.forEach(h => {
             const a = S.data.analysis[h];
             const role = a.role === 'meta' ? 'ignore' : (a.role === 'target' || OUTCOME_RE.test(h) || /simulated|true.?sub.?type/i.test(h) || DEMOGRAPHIC_RE.test(h)) ? 'describe' : 'cluster';
-            const type = a.type === 'continuous' && a.isNumeric ? 'continuous' : a.type === 'ordinal' ? 'ordinal' : 'nominal';
+            let type = a.type === 'continuous' && a.isNumeric ? 'continuous' : a.type === 'ordinal' ? 'ordinal' : 'nominal';
+            // A column that is numbers apart from a few entry errors (e.g. "12,5") stays numerical: the odd entries are
+            // treated as missing in the analysis and reported by the data checks
+            if (!a.isNumeric) {
+                const rec = parsed.rows.map(r => r[h]).filter(v => !DE.isMissing(v)), num = rec.filter(v => Number.isFinite(Number(String(v).trim())));
+                if (rec.length >= 20 && num.length >= 0.95 * rec.length) type = new Set(num.map(Number)).size > 10 ? 'continuous' : 'ordinal';
+            }
             S.vars[h] = { role, type };
         });
         const issues = DE.parseIssues ? DE.parseIssues(parsed) : [];
@@ -61,9 +71,12 @@
         catch (e) { status('data-status', `The demo file could not be loaded (${e.message}). If you opened the page from your disk, load the CSV file with "Choose a CSV file" instead.`, 'bad'); }
     }
 
+    // Patients included in the analysis (all, minus those left out after the data checks)
+    const includedRows = () => (S.excluded && S.excluded.size ? S.data.rows.filter((_, i) => !S.excluded.has(i)) : S.data.rows.slice());
+
     // ------------------------------------------------------------------------------------- step 2: variables
     function levelsOf(col) {
-        const vals = [...new Set(S.data.rows.map(r => r[col]).filter(v => !DE.isMissing(v)).map(v => String(v).trim()))];
+        const vals = [...new Set(includedRows().map(r => r[col]).filter(v => !DE.isMissing(v)).map(v => String(v).trim()))];
         return vals.every(v => Number.isFinite(Number(v))) ? vals.sort((a, b) => Number(a) - Number(b)) : vals.sort();
     }
     function renderVariables() {
@@ -93,7 +106,7 @@
             + (used.length < 2 ? ' <span class="warn">Choose at least two variables to find clusters.</span>' : '')
             + (Object.keys(S.vars).some(h => DEMOGRAPHIC_RE.test(h) && S.vars[h].role === 'describe') ? ' <span class="muted">Age and sex start as "describe only", so that the clusters reflect clinical features rather than demographics (yes/no variables such as sex can otherwise dominate them); change this if demographics are part of the phenotype you are looking for.</span>' : '')
             + (desc.length ? '' : ' <span class="muted">Tip: outcomes (for example shunt response) are best kept as "Describe clusters only": they then show whether the clusters differ in outcome, without having shaped them.</span>');
-        $('to-step3').disabled = used.length < 2;
+        $('to-step3').disabled = used.length < 2; $('to-check').disabled = used.length < 2;
         renderAdvice(used);
         const onlyNumbers = used.every(h => S.vars[h].type === 'continuous');
         $('method-gmm').disabled = !onlyNumbers;
@@ -127,21 +140,21 @@
         const method = $('method').value, missing = $('missing').value, gowerWeights = $('gower-weights').value, cols = S.data.headers.filter(h => S.vars[h].role === 'cluster');
         const describeCols = S.data.headers.filter(h => S.vars[h].role === 'describe');
         const specs = cols.map(h => ({ col: h, type: S.vars[h].type, levels: S.vars[h].type === 'continuous' ? null : levelsOf(h) }));
-        let rows = S.data.rows.slice();
+        let rows = includedRows();
         const isMiss = (r, h) => DE.isMissing(r[h]) || (S.vars[h].type === 'continuous' && !Number.isFinite(Number(r[h])));
         const nAll = rows.length;
         if (missing === 'complete' || (missing === 'gower' && method !== 'pam-gower' && method !== 'lca')) rows = rows.filter(r => cols.every(h => !isMiss(r, h)));
         let filled = 0;
         const fillVal = {};
         if (missing === 'fill') specs.forEach(s => {
-            const vals = S.data.rows.filter(r => !isMiss(r, s.col)).map(r => r[s.col]);
+            const vals = rows.filter(r => !isMiss(r, s.col)).map(r => r[s.col]);
             if (s.type === 'continuous') { const x = vals.map(Number).sort((a, b) => a - b); fillVal[s.col] = x.length ? (x.length % 2 ? x[(x.length - 1) / 2] : (x[x.length / 2 - 1] + x[x.length / 2]) / 2) : 0; }
             else { const cnt = {}; vals.forEach(v => { const k = String(v).trim(); cnt[k] = (cnt[k] || 0) + 1; }); fillVal[s.col] = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0]; }
         });
         if (missing === 'fill') rows = rows.map(r => { const c = { ...r }; cols.forEach(h => { if (isMiss(r, h)) { c[h] = fillVal[h]; filled++; } }); return c; });
         if (rows.length < 10) throw new Error(`Only ${rows.length} patients remain after handling missing values; at least 10 are needed.`);
         const seed = Number($('seed').value) || 2024, pcol = $('patient-col').value;
-        const base = { method, missing, gowerWeights, cols, describe: describeCols, specs, rows, excluded: nAll - rows.length, filled, seed,
+        const base = { manualExcluded: S.excluded ? S.excluded.size : 0, method, missing, gowerWeights, cols, describe: describeCols, specs, rows, excluded: nAll - rows.length, filled, seed,
             groups: pcol ? rows.map(r => String(r[pcol] ?? '')) : null, patientCol: pcol, allContinuous: specs.every(s => s.type === 'continuous') };
         if (missing !== 'mice') return { ...base, ...encode(rows, specs, method, isMiss, gowerWeights) };
         // Multiple imputation by chained equations (predictive mean matching), from the clustering variables only:
@@ -261,7 +274,7 @@
         const charts = CH.lineChart({ series: [{ name: 'Average silhouette', cls: 0, points: res.map(r => ({ x: r.k, y: r.silhouette })) }, { name: 'Stability (lowest cluster Jaccard)', cls: 1, points: res.map(r => ({ x: r.k, y: r.minJaccard })) }], xLabel: 'Number of clusters', yLabel: 'Value', aria: 'Silhouette and stability by number of clusters' })
             + CH.legend(['Average silhouette', 'Stability (lowest cluster Jaccard)']);
         $('explore-out').innerHTML = `
-            <p class="lead">${esc(sug.text)} ${P.excluded ? `${P.excluded} patient(s) with missing values were left out.` : ''}${P.filled ? ` ${P.filled} missing value(s) were filled with the median or most frequent value.` : ''}${P.mice ? ` Missing values (${P.mice.missingValues}, in ${P.mice.missingPatients} patients) were multiply imputed: ${P.mice.m} imputed datasets by chained equations with predictive mean matching, from the clustering variables only; each dataset was clustered and the results combined into a consensus.${gap ? ' The gap statistic uses the first imputed dataset.' : ''}` : ''}</p>
+            <p class="lead">${esc(sug.text)} ${P.manualExcluded ? `${P.manualExcluded} patient(s) were left out after the data checks. ` : ''}${P.excluded ? `${P.excluded} patient(s) with missing values were left out.` : ''}${P.filled ? ` ${P.filled} missing value(s) were filled with the median or most frequent value.` : ''}${P.mice ? ` Missing values (${P.mice.missingValues}, in ${P.mice.missingPatients} patients) were multiply imputed: ${P.mice.m} imputed datasets by chained equations with predictive mean matching, from the clustering variables only; each dataset was clustered and the results combined into a consensus.${gap ? ' The gap statistic uses the first imputed dataset.' : ''}` : ''}</p>
             <div class="grid2"><div>${charts}</div><div class="muted small">
                 <p><strong>Average silhouette</strong>: how clearly patients sit in their own cluster rather than the nearest other one (above 0.5 strong, 0.25–0.5 weak, below 0.25 little structure).</p>
                 <p><strong>Stability</strong>: the clustering is repeated on 25 bootstrap resamples; the lowest mean Jaccard similarity of any cluster to its counterpart (0.75 or more: stable; below 0.5: that cluster does not reproduce).</p>
@@ -273,13 +286,13 @@
             <div class="table-wrap"><table><thead><tr><th>Clusters</th><th>Average silhouette</th><th>Stability</th>${P.Z ? '<th>Calinski–Harabasz ↑</th><th>Davies–Bouldin ↓</th>' : ''}${gap ? '<th>Gap ± SE</th>' : ''}${modelBased(P) ? '<th>BIC ↓</th>' : ''}${P.method === 'lca' ? '<th>Entropy ↑</th>' : ''}${P.mice ? '<th>Agreement across imputations</th>' : ''}<th>Smallest cluster</th></tr></thead><tbody>${rows}</tbody></table></div>
             <div class="row"><label for="k-choice">Describe</label><select id="k-choice">${res.map(r => `<option value="${r.k}"${r.k === (sug.k || 2) ? ' selected' : ''}>${r.k} clusters</option>`).join('')}</select><button id="describe-btn" class="btn primary">Describe these clusters</button></div>`;
         $('describe-btn').addEventListener('click', () => describe(Number($('k-choice').value)));
-        enableTabs(4);
+        enableTabs(5);
     }
 
     // ------------------------------------------------------------------------------------- step 5: the clusters
     async function describe(k) {
         const P = S.explore.P, ex = S.explore.res.find(r => r.k === k);
-        goTo(5); enableTabs(5);
+        goTo(6); enableTabs(6);
         $('use-out').innerHTML = '';
         $('clusters-out').innerHTML = '';
         try {
@@ -301,7 +314,7 @@
             S.result = { k, labels, stab, test, sil, pca, posterior: ex.posterior, model: ex.model, entropy: ex.entropy };
             renderClusters();
             status('clusters-status', '');
-            enableTabs(6);
+            enableTabs(7);
         } catch (e) { status('clusters-status', `The analysis stopped: ${e.message}`, 'bad'); }
     }
     // opts.only = 'describe': outcome variables only; opts.names(c): column heading for cluster c
@@ -366,7 +379,7 @@
             ${profileTable()}
             <div class="row"><button id="to-use" class="btn primary" type="button">Next: use the clusters</button><button id="export-btn" class="btn" type="button">Download patients with their cluster (.CSV)</button></div>`;
         $('export-btn').addEventListener('click', exportCsv);
-        $('to-use').addEventListener('click', () => goTo(6));
+        $('to-use').addEventListener('click', () => goTo(7));
         window.UMEMaps.render({ S, P });
     }
     function exportCsv() {
@@ -387,9 +400,13 @@
         $('file').addEventListener('change', e => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => loadText(String(r.result), f.name); r.readAsText(f); });
         $('demo-phenotypes').addEventListener('click', () => loadDemo('demo_inph_phenotypes.csv'));
         $('demo-none').addEventListener('click', () => loadDemo('demo_no_subtypes.csv'));
-        $('to-step3').addEventListener('click', () => { enableTabs(3); goTo(3); });
+        $('demo-errors').addEventListener('click', () => loadDemo('demo_inph_with_errors.csv'));
+        $('to-step3').addEventListener('click', () => { enableTabs(4); goTo(4); });
+        $('to-check').addEventListener('click', () => { enableTabs(4); goTo(3); renderChecks(); });
+        $('check-btn').addEventListener('click', () => { renderChecks(); window.UMEChecks.start(); });
+        $('check-next').addEventListener('click', () => { enableTabs(4); goTo(4); });
         $('method').addEventListener('change', () => { S.methodTouched = true; updateVarSummary(); });
-        $('explore-btn').addEventListener('click', () => { goTo(4); explore(); });
+        $('explore-btn').addEventListener('click', () => { goTo(5); explore(); });
         $('theme').addEventListener('click', () => { const d = document.documentElement, dark = d.getAttribute('data-theme') !== 'dark' && !(d.getAttribute('data-theme') !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches); d.setAttribute('data-theme', dark ? 'dark' : 'light'); });
         enableTabs(1); goTo(1);
     });
