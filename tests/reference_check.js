@@ -103,5 +103,15 @@ out.lcaCont = { logLik: LP.logLik, bic: LP.bic, shares: LP.model.pi.slice().sort
     out.embed = { mds: Y0, init, Pc, Yr, kl: KG.kl, grad: KG.grad, tsneY: T.Y, tsneKL: T.kl, tsne20: T20.Y, sigmas: Array.from(G.sigmas), rhos: Array.from(G.rhos), graph: dense, ab: EE.findAB(1, 0.1),
         trustTsne: EE.trustworthiness(E, T.Y, 5), trustUmap: EE.trustworthiness(E, U.Y, 5), umapY: U.Y, trustMds10: EE.trustworthiness(E, Y0, 10) };
 }
+// 6. Dimensions: FAMD on mixed data, and its special cases MCA (categories only) and PCA (numbers only), vs FactoMineR
+{
+    const comp = M.filter(r => r.every(v => v !== null));
+    writeCsv('famd.csv', ['age', 'bmi', 'grade', 'sex', 'site'], comp.map(r => [r[0], r[1], grades.indexOf(r[2]), r[3], r[4]]));
+    const fv = [{ name: 'age', type: 'continuous' }, { name: 'bmi', type: 'continuous' }, { name: 'grade', type: 'ordinal', levels: grades }, { name: 'sex', type: 'nominal' }, { name: 'site', type: 'nominal' }];
+    const F = EE.famd(comp, fv, { nDim: 5 });
+    const Fc = EE.famd(comp.map(r => [r[2], r[3], r[4]]), [{ name: 'grade', type: 'nominal', levels: grades }, fv[3], fv[4]], { nDim: 5 });
+    const Fn = EE.famd(comp.map(r => [r[0], r[1]]), fv.slice(0, 2), { nDim: 2 });
+    out.famd = { n: comp.length, eig: F.eig, scores: F.scores, varCoord: F.varCoord, contrib: F.contrib, corr: F.corr.slice(0, 3), eigCat: Fc.eig, eigNum: Fn.eig, scoresNum: Fn.scores };
+}
 fs.writeFileSync(path.join(__dirname, 'reference_values.json'), JSON.stringify(out));
 console.log('Engine values written to tests/reference_values.json; now run: python3 tests/reference_check.py');

@@ -15,9 +15,10 @@
         const h = s => [1, 3, 5].map(k => parseInt(s.slice(k, k + 2), 16)), a = h(STOPS[i]), b = h(STOPS[i + 1]);
         return '#' + a.map((v, k) => Math.round(v + (b[k] - v) * f).toString(16).padStart(2, '0')).join('');
     }
-    const NAMES = { pca: 'PCA', mds: 'Classical scaling', tsne: 't-SNE', umap: 'UMAP' };
+    const NAMES = { pca: 'PCA', famd: 'FAMD', mds: 'Classical scaling', tsne: 't-SNE', umap: 'UMAP' };
     const NOTES = {
         pca: 'Principal components of the standardised variables: a faithful projection, but only the two directions with the most variation are shown, so clusters can overlap here and still be distinct in other directions.',
+        famd: 'Factor analysis of mixed data (FAMD, the counterpart of PCA for numbers and categories together): a faithful projection of the two main dimensions, so clusters can overlap here and still be distinct. The panel below shows which variables make up each dimension.',
         mds: 'Classical scaling of the dissimilarities used for clustering (the counterpart of PCA for mixed data): a faithful projection of the two main directions, so clusters can overlap here and still be distinct.',
         tsne: 't-SNE keeps each patient\'s close neighbours together but distorts everything else: the sizes of groups and the distances between them mean nothing, and it can show apparent groups even in data without sub-groups. Use it to see whether the clusters found are coherent, not as evidence that they exist.',
         umap: 'UMAP keeps close neighbours together and more of the overall layout than t-SNE, but still distorts sizes and distances, and apparent groups are not evidence of sub-groups. Use it to see whether the clusters found are coherent.'
@@ -53,10 +54,15 @@
         if (!M || M.key !== S.result) {
             M = { key: S.result, ctx, kind: null, colourBy: '__cluster', maps: {}, D: null, busy: false };
             const n = P.rows.length, all = Array.from({ length: n }, (_, i) => i);
-            if (S.result.pca) {
+            M.famd = famdOf(P);
+            if (S.result.pca && P.allContinuous) {
                 const pca = S.result.pca;
                 M.maps.pca = { Y: pca.scores.map(s => [s[0], s[1]]), idx: all, xLabel: `Principal component 1 (${(100 * pca.varianceRatio[0]).toFixed(0)}% of variance)`, yLabel: `Component 2 (${(100 * pca.varianceRatio[1]).toFixed(0)}%)` };
                 M.kind = 'pca';
+            } else if (M.famd && M.famd.nDim >= 2) {
+                const F = M.famd;
+                M.maps.famd = { Y: F.scores.map(s => [s[0], s[1]]), idx: all, xLabel: `Dimension 1 (${(100 * F.ratio[0]).toFixed(0)}% of variance)`, yLabel: `Dimension 2 (${(100 * F.ratio[1]).toFixed(0)}%)` };
+                M.kind = 'famd';
             } else {
                 const D = dissim(P);
                 if (D) { M.maps.mds = { Y: EE.classicalMDS(D, 2), idx: all, xLabel: 'Dimension 1', yLabel: 'Dimension 2' }; M.kind = 'mds'; }
@@ -64,6 +70,7 @@
         }
         M.ctx = ctx;
         draw();
+        drawDimensions();
     }
     function trustOf(map) {
         if (map.trust === undefined) { const D = subset(dissim(M.ctx.P), map.idx); map.trust = EE.trustworthiness(D, map.Y, kTrust(D.n)); map.k = kTrust(D.n); }
@@ -116,7 +123,7 @@
     function draw() {
         const el = $('map-panel'); if (!el) return;
         const { P } = M.ctx, n = P.rows.length;
-        const kinds = [M.maps.pca ? 'pca' : 'mds', 'tsne', 'umap'];
+        const kinds = [M.maps.pca ? 'pca' : M.maps.famd ? 'famd' : 'mds', 'tsne', 'umap'];
         const vars = [...P.cols, ...P.describe];
         const map = M.maps[M.kind];
         let body = '<p class="muted">No map is available for these data.</p>';
@@ -136,5 +143,39 @@
         el.querySelectorAll('[data-map]').forEach(b => b.addEventListener('click', () => { const k = b.dataset.map; if (M.maps[k]) { M.kind = k; draw(); } else compute(k); }));
         $('map-colour').addEventListener('change', e => { M.colourBy = e.target.value; draw(); });
     }
-    root.UMEMaps = { render, _state: () => M };
+    // ---------------------------------------------------------------------------------- dimensions of the data
+    function famdOf(P) {
+        try { return EE.famd(P.raw, P.specs.map(s => ({ name: s.col, type: s.type, levels: s.levels })), { nDim: 10 }); } catch (e) { return null; }
+    }
+    const pretty = s => String(s).replace(/_/g, ' ');
+    function drawDimensions() {
+        const el = $('dims-panel'); if (!el) return;
+        const { S, P } = M.ctx, F = M.famd;
+        if (!F || F.nDim < 1) { el.innerHTML = '<p class="muted">Dimensions need at least two clustering variables.</p>'; return; }
+        const labels = S.result.labels, k = S.result.k, n = labels.length;
+        const nCat = P.specs.filter(s => s.type === 'nominal').length, method = !nCat ? 'PCA (principal component analysis)' : nCat === P.specs.length ? 'MCA (multiple correspondence analysis, computed as FAMD)' : 'FAMD (factor analysis of mixed data)';
+        const pct = x => `${(100 * x).toFixed(0)}%`;
+        const shown = Math.min(F.nDim, 10), dims = Math.min(3, F.nDim), avgContrib = 100 / P.specs.length;
+        // How strongly each dimension separates the clusters: correlation ratio of the cluster labels
+        const eta = s => { const F_ = F.scores.map(r => r[s]), m = F_.reduce((a, b) => a + b, 0) / n, tot = F_.reduce((a, b) => a + (b - m) ** 2, 0); let between = 0; for (let c = 0; c < k; c++) { const idx = labels.map((l, i) => (l === c ? i : -1)).filter(i => i >= 0); if (!idx.length) continue; const mc = idx.reduce((a, i) => a + F_[i], 0) / idx.length; between += idx.length * (mc - m) ** 2; } return tot > 0 ? between / tot : 0; };
+        const word = e => (e >= 0.5 ? 'strongly' : e >= 0.2 ? 'moderately' : e >= 0.05 ? 'slightly' : 'hardly');
+        const describe = s => {
+            const top = P.specs.map((sp, j) => ({ sp, j, c: F.contrib[j][s] })).filter(x => x.c >= avgContrib).sort((a, b) => b.c - a.c).slice(0, 4);
+            const pos = [], neg = [];
+            top.forEach(({ sp, j }) => {
+                if (F.corr[j]) (F.corr[j][s] >= 0 ? pos : neg).push(`higher ${pretty(sp.col)}`);
+                else { const cm = F.catMeans[j].slice().sort((a, b) => b.coord[s] - a.coord[s]); pos.push(`${pretty(sp.col)} "${cm[0].level}"`); neg.push(`${pretty(sp.col)} "${cm[cm.length - 1].level}"`); }
+            });
+            const e = eta(s);
+            return `<li><strong>Dimension ${s + 1}</strong> (${pct(F.ratio[s])} of the variation): mainly ${esc(top.map(x => pretty(x.sp.col)).join(', ') || 'no single variable')}. ${pos.length ? `Towards one end: ${esc(pos.join(', '))}` : ''}${pos.length && neg.length ? '; towards the other: ' : ''}${neg.length ? esc(neg.join(', ')) : ''}. It separates the clusters ${word(e)} (η² ${e.toFixed(2)}).</li>`;
+        };
+        const scree = CH.lineChart({ series: [{ name: 'Share of the variation', cls: 0, points: F.ratio.slice(0, shown).map((r, i) => ({ x: i + 1, y: 100 * r })) }, { name: 'Equal share (no structure)', cls: 1, points: F.ratio.slice(0, shown).map((_, i) => ({ x: i + 1, y: 100 / F.eig.length })) }], xLabel: 'Dimension', yLabel: '% of the variation', aria: 'Share of the variation by dimension' }) + CH.legend(['Share of the variation', 'Equal share (no structure)']);
+        const cum2 = F.ratio[0] + (F.ratio[1] || 0);
+        const table = `<div class="table-wrap"><table><thead><tr><th>Variable</th>${Array.from({ length: dims }, (_, s) => `<th>Dimension ${s + 1}</th>`).join('')}</tr></thead><tbody>${P.specs.map((sp, j) => `<tr><td>${esc(sp.col)}</td>${Array.from({ length: dims }, (_, s) => { const c = F.contrib[j][s]; return `<td${c >= avgContrib ? ' class="diag"' : ''}>${c.toFixed(0)}%</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>`;
+        el.innerHTML = `<p class="small">${esc(method)} of the clustering variables. The first two dimensions explain <strong>${pct(cum2)}</strong> of the variation between patients${cum2 < 0.3 ? ': the variation is spread over many directions, with no dominant pattern' : ''}.</p>
+            <div class="grid2"><div>${scree}</div><div><ol class="small dims">${Array.from({ length: dims }, (_, s) => describe(s)).join('')}</ol></div></div>
+            <h4>Contribution of each variable to the dimensions</h4>${table}
+            <p class="muted small">Contributions add up to 100% for each dimension; bold: above the average share (${avgContrib.toFixed(0)}%). Numbers are standardised; categories are coded as in MCA; grades are treated as numbers.${P.mice ? ' With multiple imputation the first imputed dataset is used.' : P.raw.some(r => r.some(v => v === null)) ? ' Missing values are replaced by the mean (numbers) or by the category shares.' : ''} If the clusters lie next to each other along a dimension without gaps (see the map), patients may differ by degree along a continuum rather than form distinct types.</p>`;
+    }
+    root.UMEMaps = { render, renderDimensions: () => drawDimensions(), _state: () => M };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -54,6 +54,10 @@ well clustering recovers it) and a cohort of one population, where the app shoul
   smallest whose average silhouette is within 0.02 of the best. Low entropy is flagged for latent classes. The other stable choices are
   listed, because average silhouette tends to favour 2 clusters.
 - **PCA** with variance explained.
+- **Dimensions of the data:** FAMD (factor analysis of mixed data, as R's FactoMineR; PCA for numbers only, MCA
+  for categories only): variance explained by each dimension (scree chart), the contribution and correlation of
+  each variable, a plain-language description of the first three dimensions, and how strongly each dimension
+  separates the clusters (correlation ratio). FAMD is also the base map for mixed data.
 - **Maps of the patients** (`embed-engine.js`), from the same dissimilarities as the clustering (so mixed data and
   missing values work): classical scaling, t-SNE (exact method, as scikit-learn: perplexity 30, early
   exaggeration, adaptive gains) and UMAP (as umap-learn: fuzzy neighbour graph, curve parameters fitted for
@@ -65,7 +69,7 @@ well clustering recovers it) and a cohort of one population, where the app shoul
 ## Verification
 
 ```bash
-node tests/reference_check.js && python3 tests/reference_check.py   # 61 checks against scikit-learn, SciPy, umap-learn and R (poLCA, mclust, cluster) (cluster::daisy, cluster::pam)
+node tests/reference_check.js && python3 tests/reference_check.py   # 68 checks against scikit-learn, SciPy, umap-learn and R (poLCA, mclust, cluster, FactoMineR) (cluster::daisy, cluster::pam)
 node tests/behaviour_check.js                                       # simulations: true k found, 1 cluster when there are none, test calibration, stability
 node tests/ui_check.js                                              # browser (Playwright + Chrome): both demo cohorts end to end (incl. MICE and step 6), layout, no page errors
 npx eslint@9.39.5 -c eslint.config.mjs src cluster-engine.js         # undefined names and real mistakes

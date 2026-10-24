@@ -34,4 +34,17 @@ if (requireNamespace("mclust", quietly = TRUE)) {
   mc <- Mclust(b, G = 3, modelNames = "VVI", verbose = FALSE, control = emControl(tol = c(1e-14, sqrt(.Machine$double.eps)), itmax = c(100000L, 100000L)))
   add("lca_cont_loglik", mc$loglik); add("lca_cont_bic", -mc$bic); add("lca_cont_shares", sort(mc$parameters$pro))
 }
+# Dimensions: FAMD (mixed), MCA (categories), PCA (numbers)
+if (requireNamespace("FactoMineR", quietly = TRUE)) {
+  f <- read.csv(file.path(d, "famd.csv")); f$sex <- factor(f$sex); f$site <- factor(f$site)
+  fa <- FactoMineR::FAMD(f, ncp = 5, graph = FALSE)
+  add("famd_eig", fa$eig[, 1]); add("famd_ind", as.vector(t(abs(fa$ind$coord))))
+  add("famd_var_coord", as.vector(t(fa$var$coord[c("age", "bmi", "grade", "sex", "site"), ])))
+  add("famd_var_contrib", as.vector(t(fa$var$contrib[c("age", "bmi", "grade", "sex", "site"), ])))
+  add("famd_quanti_corr", as.vector(t(abs(fa$quanti.var$coord[c("age", "bmi", "grade"), ]))))
+  mc <- FactoMineR::MCA(data.frame(grade = factor(f$grade), sex = f$sex, site = f$site), ncp = 5, graph = FALSE)
+  add("mca_eig", mc$eig[, 1])
+  pc <- FactoMineR::PCA(f[, c("age", "bmi")], ncp = 2, graph = FALSE)
+  add("pca_eig", pc$eig[, 1]); add("pca_ind", as.vector(t(abs(pc$ind$coord))))
+}
 write.csv(out, file.path(d, "r_results.csv"), row.names = FALSE)

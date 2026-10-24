@@ -357,6 +357,8 @@
                 </div>
                 <div><h3>Map of the patients</h3><div id="map-panel"></div></div>
             </div>
+            <h3>Dimensions of the data: what drives the differences between patients</h3>
+            <div id="dims-panel"></div>
             <h3>How well each patient fits (silhouette)</h3>
             <div class="sil">${CH.silhouettePlot({ values: sil.values, labels, aria: 'Silhouette width of each patient by cluster' })}</div>
             <p class="muted small">Average silhouette ${f3(sil.mean)}${P.mice ? ' (averaged over the imputed datasets)' : ''}. Patients with negative widths sit closer to another cluster than to their own.</p>

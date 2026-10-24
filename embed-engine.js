@@ -256,6 +256,69 @@
         }
         return 1 - (2 / (n * k * (2 * n - 3 * k - 1))) * t;
     }
+    // ------------------------------------------------------------------------------------------- dimensions (FAMD)
+    /**
+     * Factor analysis of mixed data (FAMD; Pages 2004; as R's FactoMineR::FAMD): PCA of the numbers standardised to
+     * unit variance and the categories coded as indicators scaled as in MCA ((indicator - p) / sqrt(p), p = share of
+     * the category). With numbers only it is PCA; with categories only, MCA (eigenvalues multiplied by the number of
+     * variables). Grades are treated as numbers (their rank). Missing values: numbers replaced by the mean,
+     * categories by their shares (they then pull the patient towards the centre). rows: patients x variables (raw
+     * values, null for missing); vars: [{ name, type, levels }].
+     * Returns eigenvalues and share of variance; patients' coordinates; for each variable and dimension its squared
+     * correlation (numbers) or correlation ratio (categories) with the dimension and its contribution (%), the
+     * signed correlation for numbers, and the mean coordinate of each category.
+     */
+    function famd(rows, vars, { nDim = 5 } = {}) {
+        const CE = root.ClusterEngine, n = rows.length;
+        if (n < 3) throw new Error('At least 3 patients are needed.');
+        const cols = [], blocks = [];   // blocks: per variable, the columns it occupies
+        vars.forEach((v, j) => {
+            const numeric = v.type !== 'nominal';
+            const val = rows.map(r => { const x = r[j]; if (x === null || x === undefined || x === '') return null; if (!numeric) return String(x).trim(); if (v.type === 'ordinal' && v.levels) { const k = v.levels.indexOf(String(x).trim()); return k < 0 ? null : k; } const y = Number(x); return Number.isFinite(y) ? y : null; });
+            if (numeric) {
+                const obs = val.filter(x => x !== null), m = obs.reduce((a, b) => a + b, 0) / Math.max(1, obs.length);
+                const filled = val.map(x => (x === null ? m : x)), sd = Math.sqrt(filled.reduce((a, b) => a + (b - m) ** 2, 0) / n);
+                blocks.push({ j, numeric: true, start: cols.length, width: 1, sd });
+                cols.push(filled.map(x => (sd > 0 ? (x - m) / sd : 0)));
+            } else {
+                const levels = v.levels ? v.levels.map(String) : [...new Set(val.filter(x => x !== null))].sort();
+                const obsN = val.filter(x => x !== null).length;
+                const share = levels.map(l => val.filter(x => x === l).length / Math.max(1, obsN));
+                blocks.push({ j, numeric: false, start: cols.length, width: levels.length, levels, share, val });
+                levels.forEach((l, q) => { const pq = share[q]; cols.push(val.map(x => (pq > 0 ? ((x === null ? pq : x === l ? 1 : 0) - pq) / Math.sqrt(pq) : 0))); });
+            }
+        });
+        const p = cols.length, C = Array.from({ length: p }, () => new Array(p).fill(0));
+        for (let a = 0; a < p; a++) for (let b = a; b < p; b++) { let s = 0; for (let i = 0; i < n; i++) s += cols[a][i] * cols[b][i]; C[a][b] = C[b][a] = s / n; }
+        const eg = CE.symmetricEigen(C);
+        const maxDim = Math.min(n - 1, vars.reduce((a, v, j) => a + (blocks[j].numeric ? 1 : Math.max(0, blocks[j].width - 1)), 0));
+        const d = Math.min(nDim, maxDim), eig = eg.values.slice(0, maxDim).map(v => Math.max(0, v)), total = eig.reduce((a, b) => a + b, 0);
+        const V = eg.vectors.slice(0, d).map(vec => {   // sign: largest absolute loading positive
+            let big = 0; vec.forEach((x, i) => { if (Math.abs(x) > Math.abs(vec[big])) big = i; });
+            return vec[big] < 0 ? vec.map(x => -x) : vec;
+        });
+        const scores = Array.from({ length: n }, (_, i) => V.map(vec => vec.reduce((a, w, c) => a + w * cols[c][i], 0)));
+        const varCoord = [], corr = [], catMeans = [];
+        blocks.forEach(bk => {
+            const sq = [], r = [], cm = [];
+            for (let s = 0; s < d; s++) {
+                const F = scores.map(x => x[s]), lam = eig[s] || 1e-300;
+                if (bk.numeric) {
+                    const z = cols[bk.start], rr = z.reduce((a, x, i) => a + x * F[i], 0) / n / Math.sqrt(lam);
+                    r.push(rr); sq.push(rr * rr);
+                } else {
+                    // Correlation ratio: between-category variance of the coordinate over its variance
+                    let between = 0; const means = [];
+                    bk.levels.forEach(l => { const idx = bk.val.map((x, i) => (x === l ? i : -1)).filter(i => i >= 0); const mu = idx.length ? idx.reduce((a, i) => a + F[i], 0) / idx.length : 0; means.push(mu); between += (idx.length / n) * mu * mu; });
+                    sq.push(between / lam); cm.push(means);
+                }
+            }
+            varCoord.push(sq); corr.push(bk.numeric ? r : null); catMeans.push(bk.numeric ? null : bk.levels.map((l, q) => ({ level: l, coord: cm.map(m => m[q]) })));
+        });
+        const contrib = varCoord.map(row => row.map((x, s) => (100 * x) / (eig[s] || 1)));
+        return { eig, ratio: eig.map(v => v / total), nDim: d, scores, varCoord, contrib, corr, catMeans, names: vars.map(v => v.name) };
+    }
+
     const squared = ({ n, D }) => ({ n, D: D.map(v => v * v) });
-    root.EmbedEngine = { createPRNG, classicalMDS, tsneP, tsneKL, createTSNE, tsne, umapGraph, findAB, createUMAP, umap, trustworthiness, squared };
+    root.EmbedEngine = { createPRNG, classicalMDS, famd, tsneP, tsneKL, createTSNE, tsne, umapGraph, findAB, createUMAP, umap, trustworthiness, squared };
 })(typeof window !== 'undefined' ? window : globalThis);

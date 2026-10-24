@@ -57,7 +57,9 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
             check(/UMAP keeps close neighbours together/.test(mapText) && tr > 0.85, `${name}: t-SNE and UMAP maps made, with trustworthiness (${tr}) and a caution`);
             await p.selectOption('#map-colour', 'Callosal_Angle_Deg');
             check((await p.locator('#map-panel circle[fill]').count()) > 100 && /Callosal_Angle_Deg:/.test(await p.locator('#map-panel .legend').innerText()), `${name}: map coloured by a measured variable, with a colour scale`);
-        } else check(/Classical scaling/.test(await p.locator('#map-panel').innerText()), `${name}: with values left missing, the map uses classical scaling of the dissimilarities`);
+        } else check(/FAMD/.test(await p.locator('#map-panel').innerText()), `${name}: for mixed data the base map is FAMD`);
+        const dimsText = await p.locator('#dims-panel').innerText();
+        check(/FAMD \(factor analysis of mixed data\)/.test(dimsText) && /Dimension 1 \(\d+% of the variation\): mainly/.test(dimsText) && /separates the clusters/.test(dimsText), `${name}: dimensions panel describes what drives dimension 1 and how it separates the clusters`);
         // Step 6: classification (names, rules with cross-validated agreement, new-patient calculator)
         await p.click('#to-use');
         await p.waitForSelector('#np-go', { timeout: 300000 });

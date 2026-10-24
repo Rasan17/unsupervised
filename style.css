@@ -90,3 +90,4 @@ td.diag { font-weight: 700; }
 .sw.na, .chart .pt.na { fill: var(--muted); background: var(--muted); } .chart .pt.na { fill-opacity: 0.45; }
 .legend svg.scale { vertical-align: middle; border-radius: 2px; }
 .map-controls { gap: 6px; } .map-controls label { margin-left: 8px; }
+.dims li { margin: 6px 0; } h4 { margin: 10px 0 4px; font-size: 15px; }

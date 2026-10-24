@@ -152,6 +152,18 @@ if rs:
         chk('Latent profile analysis: class shares (vs R mclust)', o['lcaCont']['shares'], R['lca_cont_shares'], 1e-6)
     else:
         print('R package mclust not installed: latent profile check skipped')
+    if 'famd_eig' in R:
+        fm = o['famd']; d5 = len(R['famd_eig'])
+        chk('FAMD (mixed data): eigenvalues (vs R FactoMineR)', fm['eig'][:d5], R['famd_eig'], 1e-10)
+        chk("FAMD: patients' coordinates on 5 dimensions (up to sign)", np.abs(np.array(fm['scores'])).ravel(), R['famd_ind'], 1e-9)
+        chk('FAMD: squared correlations / correlation ratios of each variable with each dimension', np.array(fm['varCoord']).ravel(), R['famd_var_coord'], 1e-9)
+        chk('FAMD: contributions of the variables (%)', np.array(fm['contrib']).ravel(), R['famd_var_contrib'], 1e-7)
+        chk('FAMD: correlations of the numbers with the dimensions (up to sign)', np.abs(np.array(fm['corr'])).ravel(), R['famd_quanti_corr'], 1e-9)
+        nm = len(R['mca_eig'])
+        chk('FAMD with categories only = MCA (eigenvalues x number of variables) (vs FactoMineR MCA)', np.array(fm['eigCat'][:nm]) / 3, R['mca_eig'], 1e-10)
+        chk('FAMD with numbers only = PCA: eigenvalues and coordinates (vs FactoMineR PCA)', np.r_[fm['eigNum'], np.abs(np.array(fm['scoresNum'])).ravel()], np.r_[R['pca_eig'], R['pca_ind']], 1e-9)
+    else:
+        print('R package FactoMineR not installed: FAMD checks skipped')
 else:
     print('Rscript not found: Gower and PAM checks against R skipped')
 w = max(len(r[1]) for r in res)
