@@ -86,3 +86,4 @@ td.diag { font-weight: 700; }
 .newpatient .field { display: grid; gap: 4px; min-width: 0; } .newpatient label { font-weight: 600; font-size: 14px; }
 .newpatient input, .newpatient select { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); width: 100%; box-sizing: border-box; }
 .newpatient .row { grid-column: 1 / -1; }
+.advice { border-left: 4px solid var(--accent); background: var(--soft); border-radius: 8px; padding: 8px 12px; } .advice p { margin: 4px 0; }

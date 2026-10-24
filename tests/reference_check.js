@@ -74,5 +74,19 @@ for (const [d, leaf] of [[2, 5], [3, 5], [4, 10]]) {
     treeOut[`d${d}_l${leaf}`] = X.map(x => CE.predictTree(T, x));
 }
 out.tree = { labels: noisy, predictions: treeOut, kappa: CE.cohenKappa(noisy, KM.labels) };
+// 4. Latent class analysis: categorical items with missing values (vs R poLCA) and numbers (vs R mclust "VVI")
+const items = [], itemTruth = [];
+const probs = [[[0.85, 0.15], [0.7, 0.2, 0.1], [0.9, 0.1], [0.6, 0.4]], [[0.2, 0.8], [0.1, 0.3, 0.6], [0.3, 0.7], [0.5, 0.5]], [[0.5, 0.5], [0.3, 0.6, 0.1], [0.1, 0.9], [0.1, 0.9]]];
+for (let i = 0; i < 500; i++) {
+    const c = i < 220 ? 0 : i < 380 ? 1 : 2; itemTruth.push(c);
+    items.push(probs[c].map(pv => { let u = rng(), l = 0; while (l < pv.length - 1 && u > pv[l]) { u -= pv[l]; l++; } return String(l + 1); }));
+}
+for (let i = 0; i < 500; i++) if (rng() < 0.05) items[i][Math.floor(rng() * 4)] = null;
+writeCsv('lca_items.csv', ['i1', 'i2', 'i3', 'i4'], items);
+const itemVars = [2, 3, 2, 2].map(L => ({ type: 'nominal', levels: Array.from({ length: L }, (_, l) => String(l + 1)) }));
+const LC = CE.lca(items, itemVars, 3, { nInit: 30, seed: 11, tol: 1e-15, maxIter: 100000 });
+out.lcaItems = { logLik: LC.logLik, bic: LC.bic, nParams: LC.nParams, shares: LC.model.pi.slice().sort((a, b) => a - b) };
+const LP = CE.lca(X, [0, 1, 2].map(() => ({ type: 'continuous' })), 3, { nInit: 20, seed: 5, reg: 0, tol: 1e-15, maxIter: 100000 });
+out.lcaCont = { logLik: LP.logLik, bic: LP.bic, shares: LP.model.pi.slice().sort((a, b) => a - b) };
 fs.writeFileSync(path.join(__dirname, 'reference_values.json'), JSON.stringify(out));
 console.log('Engine values written to tests/reference_values.json; now run: python3 tests/reference_check.py');

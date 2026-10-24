@@ -107,5 +107,40 @@ check('Demo cohorts: sub-types detected where they exist (copula reference), and
     assert(ps[0] <= 0.05 && ps[1] > 0.2, `p = ${ps.join(' / ')}`);
     return `p = ${ps[0]} (sub-types) and ${ps[1]} (none)`;
 });
+// Latent class analysis on simulated mixed data (numbers, yes/no, a category and a grade) with 15% missing values
+function lcaData(seed, n = 450) {
+    const r = CE.createPRNG(seed), gz = () => { const u = r() || 1e-12, v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+    const rows = [], truth = [];
+    for (let i = 0; i < n; i++) {
+        const c = i % 3; truth.push(c);
+        rows.push([[50, 62, 56][c] + 5 * gz(), [10, 12, 16][c] + 2 * gz(), r() < [0.85, 0.2, 0.5][c] ? 'Yes' : 'No', ['A', 'B', 'C'][r() < 0.7 ? c : Math.floor(r() * 3)], String(Math.min(3, Math.max(0, Math.round([0.5, 1.5, 2.5][c] + 0.6 * gz()))))]);
+    }
+    const complete = rows.map(x => x.slice());
+    for (let i = 0; i < n; i++) for (let j = 0; j < 5; j++) if (r() < 0.15) rows[i][j] = null;
+    return { rows, complete, truth, vars: [{ type: 'continuous' }, { type: 'continuous' }, { type: 'nominal' }, { type: 'nominal' }, { type: 'ordinal', levels: ['0', '1', '2', '3'] }] };
+}
+check('Latent class analysis recovers simulated classes in mixed data; with 15% of values missing at random, class sizes and averages stay unbiased (5 datasets)', () => {
+    const out = [1, 2, 3, 4, 5].map(sd => {
+        const d = lcaData(100 + sd), mm = CE.lca(d.rows, d.vars, 3, { nInit: 10, seed: sd }), mc = CE.lca(d.complete, d.vars, 3, { nInit: 10, seed: sd });
+        // Class averages of the first variable on its original scale, matched by sorting
+        const avg = m => m.model.mu.map(r => m.model.mean[0] + m.model.sd[0] * r[0]).sort((x, y) => x - y);
+        const dMean = Math.max(...avg(mm).map((v, c) => Math.abs(v - avg(mc)[c]))), dShare = Math.max(...mm.model.pi.map((v, c) => Math.abs(v - mc.model.pi[c])));
+        return { ari: CE.adjustedRand(mm.labels, d.truth), dMean, dShare };
+    });
+    assert(out.every(o => o.ari >= 0.75 && o.dMean < 1.5 && o.dShare < 0.05), JSON.stringify(out));
+    return `ARI ${out.map(o => o.ari.toFixed(2)).join(', ')}; largest difference from the complete-data fit: class average ${Math.max(...out.map(o => o.dMean)).toFixed(2)} (SD 5), class share ${Math.max(...out.map(o => o.dShare)).toFixed(3)}`;
+});
+check('Latent class analysis: BIC is lowest at the true number of classes (5 datasets)', () => {
+    const ks = [1, 2, 3, 4, 5].map(sd => { const d = lcaData(200 + sd); const b = [1, 2, 3, 4, 5].map(k => CE.lca(d.rows, d.vars, k, { nInit: 8, seed: sd }).bic); return b.indexOf(Math.min(...b)) + 1; });
+    assert(ks.every(k => k === 3), `chosen ${ks.join(', ')}`);
+    return `chosen: ${ks.join(', ')}`;
+});
+check('Latent class analysis: membership probabilities sum to 1, a new patient is classified like the fitted ones, same seed same result', () => {
+    const d = lcaData(300), m = CE.lca(d.rows, d.vars, 3, { nInit: 6, seed: 9 }), m2 = CE.lca(d.rows, d.vars, 3, { nInit: 6, seed: 9 });
+    const sums = m.posterior.every(p => Math.abs(p.reduce((a, b) => a + b, 0) - 1) < 1e-12);
+    const same = d.rows.every((x, i) => { const q = CE.lcaPosterior(m.model, x); return q.every((v, c) => Math.abs(v - m.posterior[i][c]) < 1e-9); });
+    assert(sums && same && CE.adjustedRand(m.labels, m2.labels) === 1, `sums ${sums}, new-patient ${same}`);
+    return 'all hold';
+});
 console.log(`\n${passed}/${passed + failed} behaviour checks passed`);
 process.exit(failed ? 1 : 0);

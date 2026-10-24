@@ -104,6 +104,17 @@ if rs:
     chk('Silhouette on Gower dissimilarities (vs R cluster::pam)', o['pamGower']['silhouette'], R['pam_gower_silhouette'], 1e-12)
     chk('PAM on Euclidean data: BUILD and SWAP objectives', [o['pamEuclid']['buildObjective'], o['pamEuclid']['objective']], R['pam_euclid_objective'], 1e-12)
     chk('PAM on Euclidean data: medoids', o['pamEuclid']['medoids'], R['pam_euclid_medoids'], 0)
+    if 'lca_items_loglik' in R:
+        chk('Latent class analysis, categorical items with missing values: log-likelihood (vs R poLCA)', o['lcaItems']['logLik'], R['lca_items_loglik'], 1e-6)
+        chk('Latent class analysis: number of parameters and BIC (vs R poLCA)', [o['lcaItems']['nParams'], o['lcaItems']['bic']], [R['lca_items_npar'][0], R['lca_items_bic'][0]], 1e-5)
+        chk('Latent class analysis: class shares (vs R poLCA)', o['lcaItems']['shares'], R['lca_items_shares'], 1e-5)
+    else:
+        print('R package poLCA not installed: latent class check skipped')
+    if 'lca_cont_loglik' in R:
+        chk('Latent profile analysis (numbers): log-likelihood and BIC (vs R mclust, model VVI)', [o['lcaCont']['logLik'], o['lcaCont']['bic']], [R['lca_cont_loglik'][0], R['lca_cont_bic'][0]], 1e-5)
+        chk('Latent profile analysis: class shares (vs R mclust)', o['lcaCont']['shares'], R['lca_cont_shares'], 1e-6)
+    else:
+        print('R package mclust not installed: latent profile check skipped')
 else:
     print('Rscript not found: Gower and PAM checks against R skipped')
 w = max(len(r[1]) for r in res)

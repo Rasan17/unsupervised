@@ -25,7 +25,11 @@ well clustering recovers it) and a cohort of one population, where the app shoul
 
 - **Clustering:** k-means (k-means++ starts), k-medoids (PAM, BUILD and SWAP) on any dissimilarity, hierarchical
   clustering (Ward, average, complete, single; nearest-neighbour chain), Gaussian mixtures (full or diagonal
-  covariance, EM from k-means starts, BIC).
+  covariance, EM from k-means starts, BIC), and latent class analysis for mixed data (normal numbers, categorical
+  grades and categories, local independence; missing values left out of each patient's likelihood; EM from
+  several starts; BIC, relative entropy, membership probabilities; checked against R poLCA and mclust).
+- **Method advisor:** step 3 suggests a method from the mix of variable types, the share of missing values and
+  the number of patients, preselects it, and recommends confirming the sub-groups with a second method.
 - **Dissimilarities:** Euclidean; Gower for mixed clinical data (numbers, ordered grades, categories) with
   missing values, by default with balanced weights (each variable weighted by 1 / its mean contribution, so that
   every variable contributes equally on average; Hennig & Liao 2013). Classic equal-weight Gower lets yes/no
@@ -46,14 +50,15 @@ well clustering recovers it) and a cohort of one population, where the app shoul
   larger branch; depth chosen by stratified 10-fold cross-validation; Cohen's kappa; new patients assigned to the
   nearest medoid (Gower, with the reference data's ranges) or nearest centroid (standardised variables).
 - **Suggested number of clusters:** only stable solutions count (every cluster's mean bootstrap Jaccard at least
-  0.75); among them the smallest whose average silhouette is within 0.02 of the best. The other stable choices are
+  0.75); among them, for model-based methods (latent classes, mixtures) the one with the lowest BIC, otherwise the
+  smallest whose average silhouette is within 0.02 of the best. Low entropy is flagged for latent classes. The other stable choices are
   listed, because average silhouette tends to favour 2 clusters.
 - **PCA** with variance explained.
 
 ## Verification
 
 ```bash
-node tests/reference_check.js && python3 tests/reference_check.py   # 45 checks against scikit-learn, SciPy and R (cluster::daisy, cluster::pam)
+node tests/reference_check.js && python3 tests/reference_check.py   # 50 checks against scikit-learn, SciPy and R (poLCA, mclust and cluster) (cluster::daisy, cluster::pam)
 node tests/behaviour_check.js                                       # simulations: true k found, 1 cluster when there are none, test calibration, stability
 node tests/ui_check.js                                              # browser (Playwright + Chrome): both demo cohorts end to end (incl. MICE and step 6), layout, no page errors
 npx eslint@9.39.5 -c eslint.config.mjs src cluster-engine.js         # undefined names and real mistakes

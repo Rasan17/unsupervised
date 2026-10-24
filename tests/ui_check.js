@@ -18,7 +18,8 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
     await new Promise(r => server.listen(0, '127.0.0.1', r));
     const url = `http://127.0.0.1:${server.address().port}/index.html`;
     const browser = await chromium.launch(process.env.CI ? {} : { channel: 'chrome' });
-    for (const [demo, name, expectReal] of [['#demo-phenotypes', 'three sub-types', true], ['#demo-none', 'one population', false]]) {
+    const runs = [['#demo-phenotypes', 'three sub-types (k-means, MICE)', true, 'kmeans', 'mice'], ['#demo-phenotypes', 'three sub-types (latent classes)', true, 'lca', 'gower'], ['#demo-none', 'one population', false, null, null]];
+    for (const [demo, name, expectReal, method, missing] of runs) {
         const p = await browser.newPage({ viewport: { width: 1200, height: 900 } });
         const errs = [];
         p.on('pageerror', e => errs.push(String(e)));
@@ -32,20 +33,24 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         const roles = await p.evaluate(() => ['Age', 'Sex'].map(h => window.UMEApp.state.vars[h].role));
         check(roles.every(r => r === 'describe'), `${name}: age and sex start as "describe only"`);
         await p.click('#to-step3');
-        if (expectReal) { await p.selectOption('#method', 'kmeans'); await p.selectOption('#missing', 'mice'); }
+        const advice = await p.locator('#method-advice').innerText();
+        check(/Suggested for these data: k-medoids \(PAM\)/.test(advice) && (await p.inputValue('#method')) === 'pam-gower', `${name}: method advisor suggests and preselects PAM / Gower for these mixed data`);
+        if (method) { await p.selectOption('#method', method); await p.selectOption('#missing', missing); }
         else check(!(await p.isDisabled('#gower-weights')) && (await p.inputValue('#gower-weights')) === 'balanced', `${name}: PAM / Gower uses balanced weighting by default`);
         await p.click('#explore-btn');
         await p.waitForSelector('#describe-btn', { timeout: 300000 });
         const lead = await p.locator('#explore-out .lead').innerText();
-        if (expectReal) check(/multiply imputed: 5 imputed datasets/.test(lead) && /Agreement across imputations/i.test(await p.locator('#explore-out table').innerText()), `${name}: multiple imputation (MICE) used and agreement across imputations shown`);
-        if (expectReal) check(/Suggested: \d clusters/.test(lead) && /Also stable: .*3/.test(lead), `${name}: suggestion offers a stable solution and lists 3 clusters (${lead.slice(0, 60)}...)`);
-        else check(!/Suggested:/.test(lead), `${name}: no stable number of clusters is suggested`);
+        if (missing === 'mice') check(/multiply imputed: 5 imputed datasets/.test(lead) && /Agreement across imputations/i.test(await p.locator('#explore-out table').innerText()), `${name}: multiple imputation (MICE) used and agreement across imputations shown`);
+        if (method === 'kmeans') check(/Suggested: \d clusters/.test(lead) && /Also stable: .*3/.test(lead), `${name}: suggestion offers a stable solution and lists 3 clusters (${lead.slice(0, 60)}...)`);
+        if (method === 'lca') check(/Suggested: 3 clusters, the stable solution with the lowest BIC/.test(lead) && /Entropy/i.test(await p.locator('#explore-out table').innerText()), `${name}: BIC chooses the true 3 classes; entropy shown`);
+        if (!expectReal) check(!/Suggested:/.test(lead), `${name}: no stable number of clusters is suggested`);
         if (expectReal) { await p.selectOption('#k-choice', '3'); }
         await p.click('#describe-btn');
         await p.waitForSelector('.verdict', { timeout: 300000 });
         const verdict = (await p.locator('.verdict').innerText()).replace(/\s+/g, ' ');
         check(expectReal ? !/Do not interpret/.test(verdict) : /Do not interpret/.test(verdict), `${name}: verdict (${verdict.slice(0, 90)}...)`);
-        check((await p.locator('#clusters-out svg').count()) >= 2, `${name}: silhouette plot and map drawn`);
+        if (missing === 'gower') check((await p.locator('#clusters-out svg').count()) >= 1 && /The map needs complete numerical data/.test(await p.locator('#clusters-out').innerText()), `${name}: silhouette plot drawn; map explained as needing complete data`);
+        else check((await p.locator('#clusters-out svg').count()) >= 2, `${name}: silhouette plot and map drawn`);
         // Step 6: classification (names, rules with cross-validated agreement, new-patient calculator)
         await p.click('#to-use');
         await p.waitForSelector('#np-go', { timeout: 300000 });
@@ -55,7 +60,7 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         const ageIdx = await p.evaluate(() => window.UMEApp.state.explore.P.specs.findIndex(s => s.col === 'Callosal_Angle_Deg'));
         await p.fill(`#np-${ageIdx}`, '70'); await p.click('#np-go');
         const np = await p.locator('#np-out').innerText();
-        check(/By the rules:/.test(np) && /By the full clustering:/.test(np), `${name}: a new patient is classified by the rules and by the full clustering`);
+        check(/By the rules:/.test(np) && (method === 'lca' ? /By the latent class model: .*probability \d+%/ : /By the full clustering:/).test(np), `${name}: a new patient is classified by the rules and by the ${method === 'lca' ? 'latent class model (with probabilities)' : 'full clustering'}`);
         await p.fill('#name-0', 'Classic CSF-dynamic'); await p.locator('#name-0').dispatchEvent('change');
         check(/A · Classic CSF-dynamic/.test(await p.locator('#use-out').innerText()), `${name}: renaming a class updates the rules`);
         await p.click('.tab[data-step="2"]');

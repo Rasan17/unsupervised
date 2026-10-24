@@ -120,7 +120,8 @@
     // ---------------------------------------------------------------------------------- full-clustering assignment
     function references() {
         const { P } = ctx, labels = ctx.S.result.labels, k = ctx.S.result.k, n = labels.length;
-        if (P.method === 'pam-gower') {
+        if (P.method === 'lca' && ctx.S.result.model) return { kind: 'model', model: ctx.S.result.model };
+        if (P.method === 'pam-gower' || P.method === 'lca') {
             const D = P.gower.D, medoids = [];
             for (let c = 0; c < k; c++) {
                 const idx = labels.map((l, i) => (l === c ? i : -1)).filter(i => i >= 0);
@@ -152,6 +153,10 @@
         const { P } = ctx, ref = U.ref, k = ctx.S.result.k;
         if (!ref) return null;
         let d;
+        if (ref.kind === 'model') {
+            const prob = CE.lcaPosterior(ref.model, x), order = prob.map((v, c) => c).sort((a, b) => prob[b] - prob[a]);
+            return { prob, order, borderline: prob[order[0]] < 0.7, kind: 'model' };
+        }
         if (ref.kind === 'medoid') {
             const vars = varsOf(P), dist = CE.gowerDistances(x, ref.medoids.map(i => P.raw[i]), vars, P.gower.weights);
             d = dist;
@@ -222,7 +227,7 @@
             <div class="grid2"><div><div class="table-wrap">${confTable}</div><p class="muted small">Cross-validated: rows are the clusters, columns the class given by the rules.</p></div>
                 <div><div class="table-wrap"><table><thead><tr><th>Conditions per rule</th><th>Agreement (cross-validated)</th><th>Kappa</th></tr></thead><tbody>${depthRows}</tbody></table></div><p class="muted small">The suggested depth is the simplest within 2 percentage points of the best agreement: longer rules are harder to apply and to replicate.</p></div></div>
             <h3>3. Classify a new patient</h3>
-            <p class="muted small">Enter the values of the clustering variables (leave any that are not available). The patient is classified by the rules and by the full clustering (${U.ref ? (U.ref.kind === 'medoid' ? 'nearest representative patient by Gower dissimilarity' : 'nearest cluster centre on the standardised variables') : 'not available for these data'}). Nothing is stored or sent.</p>
+            <p class="muted small">Enter the values of the clustering variables (leave any that are not available). The patient is classified by the rules and by the full clustering (${U.ref ? (U.ref.kind === 'model' ? 'probabilities from the latent class model' : U.ref.kind === 'medoid' ? 'nearest representative patient by Gower dissimilarity' : 'nearest cluster centre on the standardised variables') : 'not available for these data'}). Nothing is stored or sent.</p>
             <div class="newpatient">${form}<div class="row"><button id="np-go" class="btn primary" type="button">Classify this patient</button><button id="np-clear" class="btn" type="button">Clear</button></div></div>
             <div id="np-out" aria-live="polite"></div>
             <h3>4. Do the classes differ in outcomes?</h3>
@@ -264,7 +269,8 @@
         html += `<p><strong>By the rules: ${esc(classLabel(byRules))}</strong>${steps.length ? ` because ${steps.join(', and ')}.` : '.'}</p>`;
         if (full) {
             const a = full.order[0], b = full.order[1], unit = full.kind === 'medoid' ? 'Gower dissimilarity' : 'distance';
-            html += `<p><strong>By the full clustering: ${esc(classLabel(a))}</strong> (${unit} ${full.d[a].toFixed(2)}${b !== undefined ? `; next ${esc(classLabel(b))}, ${full.d[b].toFixed(2)}` : ''}).${full.borderline ? ' The patient lies near the boundary between these two classes.' : ''}</p>`;
+            if (full.kind === 'model') html += `<p><strong>By the latent class model: ${esc(classLabel(a))}</strong> (probability ${pct(full.prob[a])}${b !== undefined ? `; ${esc(classLabel(b))} ${pct(full.prob[b])}` : ''}).${full.borderline ? ' The model is not confident: the patient could belong to either class.' : ''}</p>`;
+            else html += `<p><strong>By the full clustering: ${esc(classLabel(a))}</strong> (${unit} ${full.d[a].toFixed(2)}${b !== undefined ? `; next ${esc(classLabel(b))}, ${full.d[b].toFixed(2)}` : ''}).${full.borderline ? ' The patient lies near the boundary between these two classes.' : ''}</p>`;
             html += a === byRules ? '<p>Both agree.</p>' : '<p>The rules and the full clustering disagree: the patient is near a boundary, so the class is uncertain.</p>';
         }
         if (missingShare > 0) html += `<p class="muted small">${x.length - recorded} of ${x.length} variables not recorded: the classification is less certain.</p>`;

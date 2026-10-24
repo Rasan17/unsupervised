@@ -653,6 +653,134 @@
         return { statistic: H, df: gs.length - 1, p: chiSquareP(H, gs.length - 1) };
     }
 
+    // ------------------------------------------------------------------------------------------- latent class analysis
+    /**
+     * Latent class analysis for mixed clinical data (latent profile analysis for numbers): within each class the
+     * variables are independent (local independence); numbers are normal with class-specific mean and variance
+     * (mclust model "VVI"), grades and categories have class-specific proportions (as R's poLCA, grades treated as
+     * categories). Missing values are left out of each patient's likelihood (full-information, valid when missing
+     * at random), so no imputation is needed. EM from nInit random starts (random hard assignment), best kept.
+     * rows: patients x variables (raw values, null for missing); vars: [{ type, levels }].
+     * Returns labels (modal class, 0 = largest), posterior probabilities, log-likelihood on the original scale,
+     * number of parameters, BIC, relative entropy, and the model (for classifying new patients).
+     */
+    function lca(rows, vars, k, { nInit = 10, seed = 2024, maxIter = 2000, tol = 1e-10, reg = 1e-6 } = {}) {
+        const n = rows.length, p = vars.length;
+        if (k < 1 || k > n) throw new Error('Invalid number of classes.');
+        const levels = vars.map((v, j) => {
+            if (v.type === 'continuous') return null;
+            if (v.levels) return v.levels.map(String);
+            return [...new Set(rows.map(r => codeValue(r[j], v)).filter(x => x !== null))].sort();
+        });
+        // Coded data: z-scores for numbers, level index for grades and categories, null if missing
+        const mean = new Array(p).fill(0), sd = new Array(p).fill(1), nObs = new Array(p).fill(0);
+        const C = vars.map((v, j) => rows.map(r => {
+            const x = codeValue(r[j], v);
+            if (x === null) return null;
+            if (v.type === 'continuous') return x;
+            const l = levels[j].indexOf(String(v.type === 'ordinal' && v.levels ? v.levels[x] : x));
+            return l < 0 ? null : l;
+        }));
+        vars.forEach((v, j) => {
+            const xs = C[j].filter(x => x !== null); nObs[j] = xs.length;
+            if (!xs.length) throw new Error(`Variable ${j + 1} has no recorded values.`);
+            if (v.type !== 'continuous') return;
+            const m = xs.reduce((a, b) => a + b, 0) / xs.length, s = Math.sqrt(xs.reduce((a, b) => a + (b - m) ** 2, 0) / xs.length) || 1;
+            mean[j] = m; sd[j] = s; C[j] = C[j].map(x => (x === null ? null : (x - m) / s));
+        });
+        const cont = vars.map(v => v.type === 'continuous');
+        const LOG2PI = Math.log(2 * Math.PI);
+        function lcaM(R) {
+            const pi = new Array(k).fill(0), mu = [], va = [], pr = [];
+            for (let c = 0; c < k; c++) {
+                let wc = 0; for (let i = 0; i < n; i++) wc += R[i][c];
+                pi[c] = Math.max(wc / n, 1e-300);
+                mu.push(new Array(p).fill(0)); va.push(new Array(p).fill(1)); pr.push(new Array(p).fill(null));
+                for (let j = 0; j < p; j++) {
+                    if (cont[j]) {
+                        let sw = 0, s1 = 0;
+                        for (let i = 0; i < n; i++) { const x = C[j][i]; if (x === null) continue; sw += R[i][c]; s1 += R[i][c] * x; }
+                        const m = sw > 0 ? s1 / sw : 0; let s2 = 0;
+                        for (let i = 0; i < n; i++) { const x = C[j][i]; if (x === null) continue; s2 += R[i][c] * (x - m) ** 2; }
+                        mu[c][j] = m; va[c][j] = (sw > 0 ? s2 / sw : 1) + reg;
+                    } else {
+                        const L = levels[j].length, cnt = new Array(L).fill(0); let sw = 0;
+                        for (let i = 0; i < n; i++) { const x = C[j][i]; if (x === null) continue; cnt[x] += R[i][c]; sw += R[i][c]; }
+                        pr[c][j] = cnt.map(v => (sw > 0 ? v / sw : 1 / L));
+                    }
+                }
+            }
+            return { pi, mu, va, pr };
+        }
+        function lcaE(par) {
+            // Logarithms of the parameters once per iteration
+            const lpi = par.pi.map(Math.log), lnorm = par.va.map(row => row.map(v => LOG2PI + Math.log(v)));
+            const lpr = par.pr.map(row => row.map(q => (q ? q.map(v => Math.log(Math.max(v, 1e-300))) : null)));
+            let ll = 0; const R = [];
+            for (let i = 0; i < n; i++) {
+                const lp = []; let mx = -Infinity;
+                for (let c = 0; c < k; c++) {
+                    let v = lpi[c];
+                    for (let j = 0; j < p; j++) {
+                        const x = C[j][i]; if (x === null) continue;
+                        if (cont[j]) { const d = x - par.mu[c][j]; v += -0.5 * (lnorm[c][j] + d * d / par.va[c][j]); } else v += lpr[c][j][x];
+                    }
+                    lp.push(v); if (v > mx) mx = v;
+                }
+                let se = 0; for (let c = 0; c < k; c++) se += Math.exp(lp[c] - mx);
+                const lse = mx + Math.log(se); ll += lse;
+                R.push(lp.map(v => Math.exp(v - lse)));
+            }
+            return { R, ll };
+        }
+        const rng = createPRNG(seed);
+        // Start: k patients chosen at random as seeds; every patient is assigned to the most similar seed
+        // (mean over recorded variables of the absolute z-score difference, capped at 2, or category mismatch)
+        const dissim = (a, b) => { let s = 0, w = 0; for (let j = 0; j < p; j++) { const x = C[j][a], y = C[j][b]; if (x === null || y === null) continue; s += cont[j] ? Math.min(2, Math.abs(x - y)) / 2 : (x === y ? 0 : 1); w++; } return w ? s / w : 1; };
+        let best = null;
+        for (let s = 0; s < nInit; s++) {
+            const seeds = []; while (seeds.length < k) { const c = Math.floor(rng() * n); if (!seeds.includes(c)) seeds.push(c); }
+            const R0 = Array.from({ length: n }, (_, i) => { const d = seeds.map(sd0 => dissim(i, sd0)); let b = 0; d.forEach((v, c) => { if (v < d[b] || (v === d[b] && rng() < 0.5)) b = c; }); const r = new Array(k).fill(0); r[b] = 1; return r; });
+            let par = lcaM(R0), prev = -Infinity, cur = null, it = 0, converged = false;
+            for (it = 0; it < maxIter; it++) {
+                cur = lcaE(par);
+                if (cur.ll - prev < tol * Math.abs(cur.ll)) { converged = true; break; }
+                prev = cur.ll; par = lcaM(cur.R);
+            }
+            if (!best || cur.ll > best.ll + 1e-9) best = { ll: cur.ll, R: cur.R, par, converged, iterations: it };
+        }
+        // Order classes by size (modal assignment), largest first
+        const modal = best.R.map(r => r.reduce((b, v, c) => (v > r[b] ? c : b), 0));
+        const size = new Array(k).fill(0); modal.forEach(l => { size[l]++; });
+        const order = size.map((_, c) => c).sort((a, b) => size[b] - size[a] || a - b), inv = new Array(k); order.forEach((c, r) => { inv[c] = r; });
+        const posterior = best.R.map(r => order.map(c => r[c]));
+        const labels = modal.map(l => inv[l]);
+        const par = { pi: order.map(c => best.par.pi[c]), mu: order.map(c => best.par.mu[c]), va: order.map(c => best.par.va[c]), pr: order.map(c => best.par.pr[c]) };
+        let logLik = best.ll; vars.forEach((v, j) => { if (cont[j]) logLik -= nObs[j] * Math.log(sd[j]); });
+        const nParams = (k - 1) + k * vars.reduce((a, v, j) => a + (cont[j] ? 2 : levels[j].length - 1), 0);
+        let ent = 0; posterior.forEach(r => r.forEach(v => { if (v > 0) ent -= v * Math.log(v); }));
+        return { labels, posterior, logLik, nParams, bic: -2 * logLik + nParams * Math.log(n), entropy: k > 1 ? 1 - ent / (n * Math.log(k)) : 1,
+            converged: best.converged, iterations: best.iterations,
+            model: { k, vars, levels, mean, sd, pi: par.pi, mu: par.mu, va: par.va, pr: par.pr } };
+    }
+    /** Class membership probabilities of a new patient (raw values, null for missing) under a fitted LCA model */
+    function lcaPosterior(model, x) {
+        const { k, vars, levels, mean, sd } = model, lp = [];
+        for (let c = 0; c < k; c++) {
+            let s = Math.log(model.pi[c]);
+            vars.forEach((v, j) => {
+                const a = codeValue(x[j], v); if (a === null) return;
+                if (v.type === 'continuous') { const z = (a - mean[j]) / sd[j], va = model.va[c][j]; s += -0.5 * (Math.log(2 * Math.PI) + Math.log(va) + (z - model.mu[c][j]) ** 2 / va); } else {
+                    const l = levels[j].indexOf(String(v.type === 'ordinal' && v.levels ? v.levels[a] : a));
+                    if (l >= 0) s += Math.log(Math.max(model.pr[c][j][l], 1e-300));
+                }
+            });
+            lp.push(s);
+        }
+        const mx = Math.max(...lp), se = lp.reduce((a, v) => a + Math.exp(v - mx), 0);
+        return lp.map(v => Math.exp(v - mx) / se);
+    }
+
     // ------------------------------------------------------------------------------------------- using the clusters
     // Coded value of one variable for the tree and Gower distances: number, grade index or category string; null if missing.
     function codeValue(x, v) {
@@ -763,6 +891,6 @@
 
     const ClusterEngine = { createPRNG, standardize, euclideanMatrix, gowerMatrix, lloyd, kmeansPlusPlus, kmeans, pam, hierarchical, cutTree, gmm, gmmFromParams, mStep,
         silhouette, calinskiHarabasz, daviesBouldin, withinSS, adjustedRand, symmetricEigen, pca, gapStatistic, bootstrapStability, nullClusterTest, copulaNullTest, normInv, normCdf, chiSquareTest, kruskalWallis, gammaQ, relabelBySize,
-        codeValue, gowerDistances, classificationTree, predictTree, treePath, treeRules, cohenKappa };
+        codeValue, gowerDistances, lca, lcaPosterior, classificationTree, predictTree, treePath, treeRules, cohenKappa };
     root.ClusterEngine = ClusterEngine;
 })(typeof window !== 'undefined' ? window : globalThis);
