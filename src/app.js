@@ -45,11 +45,14 @@
     function status(id, text, kind = '') { const el = $(id); el.textContent = text; el.className = `status ${kind}`; }
 
     // ------------------------------------------------------------------------------------- step 1: data
-    function loadText(text, name) {
+    function loadText(text, name, demo = false) {
         let parsed;
         try { parsed = DE.parseCSV(text); } catch (e) { status('data-status', `The file could not be read: ${e.message}`, 'bad'); return; }
         if (!parsed.rows.length) { status('data-status', 'The file has no data rows.', 'bad'); return; }
         S.data = { ...parsed, name, analysis: DE.analyzeColumns(parsed.headers, parsed.rows) };
+        const ban = $('data-banner'); ban.hidden = false; ban.className = `data-banner small${demo ? ' demo' : ''}`;
+        ban.innerHTML = demo ? `<strong>Simulated demonstration data</strong> (${esc(name)}): not real patients. Results shown on every step come from this file.` : `<strong>Your data</strong>: ${esc(name)} (${parsed.rows.length.toLocaleString('en-GB')} rows), read in this browser only.`;
+        S.data.demo = demo;
         S.vars = {}; S.prep = null; S.explore = null; S.result = null; S.methodTouched = false; S.excluded = new Set(); S.markedGenuine = new Set();
         if (window.UMEChecks) $('check-out').innerHTML = '';
         parsed.headers.forEach(h => {
@@ -74,7 +77,7 @@
         enableTabs(2); renderVariables(); goTo(2);
     }
     async function loadDemo(file) {
-        try { const r = await fetch(file); if (!r.ok) throw new Error(String(r.status)); loadText(await r.text(), file); }
+        try { const r = await fetch(file); if (!r.ok) throw new Error(String(r.status)); loadText(await r.text(), file, true); }
         catch (e) { status('data-status', `The demo file could not be loaded (${e.message}). If you opened the page from your disk, load the CSV file with "Choose a CSV file" instead.`, 'bad'); }
     }
 
@@ -161,6 +164,8 @@
         // Variables relative to patients
         const coded = used.reduce((a, h) => a + (S.vars[h].type === 'nominal' ? Math.max(1, levelsOf(h).length - 1) : 1), 0);
         if (used.length && n < 10 * coded) out.push(`<strong>Many variables for the number of patients</strong>: ${coded} coded variable(s) for ${n} patients (fewer than 10 patients per variable). Clusters, stability and maps become unreliable when variables are many relative to patients; choose the variables most relevant to the question.`);
+        $('warn-reminder').innerHTML = out.length ? `<p class="warnbox small">${out.length} warning(s) about the data were shown in step 2 (variables). <button type="button" class="btn small" id="warn-goto">Review them</button></p>` : '';
+        if (out.length) $('warn-goto').addEventListener('click', () => goTo(2));
         $('var-warnings').innerHTML = out.length ? `<div class="warnbox small"><strong>Before the analysis:</strong><ul>${out.map(w => `<li>${w}</li>`).join('')}</ul></div>` : '';
     }
     // Which method suits these data: from the mix of variable types, the share of missing values and the size
@@ -310,14 +315,16 @@
 
     // ------------------------------------------------------------------------------------- analysis record
     const BUILD = (() => { const el = document.querySelector('script[src*="src/app.js"]'); const m = el && /[?&]v=(\d+)/.exec(el.getAttribute('src')); return m ? `build ${m[1]}` : 'unknown build'; })();
+    const DISCLAIMER = 'For research and education only; not a medical device. Not for diagnosis or for decisions about individual patients. The methods are checked against established software and in simulations; the tool has not yet been validated on real cohorts or reviewed independently by a statistician.';
     const PURPOSE = { exploratory: 'Exploratory: looking for possible sub-groups or patterns', confirmatory: 'Confirmatory: testing sub-groups and outcomes specified in advance', quality: 'Data quality: looking for errors and unusual records', reduction: 'Dimension reduction: summarising many variables', groundwork: 'Groundwork for a future prediction model' };
     function analysisRecord() {
         const { P, res, gap } = S.explore, R = S.result, sug = suggestion(), ids = window.UMEChecks.label ? i => window.UMEChecks.label(S, i) : i => `Row ${i + 1}`;
         const r3 = v => (Number.isFinite(v) ? Math.round(v * 1000) / 1000 : null);
         return {
             software: { name: 'Unsupervised Medical Explorer', build: BUILD, created: new Date().toISOString(), copyright: '© 2026 Dr G Narenthiran. All rights reserved.' },
+            disclaimer: DISCLAIMER,
             purpose: PURPOSE[$('purpose').value] || $('purpose').value, clinicalQuestion: $('question').value.trim() || null,
-            data: { file: S.data.name, recordsInFile: S.data.rows.length, recordsAnalysed: P.rows.length, leftOutMissing: P.excluded, valuesFilled: P.filled || 0,
+            data: { file: S.data.name, simulatedDemo: !!S.data.demo, recordsInFile: S.data.rows.length, recordsAnalysed: P.rows.length, leftOutMissing: P.excluded, valuesFilled: P.filled || 0,
                 leftOutAfterDataChecks: [...(S.excluded || [])].sort((a, b) => a - b).map(i => ({ record: ids(i), reasons: window.UMEChecks.reasonsFor ? window.UMEChecks.reasonsFor(i) : [] })), flagsMarkedGenuine: window.UMEChecks.markedGenuine ? window.UMEChecks.markedGenuine() : [] },
             variables: Object.fromEntries(S.data.headers.map(h => [h, { role: S.vars[h].role, type: S.vars[h].type }])),
             warnings: [...document.querySelectorAll('#var-warnings li')].map(li => li.textContent),
@@ -340,9 +347,9 @@
     }
     function recordText(A) {
         const L = [], j = v => (v === null || v === undefined ? '–' : v);
-        L.push('ANALYSIS RECORD: Unsupervised Medical Explorer', `${A.software.build} · ${A.software.created.slice(0, 10)} · ${A.software.copyright}`, '');
+        L.push('ANALYSIS RECORD: Unsupervised Medical Explorer', `${A.software.build} · ${A.software.created.slice(0, 10)} · ${A.software.copyright}`, A.disclaimer, '');
         L.push(`Purpose: ${A.purpose}`, `Clinical question: ${j(A.clinicalQuestion)}`, '');
-        L.push(`Data: ${A.data.file}; ${A.data.recordsInFile} records in the file, ${A.data.recordsAnalysed} analysed${A.data.leftOutMissing ? `, ${A.data.leftOutMissing} left out for missing values` : ''}${A.data.valuesFilled ? `, ${A.data.valuesFilled} values filled` : ''}.`);
+        L.push(`Data: ${A.data.file}${A.data.simulatedDemo ? ' (simulated demonstration data, not real patients)' : ''}; ${A.data.recordsInFile} records in the file, ${A.data.recordsAnalysed} analysed${A.data.leftOutMissing ? `, ${A.data.leftOutMissing} left out for missing values` : ''}${A.data.valuesFilled ? `, ${A.data.valuesFilled} values filled` : ''}.`);
         if (A.data.leftOutAfterDataChecks.length) { L.push(`Left out after the data checks (${A.data.leftOutAfterDataChecks.length}):`); A.data.leftOutAfterDataChecks.forEach(e => L.push(`  - ${e.record}: ${e.reasons.join('; ') || 'left out by the user'}`)); }
         if (A.data.flagsMarkedGenuine.length) L.push(`Data-check flags marked as genuine by the user: ${A.data.flagsMarkedGenuine.map(g => `${g.flag} in ${g.column} (${g.values})`).join('; ')}`);
         L.push('', 'Variables:'); Object.entries(A.variables).forEach(([h, v]) => L.push(`  - ${h}: ${v.role === 'cluster' ? 'used to find clusters' : v.role === 'describe' ? 'describe only' : 'ignored'} (${v.type})`));
@@ -579,7 +586,7 @@
         const verdict = (!test || test.pValue <= 0.05) && weakest >= 0.75 ? 'good' : conservativeMiss ? 'mixed' : (test && test.pValue > 0.05) || weakest < 0.5 ? 'bad' : 'mixed';
         $('clusters-out').innerHTML = `
             <div class="verdict ${verdict}"><strong>${k} clusters (${esc(METHOD[P.method].short)}).</strong> Evidence: ${esc(evidence.join('; '))}.
-                ${verdict === 'good' ? `These clusters are consistent with real sub-groups in these data (stable, and more separated than a single population); they still need replication in another cohort before clinical interpretation.${test ? ' Note: a single population with a curved or branching (non-linear) pattern can also give this result; check the map of the patients for gaps between the clusters, and the dimensions panel for a continuum.' : ''}` : verdict === 'bad' ? 'These clusters may be artefacts of the method: clustering algorithms always return clusters, even in data without sub-groups. Do not interpret them as patient sub-types.' : (conservativeMiss ? 'The clusters reproduce in resamples, but the (conservative) test did not find more separation than a single population: they may reflect modest structure or a continuum rather than distinct sub-groups. Treat them as exploratory.' : 'The evidence is mixed: treat the clusters as exploratory.')}</div>
+                ${verdict === 'good' ? `These clusters are consistent with real sub-groups in these data (stable, and more separated than a single population); they still need replication in another cohort before clinical interpretation.${test ? ' Note: a single population with a curved or branching (non-linear) pattern can also give this result; check the map of the patients for gaps between the clusters' + (P.method === 'neural' ? ' (and the self-organising map for grey, empty units between them)' : '') + ', and the dimensions panel for a continuum.' : ''}` : verdict === 'bad' ? 'These clusters may be artefacts of the method: clustering algorithms always return clusters, even in data without sub-groups. Do not interpret them as patient sub-types.' : (conservativeMiss ? 'The clusters reproduce in resamples, but the (conservative) test did not find more separation than a single population: they may reflect modest structure or a continuum rather than distinct sub-groups. Treat them as exploratory.' : 'The evidence is mixed: treat the clusters as exploratory.')}</div>
             ${{ confirmatory: '<p class="small note">Confirmatory purpose: the sub-groups and the outcomes compared must have been specified before the analysis; report the q-values and effect sizes, and the sensitivity analysis.</p>', groundwork: '<p class="small note">Groundwork for a prediction model: clusters are not predictors of outcome by themselves; a prediction model needs its own development and validation.</p>' }[$('purpose').value] || ''}
             <div class="grid2">
                 <div><h3>Clusters</h3><div class="table-wrap"><table><thead><tr><th>Cluster</th><th>Patients</th><th>Stability (mean Jaccard, 95% interval)</th><th>Share of patients across resamples</th><th>Dissolved in</th>${certainty ? '<th>Average membership probability</th>' : ''}</tr></thead><tbody>

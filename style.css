@@ -115,3 +115,6 @@ button.sort:focus-visible { outline: 2px solid var(--accent); outline-offset: 2p
 .chart .band.remove { fill: var(--bad); stroke: var(--bad); }
 table.axis-factors td { vertical-align: top; } table.axis-factors td .muted { font-size: 12px; }
 .form input[type="text"] { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); max-width: 100%; }
+
+.data-banner { margin: 0 0 8px; padding: 6px 12px; border-radius: 6px; background: var(--soft); border-left: 4px solid var(--accent); }
+.data-banner.demo { background: var(--warn-bg); border-left-color: var(--warn); }

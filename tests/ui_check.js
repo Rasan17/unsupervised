@@ -143,11 +143,16 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         for (let i = 0; i < 60; i++) lines.push(`P${i},2024-0${1 + (i % 9)}-1${i % 9},${i % 7 === 0 ? -999 : 10 + (i % 13)},${i % 7 === 0 ? -999 : 20 + 2 * (i % 13)},same,${i % 3}`);
         await p.setInputFiles('#file', { name: 'problems.csv', mimeType: 'text/csv', buffer: Buffer.from(lines.join('\n')) });
         await p.waitForSelector('#var-table table');
+        check(/Your data.*problems\.csv \(60 rows\)/.test(await p.locator('#data-banner').innerText()) && /not a medical device/.test(await p.locator('section.step[data-step="1"]').innerText()), `${name}: a banner names the user's own file, and step 1 states that the tool is not a medical device`);
         await p.selectOption('#role-1', 'cluster');
         const warn = await p.locator('#var-warnings').innerText();
         check(/Visit_Date: looks like dates/.test(warn) && /Constant: the same value for every patient/.test(warn) && /-999 \(\d+ patients\) may be a code for "not recorded"/.test(warn) && /Strongly related clustering variables: .*Score and Score_Copy/.test(warn), `${name}: warnings before the analysis for dates, a constant column, a missing-value code and two variables measuring the same thing`);
         // The phenotype demo with a confirmatory purpose, PAM / Gower, 3 clusters
-        await p.click('.tab[data-step="1"]'); await p.click('#demo-phenotypes'); await p.waitForSelector('#var-table table'); await p.click('#to-step3');
+        await p.click('#to-step3');
+        check(/warning\(s\) about the data were shown in step 2/.test(await p.locator('#warn-reminder').innerText()), `${name}: step 4 reminds the user of the warnings before the analysis`);
+        await p.click('.tab[data-step="1"]'); await p.click('#demo-phenotypes'); await p.waitForSelector('#var-table table');
+        check(/Simulated demonstration data.*demo_inph_phenotypes\.csv/.test(await p.locator('#data-banner').innerText()), `${name}: a banner marks simulated demonstration data on every step`);
+        await p.click('#to-step3');
         await p.selectOption('#purpose', 'confirmatory'); await p.fill('#question', 'Are there sub-types of iNPH?');
         await p.click('#explore-btn'); await p.waitForSelector('#describe-btn', { timeout: 300000 });
         check(/\(0\.\d{3}–[01]\.\d{3}\)/.test(await p.locator('#explore-out table').first().innerText()), `${name}: step 5 shows the 95% interval of the stability of each candidate`);
@@ -162,7 +167,7 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         check(/Without Callosal_Angle_Deg/.test(so) && /Method:/.test(so) && /Patients: \d+% stay in the same cluster under every alternative/.test(so) && nAlt >= 6, `${name}: the sensitivity analysis compares ${nAlt} alternative specifications, at patient level`);
         const [dj] = await Promise.all([p.waitForEvent('download'), p.click('#record-json')]);
         const rec = JSON.parse(require('fs').readFileSync(await dj.path(), 'utf8'));
-        check(rec.software && rec.clinicalQuestion === 'Are there sub-types of iNPH?' && /Confirmatory/.test(rec.purpose) && rec.chosen && rec.sensitivity && rec.sensitivity.length === nAlt && rec.settings, `${name}: the analysis record (.json) holds the software version, purpose, question, settings, chosen solution and sensitivity analysis`);
+        check(rec.software && rec.clinicalQuestion === 'Are there sub-types of iNPH?' && /Confirmatory/.test(rec.purpose) && rec.chosen && rec.sensitivity && rec.sensitivity.length === nAlt && rec.settings && rec.data.simulatedDemo === true && /not a medical device/.test(rec.disclaimer), `${name}: the analysis record (.json) holds the software version, purpose, question, settings, chosen solution and sensitivity analysis`);
         const [dt] = await Promise.all([p.waitForEvent('download'), p.click('#record-txt')]);
         check(/Are there sub-types of iNPH\?/.test(require('fs').readFileSync(await dt.path(), 'utf8')), `${name}: the analysis report (.txt) downloads`);
         // Step 7: classify an independent cohort without retraining

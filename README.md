@@ -144,6 +144,12 @@ referral patterns (`tools/make_referral_demo.py`).
   records outside the original range or with unseen categories, and outcomes by class with p and q, and the
   classified records can be downloaded. `demo_inph_validation.csv` (200 simulated patients from the same three
   sub-types, in other proportions) demonstrates it.
+- **Status shown in the page:** a banner on every step says whether the data are a simulated demonstration or the
+  user's own file (also in the analysis record); step 1, the report and the record state that the tool is for
+  research and education, not a medical device, not for diagnosis or decisions about individual patients, and not
+  yet validated on real cohorts or reviewed independently. Warnings about the data are repeated in step 4, before
+  the analysis; on the self-organising map, grey (empty) units between clusters suggest a gap, and clusters that
+  touch without them may be parts of a continuum.
 - **Wording:** the agreement of the bedside rules is "agreement with the unsupervised cluster assignments, not
   clinical accuracy"; a new patient's class is an approximation, not a diagnosis.
 

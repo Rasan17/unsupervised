@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>Unsupervised Medical Explorer</title>
-<link rel="stylesheet" href="style.css?v=40">
+<link rel="stylesheet" href="style.css?v=41">
 <link rel="icon" href="data:,">
 </head>
 <body>
@@ -27,10 +27,12 @@
   <button class="tab" type="button" data-step="7">7 Use the clusters</button>
   <button class="tab" type="button" data-step="8">8 Decision tree</button>
 </nav>
+<p id="data-banner" class="data-banner small" role="status" hidden></p>
 <main id="main">
   <section class="step" data-step="1">
     <h2>Load the data</h2>
     <p>One row per patient (or per record, if patients have several), one column per variable. The file is read in this browser and never uploaded.</p>
+    <p class="note small"><strong>For research and education only; not a medical device.</strong> Not for diagnosis or for decisions about individual patients. The methods are checked against established software and in simulations, but the tool has not yet been validated on real cohorts or reviewed independently by a statistician.</p>
     <div class="row">
       <label class="btn primary file-btn" for="file">Choose a CSV file</label><input type="file" id="file" accept=".csv,text/csv" class="visually-hidden">
       <span class="muted">or a simulated demonstration cohort:</span>
@@ -109,6 +111,7 @@
       <label for="seed">Random seed (for reproducibility)</label>
       <input id="seed" type="number" value="2024">
     </div>
+    <div id="warn-reminder"></div>
     <div class="row"><button id="explore-btn" class="btn primary" type="button">Compare numbers of clusters</button></div>
   </section>
 
@@ -138,17 +141,17 @@
   <p>Conceived, designed and directed by Dr G Narenthiran · implemented with AI pair programming (Anthropic Claude Code) · © 2026 Dr G Narenthiran. All rights reserved.</p>
   <p>For research and education only; not a medical device. Clusters found in one dataset are hypotheses: replicate them in another cohort before any clinical use.</p>
 </footer>
-<script src="data-engine.js?v=40"></script>
-<script src="cluster-engine.js?v=40"></script>
-<script src="embed-engine.js?v=40"></script>
-<script src="anomaly-engine.js?v=40"></script>
-<script src="nn-engine.js?v=40"></script>
-<script src="src/charts.js?v=40"></script>
-<script src="src/maps.js?v=40"></script>
-<script src="src/som-explorer.js?v=40"></script>
-<script src="src/checks.js?v=40"></script>
-<script src="src/use-clusters.js?v=40"></script>
-<script src="src/export.js?v=40"></script>
-<script src="src/app.js?v=40"></script>
+<script src="data-engine.js?v=41"></script>
+<script src="cluster-engine.js?v=41"></script>
+<script src="embed-engine.js?v=41"></script>
+<script src="anomaly-engine.js?v=41"></script>
+<script src="nn-engine.js?v=41"></script>
+<script src="src/charts.js?v=41"></script>
+<script src="src/maps.js?v=41"></script>
+<script src="src/som-explorer.js?v=41"></script>
+<script src="src/checks.js?v=41"></script>
+<script src="src/use-clusters.js?v=41"></script>
+<script src="src/export.js?v=41"></script>
+<script src="src/app.js?v=41"></script>
 </body>
 </html>
