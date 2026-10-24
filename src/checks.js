@@ -93,7 +93,10 @@
                         const d2 = (S2[1][1] * x[0] * x[0] - 2 * S2[0][1] * x[0] * x[1] + S2[0][0] * x[1] * x[1]) / det;
                         if (!best || d2 > best.d2) best = { a, b, d2 };
                     }
-                    if (best) { const ha = numCols[best.a], hb = numCols[best.b]; return `no single value is extreme, but the combination of ${pretty(ha)} ${numVals[ha][i]} and ${pretty(hb)} ${numVals[hb][i]} is unusual in these data`; }
+                    if (best) {
+                        const ha = numCols[best.a], hb = numCols[best.b], pair = `${pretty(ha)} ${numVals[ha][i]} with ${pretty(hb)} ${numVals[hb][i]}`;
+                        return flags[i].mcd && flags[i].mcd.flagged ? `no single value is extreme, but the combination of ${pair} is unusual in these data` : `no single value is extreme; the least typical pair of values is ${pair}`;
+                    }
                 }
             }
             return 'no single value is extreme; the overall pattern of values is unusual';
@@ -114,8 +117,12 @@
         const { issues, unusual, methods, nMethods } = C.results;
         const ex = S.excluded;
         const box = i => `<input type="checkbox" class="excl" data-row="${i}" aria-label="Exclude ${esc(label(S, i))}"${ex.has(i) ? ' checked' : ''}>`;
+        // "Exclude all" / "Include all" for the patients of one table
+        const groups = { errors: [...new Set(issues.map(x => x.row))] };
+        const bulk = (key, what) => `<div class="row bulk" role="group" aria-label="Exclude or include all ${what}"><button type="button" class="btn small" data-bulk="${key}" data-on="1">Exclude all ${what}</button><button type="button" class="btn small" data-bulk="${key}" data-on="0">Include all ${what}</button></div>`;
         const errRows = issues.map(x => `<tr><td>${box(x.row)}</td><td>${esc(label(S, x.row))}</td><td>${esc(x.column)}</td><td>${esc(x.value)}</td><td>${esc(x.message)}</td></tr>`).join('');
         const strong = unusual.filter(u => u.count >= Math.min(2, nMethods)), weak = unusual.filter(u => u.count < Math.min(2, nMethods));
+        groups.strong = strong.map(u => u.i); groups.weak = weak.map(u => u.i);
         const tick = (u, k) => (u.f[k] ? (u.f[k].flagged ? '<strong>yes</strong>' : 'no') : '–');
         const uRow = u => `<tr><td>${box(u.i)}</td><td>${esc(label(S, u.i))}</td>${methods.map(m => `<td>${tick(u, m.key)}</td>`).join('')}<td>${esc(u.why)}</td></tr>`;
         const uHead = `<tr><th>Exclude</th><th>Patient</th>${methods.map(m => `<th>${esc(m.name)}</th>`).join('')}<th>Why</th></tr>`;
@@ -131,13 +138,18 @@
         }
         el.innerHTML = `
             <h3>Possible data errors (${issues.length})</h3>
-            ${issues.length ? `<div class="table-wrap"><table><thead><tr><th>Exclude</th><th>Patient</th><th>Variable</th><th>Value</th><th>Possible problem</th></tr></thead><tbody>${errRows}</tbody></table></div>
+            ${issues.length ? `${bulk('errors', `${groups.errors.length} patient(s) with possible errors`)}<div class="table-wrap"><table><thead><tr><th>Exclude</th><th>Patient</th><th>Variable</th><th>Value</th><th>Possible problem</th></tr></thead><tbody>${errRows}</tbody></table></div>
                 <p class="muted small">Best corrected in the source file and loaded again; excluding the patient is the alternative. Values that cannot be read as numbers are treated as missing in the analysis.</p>` : '<p>None found.</p>'}
             <h3>Unusual patients (${strong.length}${nMethods >= 2 ? ' flagged by at least 2 of the ' + nMethods + ' methods' : ''})</h3>
-            ${strong.length ? `<div class="table-wrap"><table><thead>${uHead}</thead><tbody>${strong.map(uRow).join('')}</tbody></table></div>` : '<p>None.</p>'}
-            ${weak.length ? `<details><summary>${weak.length} patient(s) flagged by one method only</summary><div class="table-wrap"><table><thead>${uHead}</thead><tbody>${weak.map(uRow).join('')}</tbody></table></div></details>` : ''}
+            ${strong.length ? `${bulk('strong', `${strong.length} unusual patient(s)`)}<div class="table-wrap"><table><thead>${uHead}</thead><tbody>${strong.map(uRow).join('')}</tbody></table></div>` : '<p>None.</p>'}
+            ${weak.length ? `<details><summary>${weak.length} patient(s) flagged by one method only</summary>${bulk('weak', `${weak.length} patient(s) flagged by one method`)}<div class="table-wrap"><table><thead>${uHead}</thead><tbody>${weak.map(uRow).join('')}</tbody></table></div></details>` : ''}
             <div class="grid2"><div>${map}</div><div class="muted small">${methods.map(m => `<p><strong>${esc(m.name)}</strong>: ${esc(m.note)}.</p>`).join('')}
                 <p>Unusual is not the same as wrong: check flagged patients against the records. Exclude only clear errors or patients outside the population of interest; rare but genuine patients may matter clinically. Report any exclusions.</p></div></div>`;
+        el.querySelectorAll('[data-bulk]').forEach(b => b.addEventListener('click', () => {
+            const on = b.dataset.on === '1';
+            groups[b.dataset.bulk].forEach(i => { if (on) S.excluded.add(i); else S.excluded.delete(i); el.querySelectorAll(`input.excl[data-row="${i}"]`).forEach(o => { o.checked = on; }); });
+            summary(); C.onChange();
+        }));
         el.querySelectorAll('input.excl').forEach(b => b.addEventListener('change', () => { const i = Number(b.dataset.row); if (b.checked) S.excluded.add(i); else S.excluded.delete(i); el.querySelectorAll(`input.excl[data-row="${i}"]`).forEach(o => { o.checked = b.checked; }); summary(); C.onChange(); }));
         summary();
     }

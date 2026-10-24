@@ -112,6 +112,11 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         const hit = planted.filter(id => found.includes(id) || (id === 'PH-115' && found.includes('PH-999')));
         check(hit.length >= planted.length - 0, `${name}: every planted problem is listed (${hit.length} of ${planted.length})`);
         check(/combination of .* is unusual/.test(await p.locator('#check-out').innerText()), `${name}: the patient with an unusual combination of plausible values is explained as such`);
+        await p.click('[data-bulk="strong"][data-on="1"]');
+        const nStrong = await p.$$eval('#check-out table', ts => ts[1].querySelectorAll('tbody tr').length);
+        check(new RegExp(`${nStrong} patient\\(s\\) will be left out`).test(await p.locator('#check-summary').innerText()), `${name}: "Exclude all" excludes every unusual patient (${nStrong})`);
+        await p.click('[data-bulk="strong"][data-on="0"]');
+        check(/No patients excluded/.test(await p.locator('#check-summary').innerText()), `${name}: "Include all" includes them again`);
         await p.locator('#check-out input.excl').first().check();
         check(/1 patient\(s\) will be left out/.test(await p.locator('#check-summary').innerText()), `${name}: excluding a patient is summarised`);
         await p.click('#check-next'); await p.click('#explore-btn'); await p.waitForSelector('#describe-btn', { timeout: 300000 });

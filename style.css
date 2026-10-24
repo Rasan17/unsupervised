@@ -91,3 +91,4 @@ td.diag { font-weight: 700; }
 .legend svg.scale { vertical-align: middle; border-radius: 2px; }
 .map-controls { gap: 6px; } .map-controls label { margin-left: 8px; }
 .dims li { margin: 6px 0; } h4 { margin: 10px 0 4px; font-size: 15px; }
+.bulk { gap: 6px; margin: 4px 0 6px; }
