@@ -72,3 +72,17 @@ tr.describe td { background: var(--soft); }
 .chart .pt { fill-opacity: 0.75; stroke: none; }
 .foot { color: var(--muted); font-size: 13px; padding-block: 10px 30px; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* step 6 */
+.classgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 12px; }
+.classcard { border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 6px; min-width: 0; }
+.classhead { display: flex; gap: 8px; align-items: center; }
+.name-input { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); width: 100%; box-sizing: border-box; }
+.rules { display: grid; gap: 8px; }
+.rulegroup h4 { margin: 6px 0 2px; font-size: 15px; }
+.rulegroup ol { margin: 0; padding-left: 22px; } .rulegroup li { margin: 3px 0; }
+td.diag { font-weight: 700; }
+.newpatient { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr)); gap: 10px 16px; }
+.newpatient .field { display: grid; gap: 4px; min-width: 0; } .newpatient label { font-weight: 600; font-size: 14px; }
+.newpatient input, .newpatient select { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); width: 100%; box-sizing: border-box; }
+.newpatient .row { grid-column: 1 / -1; }

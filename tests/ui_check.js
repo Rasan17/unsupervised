@@ -27,9 +27,12 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         await p.goto(url);
         const visibleSteps = () => p.$$eval('section.step', ss => ss.filter(s => s.offsetParent !== null).map(s => s.dataset.step));
         check(JSON.stringify(await visibleSteps()) === '["1"]', `${name}: only step 1 is shown at the start`);
-        await p.click(demo); await p.click('#to-step3'); await p.click('#explore-btn');
+        await p.click(demo); await p.click('#to-step3');
+        if (expectReal) await p.selectOption('#missing', 'mice');
+        await p.click('#explore-btn');
         await p.waitForSelector('#describe-btn', { timeout: 300000 });
         const lead = await p.locator('#explore-out .lead').innerText();
+        if (expectReal) check(/multiply imputed: 5 imputed datasets/.test(lead) && /Agreement across imputations/i.test(await p.locator('#explore-out table').innerText()), `${name}: multiple imputation (MICE) used and agreement across imputations shown`);
         if (expectReal) check(/Suggested: \d clusters/.test(lead) && /Also stable: .*3/.test(lead), `${name}: suggestion offers a stable solution and lists 3 clusters (${lead.slice(0, 60)}...)`);
         else check(!/Suggested:/.test(lead), `${name}: no stable number of clusters is suggested`);
         if (expectReal) { await p.selectOption('#k-choice', '3'); }
@@ -38,6 +41,18 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         const verdict = (await p.locator('.verdict').innerText()).replace(/\s+/g, ' ');
         check(expectReal ? !/Do not interpret/.test(verdict) : /Do not interpret/.test(verdict), `${name}: verdict (${verdict.slice(0, 90)}...)`);
         check((await p.locator('#clusters-out svg').count()) >= 2, `${name}: silhouette plot and map drawn`);
+        // Step 6: classification (names, rules with cross-validated agreement, new-patient calculator)
+        await p.click('#to-use');
+        await p.waitForSelector('#np-go', { timeout: 300000 });
+        const use = await p.locator('#use-out').innerText();
+        check(/Bedside rules/.test(use) && /\d+% of patients not used to derive them/.test(use), `${name}: step 6 shows bedside rules with cross-validated agreement`);
+        check(expectReal ? /reasonable to propose/.test(use) : /Caution: the clusters chosen in step 5 did not pass/.test(use), `${name}: step 6 ${expectReal ? 'proposes a classification' : 'warns that the classification would describe noise'}`);
+        const ageIdx = await p.evaluate(() => window.UMEApp.state.explore.P.specs.findIndex(s => s.col === 'Callosal_Angle_Deg'));
+        await p.fill(`#np-${ageIdx}`, '70'); await p.click('#np-go');
+        const np = await p.locator('#np-out').innerText();
+        check(/By the rules:/.test(np) && /By the full clustering:/.test(np), `${name}: a new patient is classified by the rules and by the full clustering`);
+        await p.fill('#name-0', 'Classic CSF-dynamic'); await p.locator('#name-0').dispatchEvent('change');
+        check(/A · Classic CSF-dynamic/.test(await p.locator('#use-out').innerText()), `${name}: renaming a class updates the rules`);
         await p.click('.tab[data-step="2"]');
         check(JSON.stringify(await visibleSteps()) === '["2"]', `${name}: clicking the "2 Variables" tab shows only that step`);
         await p.click('.tab[data-step="5"]');
@@ -49,7 +64,7 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         for (const [w, label] of [[1200, 'desktop'], [375, 'phone']]) {
             await p.setViewportSize({ width: w, height: 900 });
             const bad = [];
-            for (const st of ['1', '2', '3', '4', '5']) { await p.click(`.tab[data-step="${st}"]`); if (await overflow()) bad.push(st); }
+            for (const st of ['1', '2', '3', '4', '5', '6']) { await p.click(`.tab[data-step="${st}"]`); if (await overflow()) bad.push(st); }
             check(bad.length === 0, `${name}: nothing spills past the page edge (${label} width)${bad.length ? ': steps ' + bad.join(', ') : ''}`);
         }
         check(errs.length === 0, `${name}: no page errors${errs.length ? ': ' + errs.join(' | ') : ''}`);

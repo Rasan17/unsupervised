@@ -63,5 +63,13 @@ out.pamEuclid = { objective: PE.objective, buildObjective: PE.buildObjective, me
 // Tests used to describe clusters: chi-square and Kruskal-Wallis (with ties)
 const grp = M.map((_, i) => i % 3), sexv = M.map(r => r[3]), agev = M.map(r => (r[0] === null ? 50 : r[0])), gradev = M.map(r => r[2] ?? 'mild');
 out.tests = { grp, sexv, agev, gradev, chi: CE.chiSquareTest(sexv, grp), chiGrade: CE.chiSquareTest(gradev, grp), kw: CE.kruskalWallis(agev, grp), kwTies: CE.kruskalWallis(gradev.map(v => grades.indexOf(v)), grp), q: [CE.gammaQ(2.5, 3.1), CE.gammaQ(10, 4), CE.gammaQ(0.5, 20)] };
+// 3. Classification tree that turns clusters into rules (vs scikit-learn DecisionTreeClassifier), and Cohen's kappa
+const noisy = KM.labels.map(l => (rng() < 0.2 ? Math.floor(rng() * 3) : l));
+const treeOut = {};
+for (const [d, leaf] of [[2, 5], [3, 5], [4, 10]]) {
+    const T = CE.classificationTree(X, [0, 1, 2].map(j => ({ name: 'x' + (j + 1), type: 'continuous' })), noisy, { maxDepth: d, minLeaf: leaf });
+    treeOut[`d${d}_l${leaf}`] = X.map(x => CE.predictTree(T, x));
+}
+out.tree = { labels: noisy, predictions: treeOut, kappa: CE.cohenKappa(noisy, KM.labels) };
 fs.writeFileSync(path.join(__dirname, 'reference_values.json'), JSON.stringify(out));
 console.log('Engine values written to tests/reference_values.json; now run: python3 tests/reference_check.py');

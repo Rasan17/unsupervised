@@ -9,7 +9,11 @@ data never leave the computer.
 verified. The phenotype-discovery interface (`index.html`) works end to end: load a CSV (or a demo cohort), choose
 the variables to cluster on and those only to describe, choose a method, compare 2 to 10 clusters (silhouette,
 stability, gap statistic or BIC), then describe the chosen clusters with a verdict on whether they are more than
-chance, a silhouette plot, a PCA map and a profile table. Next: t-SNE/UMAP maps, anomaly detection, autoencoders.
+chance, a silhouette plot, a PCA map and a profile table. Step 6, "Use the clusters", turns them into a
+classification for clinicians: draft names and descriptions of each class (editable), short bedside rules from a
+classification tree with cross-validated agreement with the clusters, a calculator for a new patient (by the rules
+and by the full clustering), outcomes by class, what is needed before clinical use, and a downloadable
+classification sheet. Next: t-SNE/UMAP maps, anomaly detection, autoencoders.
 
 After changing a script or `style.css`, raise its `?v=` number in `index.html` so browsers do not keep the old copy.
 
@@ -29,6 +33,13 @@ well clustering recovers it) and a cohort of one population, where the app shoul
   test of "no real clusters" against Gaussian reference data with exactly the data's covariance (exact for
   Gaussian data; the usual version, which draws from the sample covariance, is badly conservative), and for mixed
   data a Gaussian-copula reference matched to each variable's distribution (valid but conservative).
+- **Missing values:** median/most frequent value, complete cases, pairwise Gower, or multiple imputation (MICE:
+  5 datasets by chained equations with predictive mean matching, from the clustering variables only; each dataset
+  is clustered and combined into a consensus partition; agreement across imputations reported; stability resamples
+  cycle through the imputed datasets; the test of no real sub-groups is combined by the median p-value).
+- **Using the clusters:** CART classification tree (Gini) on the clustering variables, missing values sent down the
+  larger branch; depth chosen by stratified 10-fold cross-validation; Cohen's kappa; new patients assigned to the
+  nearest medoid (Gower, with the reference data's ranges) or nearest centroid (standardised variables).
 - **Suggested number of clusters:** only stable solutions count (every cluster's mean bootstrap Jaccard at least
   0.75); among them the smallest whose average silhouette is within 0.02 of the best. The other stable choices are
   listed, because average silhouette tends to favour 2 clusters.
@@ -37,9 +48,10 @@ well clustering recovers it) and a cohort of one population, where the app shoul
 ## Verification
 
 ```bash
-node tests/reference_check.js && python3 tests/reference_check.py   # 39 checks against scikit-learn, SciPy and R (cluster::daisy, cluster::pam)
+node tests/reference_check.js && python3 tests/reference_check.py   # 43 checks against scikit-learn, SciPy and R (cluster::daisy, cluster::pam)
 node tests/behaviour_check.js                                       # simulations: true k found, 1 cluster when there are none, test calibration, stability
-node tests/ui_check.js                                              # browser (Playwright + Chrome): both demo cohorts end to end, no page errors
+node tests/ui_check.js                                              # browser (Playwright + Chrome): both demo cohorts end to end (incl. MICE and step 6), layout, no page errors
+npx eslint@9.39.5 -c eslint.config.mjs src cluster-engine.js         # undefined names and real mistakes
 ```
 
 ## Author

@@ -65,6 +65,15 @@ for key, vals in [('kw', t['agev']), ('kwTies', [grades.index(v) for v in t['gra
     chk(f'Kruskal-Wallis test ({key}): statistic and p (vs SciPy)', [t[key]['statistic'], t[key]['p']], [h, pv], 1e-10)
 from scipy.special import gammaincc
 chk('Regularised upper incomplete gamma function (vs SciPy)', t['q'], [gammaincc(2.5, 3.1), gammaincc(10, 4), gammaincc(0.5, 20)], 1e-12)
+# Classification tree (rules from clusters) and Cohen's kappa
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import cohen_kappa_score
+yt = np.array(o['tree']['labels'])
+for key, pred in o['tree']['predictions'].items():
+    d, leaf = int(key.split('_')[0][1:]), int(key.split('_')[1][1:])
+    sk = DecisionTreeClassifier(max_depth=d, min_samples_leaf=leaf, random_state=0).fit(X, yt).predict(X)
+    chk(f'Classification tree, depth {d}, at least {leaf} per leaf: same predictions as scikit-learn', float(np.mean(np.array(pred) != sk)), 0.0, 0)
+chk("Cohen's kappa (vs scikit-learn)", o['tree']['kappa'], cohen_kappa_score(yt, o['kmeans']['labels']), 1e-12)
 # R: Gower (daisy), PAM
 rs = shutil.which('Rscript')
 if rs:

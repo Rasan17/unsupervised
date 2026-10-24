@@ -415,7 +415,7 @@
     // ------------------------------------------------------------------------------------------- PCA
     // Eigen-decomposition of a symmetric matrix (cyclic Jacobi); eigenvalues in decreasing order
     function symmetricEigen(A) {
-        const p = A.length, M = A.map(r => r.slice()), V = Array.from({ length: p }, (_, i) => Array.from({ length: p }, (_, j) => (i === j ? 1 : 0)));
+        const p = A.length, M = A.map(r => r.slice()), V = Array.from({ length: p }, (_, i) => Array.from({ length: p }, (__, j) => (i === j ? 1 : 0)));
         for (let sweep = 0; sweep < 100; sweep++) {
             let off = 0; for (let i = 0; i < p; i++) for (let j = i + 1; j < p; j++) off += M[i][j] * M[i][j];
             if (off < 1e-22) break;
@@ -639,7 +639,112 @@
         return { statistic: H, df: gs.length - 1, p: chiSquareP(H, gs.length - 1) };
     }
 
+    // ------------------------------------------------------------------------------------------- using the clusters
+    // Coded value of one variable for the tree and Gower distances: number, grade index or category string; null if missing.
+    function codeValue(x, v) {
+        if (x === null || x === undefined || x === '' || (typeof x === 'number' && !Number.isFinite(x))) return null;
+        if (v.type === 'nominal') return String(x).trim();
+        if (v.type === 'ordinal') { const k = v.levels ? v.levels.indexOf(String(x).trim()) : Number(x); return k < 0 || !Number.isFinite(k) ? null : k; }
+        const num = Number(x); return Number.isFinite(num) ? num : null;
+    }
+    /** Gower dissimilarity of one new patient to each reference patient, with the variable ranges of the reference data */
+    function gowerDistances(x, rows, vars) {
+        const val = vars.map((v, j) => rows.map(r => codeValue(r[j], v))), xv = vars.map((v, j) => codeValue(x[j], v));
+        const range = vars.map((v, j) => { if (v.type === 'nominal') return 1; const xs = val[j].filter(a => a !== null); return xs.length ? Math.max(...xs) - Math.min(...xs) : 0; });
+        return rows.map((_, i) => {
+            let s = 0, w = 0;
+            vars.forEach((v, j) => { const a = xv[j], b = val[j][i]; if (a === null || b === null) return; w++; if (v.type === 'nominal') s += a === b ? 0 : 1; else if (range[j] > 0) s += Math.min(1, Math.abs(a - b) / range[j]); });
+            return w ? s / w : NaN;
+        });
+    }
+    /**
+     * Classification tree (CART, Gini impurity) that predicts the cluster from the clustering variables, to give
+     * short rules clinicians can apply. Numbers and grades split at a threshold (midpoint between neighbouring
+     * observed values, as scikit-learn; grades at a grade); categories split one category against the rest.
+     * Missing values: a split is chosen on the patients with that value recorded (improvement weighted by the
+     * recorded fraction, as C4.5), and patients without it follow the larger branch. Sibling leaves that predict
+     * the same cluster are merged afterwards (predictions unchanged, rules shorter).
+     * rows: patients x variables (raw values); vars: [{ name, type: 'continuous'|'ordinal'|'nominal', levels }].
+     */
+    function classificationTree(rows, vars, labels, { maxDepth = 3, minLeaf = 5 } = {}) {
+        const k = Math.max(...labels) + 1, val = vars.map((v, j) => rows.map(r => codeValue(r[j], v)));
+        const counts = idx => { const c = new Array(k).fill(0); idx.forEach(i => { c[labels[i]]++; }); return c; };
+        const gini = c => { const n = c.reduce((a, b) => a + b, 0); return n ? 1 - c.reduce((a, x) => a + (x / n) ** 2, 0) : 0; };
+        const argmax = c => c.reduce((b, x, i) => (x > c[b] ? i : b), 0);
+        function best(idx) {
+            let top = null;
+            const parentN = idx.length;
+            vars.forEach((v, j) => {
+                const obs = idx.filter(i => val[j][i] !== null);
+                if (obs.length < 2 * minLeaf) return;
+                const cAll = counts(obs), gParent = gini(cAll), frac = obs.length / parentN;
+                const consider = (test, desc) => {
+                    const L = obs.filter(i => test(val[j][i])), R = obs.filter(i => !test(val[j][i]));
+                    if (L.length < minLeaf || R.length < minLeaf) return;
+                    const gain = frac * (gParent - (L.length * gini(counts(L)) + R.length * gini(counts(R))) / obs.length);
+                    if (gain > 1e-12 && (!top || gain > top.gain + 1e-12)) top = { gain, j, ...desc, test };
+                };
+                if (v.type === 'nominal') {
+                    [...new Set(obs.map(i => val[j][i]))].sort().forEach(lv => consider(a => a === lv, { kind: 'is', level: lv }));
+                } else {
+                    // Sorted sweep for thresholds
+                    const order = obs.slice().sort((a, b) => val[j][a] - val[j][b]), cL = new Array(k).fill(0), cR = cAll.slice();
+                    const nO = order.length;
+                    for (let t = 0; t < nO - 1; t++) {
+                        cL[labels[order[t]]]++; cR[labels[order[t]]]--;
+                        const a = val[j][order[t]], b = val[j][order[t + 1]];
+                        if (a === b || t + 1 < minLeaf || nO - t - 1 < minLeaf) continue;
+                        const gain = frac * (gParent - ((t + 1) * gini(cL) + (nO - t - 1) * gini(cR)) / nO);
+                        if (gain > 1e-12 && (!top || gain > top.gain + 1e-12)) {
+                            const thr = v.type === 'ordinal' ? a : (a + b) / 2;
+                            top = { gain, j, kind: 'le', threshold: thr, test: x => x <= thr };
+                        }
+                    }
+                }
+            });
+            return top;
+        }
+        function grow(idx, depth) {
+            const c = counts(idx), node = { n: idx.length, counts: c, predict: argmax(c) };
+            if (depth >= maxDepth || gini(c) < 1e-12 || idx.length < 2 * minLeaf) return node;
+            const sp = best(idx);
+            if (!sp) return node;
+            const j = sp.j, obs = idx.filter(i => val[j][i] !== null), miss = idx.filter(i => val[j][i] === null);
+            const L = obs.filter(i => sp.test(val[j][i])), R = obs.filter(i => !sp.test(val[j][i]));
+            const missLeft = L.length >= R.length;
+            Object.assign(node, { variable: j, name: vars[j].name, type: vars[j].type, kind: sp.kind, threshold: sp.threshold, level: sp.level, missLeft, gain: sp.gain });
+            node.left = grow(missLeft ? L.concat(miss) : L, depth + 1);
+            node.right = grow(missLeft ? R : R.concat(miss), depth + 1);
+            // Merge siblings that are leaves with the same prediction
+            if (!node.left.left && !node.right.left && node.left.predict === node.right.predict) return { n: node.n, counts: c, predict: node.left.predict };
+            return node;
+        }
+        const all = rows.map((_, i) => i);
+        return { root: grow(all, 0), vars, k };
+    }
+    function goesLeft(node, x, vars) {
+        const a = codeValue(x[node.variable], vars[node.variable]);
+        if (a === null) return node.missLeft;
+        return node.kind === 'is' ? a === node.level : a <= node.threshold;
+    }
+    function predictTree(tree, x) { let node = tree.root; while (node.left) node = goesLeft(node, x, tree.vars) ? node.left : node.right; return node.predict; }
+    /** Path of the new patient through the tree: [{ node, left }] */
+    function treePath(tree, x) { const out = []; let node = tree.root; while (node.left) { const l = goesLeft(node, x, tree.vars); out.push({ node, left: l }); node = l ? node.left : node.right; } return { steps: out, leaf: node }; }
+    /** Rules: one per leaf, as a list of conditions { node, left } plus the leaf */
+    function treeRules(tree) {
+        const out = [];
+        (function walk(node, conds) { if (!node.left) { out.push({ conds, leaf: node }); return; } walk(node.left, conds.concat([{ node, left: true }])); walk(node.right, conds.concat([{ node, left: false }])); })(tree.root, []);
+        return out;
+    }
+    function cohenKappa(a, b) {
+        const n = a.length, k = Math.max(...a, ...b) + 1, pa = new Array(k).fill(0), pb = new Array(k).fill(0);
+        let agree = 0; for (let i = 0; i < n; i++) { if (a[i] === b[i]) agree++; pa[a[i]]++; pb[b[i]]++; }
+        const po = agree / n, pe = pa.reduce((s, x, c) => s + (x / n) * (pb[c] / n), 0);
+        return pe < 1 ? (po - pe) / (1 - pe) : 1;
+    }
+
     const ClusterEngine = { createPRNG, standardize, euclideanMatrix, gowerMatrix, lloyd, kmeansPlusPlus, kmeans, pam, hierarchical, cutTree, gmm, gmmFromParams, mStep,
-        silhouette, calinskiHarabasz, daviesBouldin, withinSS, adjustedRand, symmetricEigen, pca, gapStatistic, bootstrapStability, nullClusterTest, copulaNullTest, normInv, normCdf, chiSquareTest, kruskalWallis, gammaQ, relabelBySize };
+        silhouette, calinskiHarabasz, daviesBouldin, withinSS, adjustedRand, symmetricEigen, pca, gapStatistic, bootstrapStability, nullClusterTest, copulaNullTest, normInv, normCdf, chiSquareTest, kruskalWallis, gammaQ, relabelBySize,
+        codeValue, gowerDistances, classificationTree, predictTree, treePath, treeRules, cohenKappa };
     root.ClusterEngine = ClusterEngine;
 })(typeof window !== 'undefined' ? window : globalThis);

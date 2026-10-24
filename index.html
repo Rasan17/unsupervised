@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>Unsupervised Medical Explorer</title>
-<link rel="stylesheet" href="style.css?v=3">
+<link rel="stylesheet" href="style.css?v=6">
 <link rel="icon" href="data:,">
 </head>
 <body>
@@ -23,6 +23,7 @@
   <button class="tab" type="button" data-step="3">3 Approach</button>
   <button class="tab" type="button" data-step="4">4 How many clusters?</button>
   <button class="tab" type="button" data-step="5">5 The clusters</button>
+  <button class="tab" type="button" data-step="6">6 Use the clusters</button>
 </nav>
 <main id="main">
   <section class="step" data-step="1">
@@ -60,9 +61,11 @@
       <label for="missing">Missing values</label>
       <select id="missing">
         <option value="fill" selected>Fill with the median or most frequent value</option>
+        <option value="mice">Multiple imputation (MICE: 5 imputed datasets, combined)</option>
         <option value="complete">Leave out patients with any missing value</option>
         <option value="gower">Use only the recorded values of each pair (PAM / Gower only; no map or test)</option>
       </select>
+      <p class="muted small">Filling with the median is quick and fine when few values are missing. Multiple imputation (chained equations with predictive mean matching) fills each missing value from patients with similar recorded values, five times over, clusters each version and combines them; it also shows whether the clusters depend on the imputed values. Only the clustering variables are used to impute, so outcomes cannot shape the clusters. Patients missing every clustering variable are best removed first.</p>
       <label for="kmax">Largest number of clusters to try</label>
       <select id="kmax"><option>4</option><option>5</option><option>6</option><option selected>8</option><option>10</option></select>
       <label for="patient-col">Patients with several records</label>
@@ -85,14 +88,20 @@
     <p id="clusters-status" class="status" role="status"></p>
     <div id="clusters-out"></div>
   </section>
+
+  <section class="step" data-step="6" hidden>
+    <h2>Use the clusters: a classification for clinicians</h2>
+    <div id="use-out"><p class="muted">Describe a set of clusters in step 5 first.</p></div>
+  </section>
 </main>
 <footer class="foot">
   <p>Conceived, designed and directed by Dr G Narenthiran · implemented with AI pair programming (Anthropic Claude Code) · © 2026 Dr G Narenthiran. All rights reserved.</p>
   <p>For research and education only; not a medical device. Clusters found in one dataset are hypotheses: replicate them in another cohort before any clinical use.</p>
 </footer>
-<script src="data-engine.js?v=3"></script>
-<script src="cluster-engine.js?v=3"></script>
-<script src="src/charts.js?v=3"></script>
-<script src="src/app.js?v=3"></script>
+<script src="data-engine.js?v=6"></script>
+<script src="cluster-engine.js?v=6"></script>
+<script src="src/charts.js?v=6"></script>
+<script src="src/use-clusters.js?v=6"></script>
+<script src="src/app.js?v=6"></script>
 </body>
 </html>
