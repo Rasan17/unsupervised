@@ -11,15 +11,15 @@
         const out = []; for (let v = Math.ceil(lo / s) * s; v <= hi + 1e-9 * s; v += s) out.push(Number(v.toPrecision(12)));
         return out;
     }
-    function frame(W, H, m, xs, ys, xLabel, yLabel, aria) {
+    function frame(W, H, m, xs, ys, xLabel, yLabel, aria, xInt = false) {
         const x0 = m.l, x1 = W - m.r, y0 = H - m.b, y1 = m.t;
         const xMin = Math.min(...xs), xMax = Math.max(...xs), yMin = Math.min(...ys), yMax = Math.max(...ys);
-        const xt = niceTicks(xMin, xMax), yt = niceTicks(yMin, yMax);
+        const xt = xInt ? niceTicks(xMin, xMax).filter(v => Number.isInteger(v)) : niceTicks(xMin, xMax), yt = niceTicks(yMin, yMax);
         const xl = Math.min(xMin, xt[0]), xh = Math.max(xMax, xt[xt.length - 1]), yl = Math.min(yMin, yt[0]), yh = Math.max(yMax, yt[yt.length - 1]);
         const sx = v => x0 + (xh > xl ? (v - xl) / (xh - xl) : 0.5) * (x1 - x0), sy = v => y0 - (yh > yl ? (v - yl) / (yh - yl) : 0.5) * (y0 - y1);
         let g = `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(aria)}">`;
         yt.forEach(v => { g += `<line class="grid" x1="${x0}" x2="${x1}" y1="${sy(v)}" y2="${sy(v)}"/><text class="tick" x="${x0 - 6}" y="${sy(v) + 4}" text-anchor="end">${esc(fmt(v))}</text>`; });
-        xt.forEach(v => { g += `<text class="tick" x="${sx(v)}" y="${y0 + 16}" text-anchor="middle">${esc(fmt(v))}</text>`; });
+        xt.forEach(v => { g += `<text class="tick" x="${sx(v)}" y="${y0 + 16}" text-anchor="middle">${esc(xInt ? String(v) : fmt(v))}</text>`; });
         g += `<line class="axis" x1="${x0}" x2="${x1}" y1="${y0}" y2="${y0}"/><line class="axis" x1="${x0}" x2="${x0}" y1="${y0}" y2="${y1}"/>`;
         g += `<text class="label" x="${(x0 + x1) / 2}" y="${H - 4}" text-anchor="middle">${esc(xLabel)}</text>`;
         g += `<text class="label" transform="translate(13 ${(y0 + y1) / 2}) rotate(-90)" text-anchor="middle">${esc(yLabel)}</text>`;
@@ -29,7 +29,7 @@
     function lineChart({ series, xLabel, yLabel, aria, W = 420, H = 260, integerX = true }) {
         const pts = series.flatMap(s => s.points).filter(p => Number.isFinite(p.y));
         if (!pts.length) return '';
-        const f = frame(W, H, { l: 52, r: 14, t: 12, b: 40 }, pts.map(p => p.x), pts.map(p => p.y), xLabel, yLabel, aria);
+        const f = frame(W, H, { l: 52, r: 14, t: 12, b: 40 }, pts.map(p => p.x), pts.map(p => p.y), xLabel, yLabel, aria, integerX);
         let g = f.g;
         series.forEach((s, i) => {
             const ok = s.points.filter(p => Number.isFinite(p.y));
@@ -65,7 +65,7 @@
         let g = `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(aria)}">`, y = 8, prev = -1;
         order.forEach(i => { if (labels[i] !== prev) { if (prev >= 0) y += gapPx; g += `<text class="tick" x="${x0 - 8}" y="${y + 10}" text-anchor="end">Cluster ${labels[i] + 1}</text>`; prev = labels[i]; } const v = values[i]; g += `<rect class="bar s${labels[i] % 8}" x="${Math.min(sx(0), sx(v))}" y="${y}" width="${Math.abs(sx(v) - sx(0))}" height="${barH}"/>`; y += barH; });
         [lo, 0, 0.25, 0.5, 0.75, 1].filter((v, i, a) => a.indexOf(v) === i).forEach(v => { g += `<line class="grid" x1="${sx(v)}" x2="${sx(v)}" y1="4" y2="${y + 2}"/><text class="tick" x="${sx(v)}" y="${y + 16}" text-anchor="middle">${esc(fmt(v))}</text>`; });
-        g += `<text class="label" x="${(x0 + x1) / 2}" y="${y + 34}" text-anchor="middle">Silhouette width (1 = clearly in its cluster, 0 = between clusters, below 0 = closer to another cluster)</text>`;
+        g += `<text class="label" x="${(x0 + x1) / 2}" y="${y + 34}" text-anchor="middle">Silhouette width</text>`;
         return g.replace(`viewBox="0 0 ${W} ${H}"`, `viewBox="0 0 ${W} ${y + 42}"`) + '</svg>';
     }
     function legend(names) { return `<div class="legend">${names.map((n, i) => `<span><i class="sw s${i % 8}"></i>${esc(n)}</span>`).join('')}</div>`; }

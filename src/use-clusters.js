@@ -378,23 +378,18 @@
         el.innerHTML = `
             ${trustworthy ? '' : '<div class="verdict bad">Caution: the clusters chosen did not pass the checks (stability and the test of no real sub-groups). The tree is shown to illustrate how it would work, not for use.</div>'}
             <p>Start at the top and answer each question for the patient: <strong>yes</strong> goes down to the left, <strong>no</strong> to the right, until you reach a coloured box, which gives the class. If a value is not recorded, follow the branch shown in the box ("not recorded: yes" or "no"), the one most patients took.</p>
-            <div class="row"><label for="tree-depth">Most questions on a path</label><select id="tree-depth">${[1, 2, 3, 4].map(d => `<option value="${d}"${d === U.depth ? ' selected' : ''}>${d}</option>`).join('')}</select>
-                <button id="tree-download" class="btn small" type="button">Download the diagram (.svg)</button></div>
+            <div class="row"><label for="tree-depth">Most questions on a path</label><select id="tree-depth">${[1, 2, 3, 4].map(d => `<option value="${d}"${d === U.depth ? ' selected' : ''}>${d}</option>`).join('')}</select></div>
             <div class="tree-wrap">${treeSvg(pagePalette())}</div>
             ${CH.legend(Array.from({ length: k }, (_, c) => classLabel(c)))}
             <p class="lead small">${leaves} end points. The tree gives the same class as the full clustering for <strong>${pct(U.cv.agree)}</strong> of patients not used to build it (10-fold cross-validation; Cohen's kappa ${U.cv.kappa.toFixed(2)}). The bar in each box shows how that box's patients divide between the classes (colours as in the legend).</p>
             <p class="muted small">The tree is a classification tree (CART, Gini impurity) fitted to the clusters, with at least ${minLeafFor(S.result.labels.length)} patients in each end point; the depth suggested is the simplest within 2 percentage points of the best cross-validated agreement. Class names and the depth are shared with step 7. Like the clusters themselves, the tree needs validation in another cohort before clinical use.</p>`;
         $('tree-depth').addEventListener('change', e => { U.depth = Number(e.target.value); fitRules(); draw(); drawTree(); });
-        $('tree-download').addEventListener('click', () => {
-            const svg = '<?xml version="1.0" encoding="UTF-8"?>\n' + treeSvg(LIGHT).replace('<svg class="tree" ', '<svg ');
-            const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
-            const a = document.createElement('a'); a.href = url; a.download = `decision_tree_${String(S.data.name).replace(/\.[^.]+$/, '').replace(/[^\w-]+/g, '_')}.svg`;
-            document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-        });
     }
     function renderTree(c) {
         if (!U.key || U.key !== c.S.result || !U.tree) render(c); else ctx = c;
         drawTree();
     }
-    root.UMEUse = { render, renderTree, exportColumns, _state: U };
+    // The diagram in light colours on white, as a stand-alone SVG file (used by the image download)
+    const treeSvgLight = () => (U.tree && ctx ? '<?xml version="1.0" encoding="UTF-8"?>\n' + treeSvg(LIGHT).replace('<svg class="tree" ', '<svg ') : null);
+    root.UMEUse = { render, renderTree, exportColumns, treeSvgLight, _state: U };
 })(typeof window !== 'undefined' ? window : globalThis);

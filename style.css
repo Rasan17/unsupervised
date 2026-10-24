@@ -93,3 +93,5 @@ td.diag { font-weight: 700; }
 .dims li { margin: 6px 0; } h4 { margin: 10px 0 4px; font-size: 15px; }
 .bulk { gap: 6px; margin: 4px 0 6px; }
 .tree-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; padding: 10px; } .tree-wrap svg.tree { display: block; margin: 0 auto; max-width: none; }
+.export-bar { display: flex; justify-content: flex-end; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin: 2px 0 4px; }
+.export-bar .btn.small { padding: 2px 8px; font-size: 12px; }

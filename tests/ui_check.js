@@ -90,9 +90,21 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         check(leafBoxes === nRules && /yes<\/text>/.test(await p.locator('#tree-out .tree-wrap').innerHTML()) && /Classic CSF-dynamic/.test(await p.locator('#tree-out').innerText()), `${name}: decision tree drawn with one end point per bedside rule (${leafBoxes}), yes/no branches and the class names from step 7`);
         await p.selectOption('#tree-depth', '1');
         check(await p.$$eval('#tree-out svg.tree rect[stroke-width="2.5"]', r => r.length) === 2 && await p.evaluate(() => window.UMEUse._state.depth) === 1, `${name}: changing the depth redraws the tree (depth 1: 2 end points) and is shared with step 7`);
-        const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#tree-download')]);
+        const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#tree-out .export-bar button[data-fmt="svg"]')]);
         const svgText = require('fs').readFileSync(await dl.path(), 'utf8');
         check(/^<\?xml/.test(svgText) && /<svg xmlns="http:\/\/www.w3.org\/2000\/svg"/.test(svgText) && /fill="#ffffff"/.test(svgText), `${name}: the diagram downloads as a stand-alone SVG on a white background`);
+        // Every chart and diagram has an image download (SVG and PNG), with its legend, on white
+        await p.click('.tab[data-step="6"]');
+        const nCharts = await p.$$eval('svg.chart, svg.tree', s => s.length), nBars = await p.$$eval('.export-bar', b => b.length);
+        check(nCharts > 0 && nCharts === nBars, `${name}: every chart and diagram has a download bar (${nBars} of ${nCharts})`);
+        await p.click('.tab[data-step="5"]');
+        const [d1] = await Promise.all([p.waitForEvent('download'), p.locator('#explore-out .export-bar button[data-fmt="svg"]').first().click()]);
+        const t1 = require('fs').readFileSync(await d1.path(), 'utf8');
+        check(/^<\?xml/.test(t1) && /fill="#ffffff"/.test(t1) && /Average silhouette/.test(t1) && !/class="/.test(t1), `${name}: a chart downloads as a stand-alone SVG with its legend (${d1.suggestedFilename()})`);
+        await p.click('.tab[data-step="6"]');
+        const [d2] = await Promise.all([p.waitForEvent('download'), p.locator('#map-panel .export-bar button[data-fmt="png"]').first().click()]);
+        const b2 = require('fs').readFileSync(await d2.path());
+        check(b2.slice(1, 4).toString() === 'PNG' && b2.length > 5000, `${name}: a map downloads as a PNG image (${d2.suggestedFilename()}, ${Math.round(b2.length / 1024)} kB)`);
         await p.click('.tab[data-step="2"]');
         check(JSON.stringify(await visibleSteps()) === '["2"]', `${name}: clicking the "2 Variables" tab shows only that step`);
         await p.click('.tab[data-step="6"]');

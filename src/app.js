@@ -375,7 +375,7 @@
             <div id="dims-panel"></div>
             <h3>How well each patient fits (silhouette)</h3>
             <div class="sil">${CH.silhouettePlot({ values: sil.values, labels, aria: 'Silhouette width of each patient by cluster' })}</div>
-            <p class="muted small">Average silhouette ${f3(sil.mean)}${P.mice ? ' (averaged over the imputed datasets)' : ''}. Patients with negative widths sit closer to another cluster than to their own.</p>
+            <p class="muted small">Average silhouette ${f3(sil.mean)}${P.mice ? ' (averaged over the imputed datasets)' : ''}. Silhouette width: 1 = clearly in its own cluster, 0 = between two clusters, below 0 = closer to another cluster than to its own.</p>
             <h3>Clinical profile of the clusters</h3>
             ${profileTable()}
             <div class="row"><button id="to-use" class="btn primary" type="button">Next: use the clusters</button><button id="export-btn" class="btn" type="button">Download patients with their cluster (.CSV)</button></div>`;

@@ -17,7 +17,8 @@ profile table; and use the clusters as a classification for clinicians: draft na
 (editable), short bedside rules from a classification tree with cross-validated agreement with the clusters, a
 calculator for a new patient, outcomes by class, what is needed before clinical use, and a downloadable
 classification sheet; and see the decision tree behind the bedside rules as a diagram (questions with yes/no
-branches, patients and class mix in every box, end points coloured by class), downloadable as an SVG image.
+branches, patients and class mix in every box, end points coloured by class), downloadable. Every chart and diagram can be downloaded as an image (SVG for papers, PNG at double resolution
+for slides), with its legend, in light colours on white.
 
 After changing a script or `style.css`, raise its `?v=` number in `index.html` so browsers do not keep the old copy.
 
