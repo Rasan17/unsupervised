@@ -42,6 +42,16 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         check(JSON.stringify(await visibleSteps()) === '["2"]', `${name}: clicking the "2 Variables" tab shows only that step`);
         await p.click('.tab[data-step="5"]');
         check(JSON.stringify(await visibleSteps()) === '["5"]', `${name}: clicking the "5 The clusters" tab shows only that step`);
+        const overflow = () => p.evaluate(() => {
+            const de = document.documentElement, step = [...document.querySelectorAll('section.step')].find(x => x.offsetParent !== null);
+            return de.scrollWidth > de.clientWidth + 1 || step.scrollWidth > step.clientWidth + 1;
+        });
+        for (const [w, label] of [[1200, 'desktop'], [375, 'phone']]) {
+            await p.setViewportSize({ width: w, height: 900 });
+            const bad = [];
+            for (const st of ['1', '2', '3', '4', '5']) { await p.click(`.tab[data-step="${st}"]`); if (await overflow()) bad.push(st); }
+            check(bad.length === 0, `${name}: nothing spills past the page edge (${label} width)${bad.length ? ': steps ' + bad.join(', ') : ''}`);
+        }
         check(errs.length === 0, `${name}: no page errors${errs.length ? ': ' + errs.join(' | ') : ''}`);
         await p.close();
     }
