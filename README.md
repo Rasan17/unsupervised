@@ -81,7 +81,7 @@ well clustering recovers it) and a cohort of one population, where the app shoul
 node tests/reference_check.js && python3 tests/reference_check.py   # 76 checks against scikit-learn, SciPy, umap-learn and R (poLCA, mclust, cluster, FactoMineR) (cluster::daisy, cluster::pam)
 node tests/behaviour_check.js                                       # simulations: true k found, 1 cluster when there are none, test calibration, stability
 node tests/ui_check.js                                              # browser (Playwright + Chrome): both demo cohorts end to end (incl. MICE and step 6), layout, no page errors
-npx eslint@9.39.5 -c eslint.config.mjs src cluster-engine.js         # undefined names and real mistakes
+npx eslint@9.39.5 -c eslint.config.mjs src cluster-engine.js embed-engine.js anomaly-engine.js  # undefined names and real mistakes
 ```
 
 ## Author
