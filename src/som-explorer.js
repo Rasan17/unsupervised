@@ -29,14 +29,14 @@
         const el = $('som-view'); if (!el) return;
         const k = V.k;
         el.innerHTML = `
-            <div class="grid2"><div>${chart()}${CH.legend(Array.from({ length: k }, (_, c) => `Cluster ${c + 1}`))}</div>
+            <div>${chart()}${CH.legend(Array.from({ length: k }, (_, c) => `Cluster ${c + 1}`))}</div>
             <div class="small"><p class="muted">Each square is a unit of the map: records with similar values fall on the same or neighbouring units. Colour: the cluster of the unit; the stronger the colour, the more records it holds (hover for the number). Units without records are grey. Grey units between two clusters suggest a gap between them; clusters that touch across occupied units, with no grey between, may be parts of one continuous gradient rather than distinct sub-groups (check the profile table for a steady trend).</p>
-                <p><strong>Select a region:</strong> drag a rectangle over this map, or click a unit. Hold Shift while dragging to add, Cmd (Ctrl on Windows) to remove; Shift- or Cmd-click adds or removes one unit. The records on the selected units are listed below. You can also select patients on the map of the patients above: click a point, drag a rectangle, or hold Option (Alt) and drag for a freehand outline.</p>
+                <p><strong>Select a region:</strong> drag a rectangle over this map, or click a unit. Hold Shift while dragging to add, Cmd (Ctrl on Windows) to remove; Shift- or Cmd-click adds or removes one unit. The records on the selected units are listed below both maps. You can also select patients on the map of the patients beside it: click a point, drag a rectangle, or hold Option (Alt) and drag for a freehand outline.</p>
                 <p><strong>Deselect:</strong> "Clear selection", the Escape key, or a click on an empty part of either map.</p>
-                <div class="row" role="group" aria-label="Select the units of a cluster">${Array.from({ length: k }, (_, c) => `<button type="button" class="btn small" data-selc="${c}"><i class="sw s${c % 8}"></i>Cluster ${c + 1}</button>`).join('')}<button type="button" class="btn small" id="som-clear"${V.sel.size ? '' : ' disabled'}>Clear selection</button></div></div></div>
+                <div class="row" role="group" aria-label="Select the units of a cluster">${Array.from({ length: k }, (_, c) => `<button type="button" class="btn small" data-selc="${c}"><i class="sw s${c % 8}"></i>Cluster ${c + 1}</button>`).join('')}<button type="button" class="btn small" id="som-clear"${V.sel.size ? '' : ' disabled'}>Clear selection</button></div></div>
             ${V.rec ? `<p class="small note">Selected on the map of the patients: ${V.rec.size.toLocaleString('en-GB')} record(s), on the ${V.sel.size} unit(s) outlined here (dashed: only some of the unit's records are selected). The table lists exactly these records.</p>` : ''}
             ${V.picked && V.sel.has(V.picked.u) ? `<p class="small note">Selected from the map of the patients: record ${esc(recordLabel(V.picked.i))} is on unit ${V.picked.u + 1} (outlined), with ${V.nn.map.hits[V.picked.u]} record(s).</p>` : ''}
-            <div id="som-table"></div>`;
+`;
         wire();
         table();
         // The same records highlighted on the map of the patients (FAMD, t-SNE, UMAP or autoencoder) above
