@@ -157,6 +157,18 @@
         });
         return out;
     }
+    // How far the original patients are from their own class (95th centile; at most 2,000 patients): a new patient
+    // further than this from every class is poorly represented by the classification
+    function typicalDistance() {
+        const { P } = ctx;
+        if (!U.ref || U.ref.kind === 'model') return null;
+        const n = P.raw.length, step = Math.max(1, Math.floor(n / 2000)), ds = [];
+        U.typ95 = null;
+        for (let i = 0; i < n; i += step) { const f = assignFull(P.raw[i]); if (f) ds.push(f.d[f.order[0]]); }
+        if (ds.length < 10) return null;
+        ds.sort((a, b) => a - b);
+        return ds[Math.floor(0.95 * (ds.length - 1))];
+    }
     function assignFull(x) {
         const { P } = ctx, ref = U.ref, k = ctx.S.result.k;
         if (!ref) return null;
@@ -173,7 +185,7 @@
             const unit = NN.somUnit(ref.nn.map, cr.x, cr.m), C = ref.nn.centroids;
             d = C.map(c => { let s2 = 0, n2 = 0; c.forEach((v, j) => { if (cr.m[j]) { s2 += (v - cr.x[j]) ** 2; n2++; } }); return Math.sqrt((s2 * c.length) / Math.max(1, n2)); });
             const cls = ref.nn.unitLabels[unit], rest = d.map((v, c) => c).filter(c => c !== cls).sort((a2, b2) => d[a2] - d[b2]), order = [cls, ...rest];
-            return { d, order, borderline: k > 1 && d[order[1]] > 0 && d[order[0]] / d[order[1]] > 0.85, kind: 'neural', unit };
+            return { d, order, borderline: k > 1 && d[order[1]] > 0 && d[order[0]] / d[order[1]] > 0.85, kind: 'neural', unit, poorFit: U.typ95 !== null && U.typ95 !== undefined && d[order[0]] > U.typ95 };
         }
         if (ref.kind === 'medoid') {
             const vars = varsOf(P), dist = CE.gowerDistances(x, ref.medoids.map(i => P.raw[i]), vars, P.gower.weights);
@@ -185,7 +197,7 @@
             d = ref.C.map(cen => Math.sqrt(z.reduce((s, v, j) => (v === null ? s : s + (v - cen[j]) ** 2), 0) * (z.length / used)));
         }
         const order = d.map((v, c) => c).sort((a, b) => d[a] - d[b]);
-        return { d, order, borderline: k > 1 && d[order[1]] > 0 && d[order[0]] / d[order[1]] > 0.85, kind: ref.kind };
+        return { d, order, borderline: k > 1 && d[order[1]] > 0 && d[order[0]] / d[order[1]] > 0.85, kind: ref.kind, poorFit: U.typ95 !== null && U.typ95 !== undefined && d[order[0]] > U.typ95 };
     }
 
     // ---------------------------------------------------------------------------------- rendering
@@ -198,6 +210,7 @@
         U.feats = feats;
         fitRules();
         U.ref = references();
+        U.typ95 = typicalDistance();
         draw();
     }
     function draw() {
@@ -289,7 +302,7 @@
         });
         const full = assignFull(x);
         const missingShare = 1 - recorded / x.length;
-        let html = `<div class="verdict ${full && full.order[0] !== byRules ? 'mixed' : 'good'}">`;
+        let html = `<div class="verdict ${full && (full.order[0] !== byRules || full.poorFit || full.borderline) ? 'mixed' : 'good'}">`;
         html += `<p><strong>By the rules: ${esc(classLabel(byRules))}</strong>${steps.length ? ` because ${steps.join(', and ')}.` : '.'}</p>`;
         if (full) {
             const a = full.order[0], b = full.order[1], unit = full.kind === 'medoid' ? 'Gower dissimilarity' : full.kind === 'neural' ? 'distance to the group centre' : 'distance';
@@ -297,6 +310,7 @@
             else if (full.kind === 'neural') html += `<p><strong>By the self-organising map: ${esc(classLabel(a))}</strong> (unit ${full.unit + 1} of the map; distance to the group centre ${full.d[a].toFixed(2)}${b !== undefined ? `; next ${esc(classLabel(b))}, ${full.d[b].toFixed(2)}` : ''}).${full.borderline ? ' The record lies near the boundary between these two classes.' : ''}</p>`;
             else html += `<p><strong>By the full clustering: ${esc(classLabel(a))}</strong> (${unit} ${full.d[a].toFixed(2)}${b !== undefined ? `; next ${esc(classLabel(b))}, ${full.d[b].toFixed(2)}` : ''}).${full.borderline ? ' The patient lies near the boundary between these two classes.' : ''}</p>`;
             html += a === byRules ? '<p>Both agree.</p>' : '<p>The rules and the full clustering disagree: the patient is near a boundary, so the class is uncertain.</p>';
+            if (full.poorFit) html += `<p><strong>Poorly represented: treat as unclassified.</strong> The patient is further from the nearest class (${full.d[a].toFixed(2)}) than 95% of the original patients are from their own class (${U.typ95.toFixed(2)}), so none of the classes describes this patient well.</p>`;
         }
         if (missingShare > 0) html += `<p class="muted small">${x.length - recorded} of ${x.length} variables not recorded: the classification is less certain.</p>`;
         if (warn.length) html += `<p class="small"><strong>Check:</strong> ${esc(warn.join('; '))}. The classification may not apply to this patient.</p>`;
@@ -347,7 +361,7 @@
             const unknown = x.some((v, j) => v !== null && known[j] && !known[j].has(v));
             const recorded = x.filter(v => v !== null).length;
             const rule = recorded ? CE.predictTree(U.tree, x) : null, full = recorded ? assignFull(x) : null;
-            return { x, rule, model: full ? full.order[0] : null, outRange, unknown, sparse: recorded < 0.5 * x.length };
+            return { x, rule, model: full ? full.order[0] : null, outRange, unknown, sparse: recorded < 0.5 * x.length, poorFit: !!(full && full.poorFit), uncertain: !!(full && full.borderline) };
         });
         const cls = r => (r.model !== null ? r.model : r.rule);
         const both = res.filter(r => r.rule !== null && r.model !== null), agree = both.filter(r => r.rule === r.model).length;
@@ -362,7 +376,7 @@
                 // Numbers: mean; grades: median [interquartile range]; Kruskal-Wallis test
                 const kw = CE.kruskalWallis(ok.map(i => Number(vals[i])), groups);
                 const cellOf = c => { const xs = ok.filter(i => cls(res[i]) === c).map(i => Number(vals[i])).sort((a, b) => a - b); if (!xs.length) return '–'; if (t === 'continuous') return `mean ${num(xs.reduce((a, b) => a + b, 0) / xs.length)}`; const q = f => { const h2 = (xs.length - 1) * f, l = Math.floor(h2); return xs[l] + (xs[Math.ceil(h2)] - xs[l]) * (h2 - l); }; return `median ${num(q(0.5))} [${num(q(0.25))}–${num(q(0.75))}]`; };
-                return { h, cells: Array.from({ length: k }, (_, c) => cellOf(c)), p: kw.p };
+                return { h, cells: Array.from({ length: k }, (_, c) => cellOf(c)), p: kw.p, eff: kw.statistic !== null ? `ε² ${CE.epsilonSquared(kw.statistic, ok.length).toFixed(2)}` : '' };
             }
             // Categories: yes/no -> share of the second category; several -> each class's most common category
             const sv = ok.map(i => String(vals[i]).trim()), lv = [...new Set(sv)].sort();
@@ -371,25 +385,25 @@
                 const top = lv.length === 2 ? lv[1] : lv.map(l => [l, idx.filter(q => sv[q] === l).length]).sort((a, b) => b[1] - a[1])[0][0];
                 return `${Math.round(100 * idx.filter(q => sv[q] === top).length / idx.length)}% "${top}"`;
             };
-            return { h, cells: Array.from({ length: k }, (_, c) => pc(c)), p: ch.p };
+            return { h, cells: Array.from({ length: k }, (_, c) => pc(c)), p: ch.p, eff: ch.statistic !== null ? `V ${CE.cramersV(ch.statistic, sv.length, lv.length, new Set(groups).size).toFixed(2)}` : '' };
         }).filter(Boolean);
         const qs = CE.benjaminiHochberg(outcomes.map(o => o.p)), pf = v => (v === null || v === undefined ? '–' : v < 0.001 ? '< 0.001' : v.toFixed(3));
-        const flagged = { outRange: res.filter(r => r.outRange).length, unknown: res.filter(r => r.unknown).length, sparse: res.filter(r => r.sparse).length, none: res.filter(r => r.rule === null).length };
+        const flagged = { poorFit: res.filter(r => r.poorFit).length, uncertain: res.filter(r => r.uncertain).length, outRange: res.filter(r => r.outRange).length, unknown: res.filter(r => r.unknown).length, sparse: res.filter(r => r.sparse).length, none: res.filter(r => r.rule === null).length };
         out.innerHTML = `<p><strong>${esc(name)}</strong>: ${n.toLocaleString('en-GB')} records classified without retraining.</p>
             <div class="table-wrap"><table><thead><tr><th>Class</th><th>Share in the new cohort</th><th>Share in the original data</th></tr></thead><tbody>${Array.from({ length: k }, (_, c) => `<tr><td><i class="sw s${c % 8}"></i>${esc(classLabel(c))}</td><td>${pct(share(c))}</td><td>${pct(origShare(c))}</td></tr>`).join('')}</tbody></table></div>
-            <p class="small">The bedside rules and the full ${U.ref && U.ref.kind === 'model' ? 'model' : 'clustering'} give the same class for <strong>${both.length ? pct(agree / both.length) : '–'}</strong> of the new records. Records with a value outside the range of the original data: ${flagged.outRange}; with a category not seen in the original data: ${flagged.unknown}; with more than half the clustering variables missing: ${flagged.sparse}; not classifiable (nothing recorded): ${flagged.none}. These classifications are the least certain.</p>
-            ${outcomes.length ? `<h4>Outcomes by class in the new cohort</h4><div class="table-wrap"><table><thead><tr><th>Variable</th>${Array.from({ length: k }, (_, c) => `<th>${esc(LETTERS[c])}</th>`).join('')}<th>p · q</th></tr></thead><tbody>${outcomes.map((o, i) => `<tr><td>${esc(o.h)}</td>${o.cells.map(c => `<td>${esc(c)}</td>`).join('')}<td>${pf(o.p)}${outcomes.length > 1 ? ` · ${pf(qs[i])}` : ''}</td></tr>`).join('')}</tbody></table></div><p class="muted small">Classes from the full ${U.ref && U.ref.kind === 'model' ? 'model' : 'clustering'} (or the rules where it cannot be applied). Outcomes that differ between the classes in an independent cohort, as specified in advance, are the strongest evidence that the classification is clinically meaningful.</p>` : '<p class="muted small">The new file has none of the describe-only variables, so outcomes cannot be compared.</p>'}
+            <p class="small">The bedside rules and the full ${U.ref && U.ref.kind === 'model' ? 'model' : 'clustering'} give the same class for <strong>${both.length ? pct(agree / both.length) : '–'}</strong> of the new records. Records with a value outside the range of the original data: ${flagged.outRange}; with a category not seen in the original data: ${flagged.unknown}; with more than half the clustering variables missing: ${flagged.sparse}; not classifiable (nothing recorded): ${flagged.none}${U.typ95 !== null && U.typ95 !== undefined ? `; poorly represented (further from every class than 95% of the original patients are from their own): ${flagged.poorFit}` : ''}; near the boundary of two classes${U.ref && U.ref.kind === 'model' ? ' (membership probability below 70%)' : ''}: ${flagged.uncertain}. These classifications are the least certain.</p>
+            ${outcomes.length ? `<h4>Outcomes by class in the new cohort</h4><div class="table-wrap"><table><thead><tr><th>Variable</th>${Array.from({ length: k }, (_, c) => `<th>${esc(LETTERS[c])}</th>`).join('')}<th>p · q · effect size</th></tr></thead><tbody>${outcomes.map((o, i) => `<tr><td>${esc(o.h)}</td>${o.cells.map(c => `<td>${esc(c)}</td>`).join('')}<td>${pf(o.p)}${outcomes.length > 1 ? ` · ${pf(qs[i])}` : ''}${o.eff ? ` · ${o.eff}` : ''}</td></tr>`).join('')}</tbody></table></div><p class="muted small">Classes from the full ${U.ref && U.ref.kind === 'model' ? 'model' : 'clustering'} (or the rules where it cannot be applied). Outcomes that differ between the classes in an independent cohort, as specified in advance, are the strongest evidence that the classification is clinically meaningful.</p>` : '<p class="muted small">The new file has none of the describe-only variables, so outcomes cannot be compared.</p>'}
             <p class="muted small">Re-running the clustering on the new cohort (load it in step 1) shows whether similar classes appear there of their own accord; this check shows how the existing classification behaves on new patients.</p>
             <div class="row"><button id="val-csv" class="btn small" type="button">Download the classified records (.CSV)</button></div>`;
         $('val-csv').addEventListener('click', () => {
             if (!confirm('The file will contain the new cohort\'s records (every column) with their class. Save it only where your data-governance rules allow. Continue?')) return;
-            const head = [...parsed.headers, 'Class (full model)', 'Class (bedside rules)', 'Outside original range', 'Unseen category'];
+            const head = [...parsed.headers, 'Class (full model)', 'Class (bedside rules)', 'Outside original range', 'Unseen category', 'Poorly represented', 'Near a class boundary'];
             const cell = v => { let s2 = String(v ?? ''); if (/^[=+\-@\t\r]/.test(s2) && !Number.isFinite(Number(s2))) s2 = `'${s2}`; return /[",\r\n]/.test(s2) ? `"${s2.replace(/"/g, '""')}"` : s2; };
-            const lines = [head.map(cell).join(','), ...rows.map((r, i) => [...parsed.headers.map(h => r[h]), res[i].model !== null ? classLabel(res[i].model) : '', res[i].rule !== null ? classLabel(res[i].rule) : '', res[i].outRange ? 'yes' : '', res[i].unknown ? 'yes' : ''].map(cell).join(','))];
+            const lines = [head.map(cell).join(','), ...rows.map((r, i) => [...parsed.headers.map(h => r[h]), res[i].model !== null ? classLabel(res[i].model) : '', res[i].rule !== null ? classLabel(res[i].rule) : '', res[i].outRange ? 'yes' : '', res[i].unknown ? 'yes' : '', res[i].poorFit ? 'yes' : '', res[i].uncertain ? 'yes' : ''].map(cell).join(','))];
             const url = URL.createObjectURL(new Blob([lines.join('\r\n')], { type: 'text/csv' })), a = document.createElement('a');
             a.href = url; a.download = `classified_${String(name).replace(/\.[^.]+$/, '').replace(/[^\w-]+/g, '_')}.csv`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
         });
-        U.validation = { file: name, records: n, agreement: both.length ? agree / both.length : null, shares: Array.from({ length: k }, (_, c) => share(c)), flagged, outcomes: outcomes.map((o, i) => ({ variable: o.h, p: o.p, q: qs[i] })) };
+        U.validation = { file: name, records: n, agreement: both.length ? agree / both.length : null, shares: Array.from({ length: k }, (_, c) => share(c)), flagged, outcomes: outcomes.map((o, i) => ({ variable: o.h, p: o.p, q: qs[i], effectSize: o.eff || null })) };
     }
     // ---------------------------------------------------------------------------------- step 8: the decision tree
     // The same tree as the bedside rules, drawn as a diagram. Colours are passed as attributes (not CSS), so the

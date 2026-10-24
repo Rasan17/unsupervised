@@ -162,6 +162,20 @@ referral patterns (`tools/make_referral_demo.py`).
   (adjusted Rand 1) for PAM / Gower, k-means, Ward and latent classes; 0.99 with multiple imputation (R imputes
   differently) and for Gaussian mixtures; 0.86 for the self-organising map (kohonen trains differently). The
   browser tests run the PAM script in R on every change.
+- **Evidence summary** (step 6): stability, separation, the test against a single population, the smallest
+  cluster, for latent classes how many random starts reached the best solution and the membership certainty, and
+  the sensitivity analysis, each with a plain reading; listed separately, what the app cannot test (clinical
+  usefulness: recognisable clusters, pre-specified outcomes, replication, impact on management).
+- **Missing values by cluster:** the share of missing values of each clustering variable in each cluster, with p
+  and q; when missingness differs between clusters, a caution that the clusters may partly reflect why values are
+  missing, which imputation cannot correct.
+- **New patients and new cohorts:** besides the class, its distance and the next class (or the membership
+  probabilities for latent classes), a patient further from every class than 95% of the original patients are
+  from their own is reported as poorly represented (unclassified); a new cohort reports these records and those
+  near a class boundary, and its outcome table gives effect sizes.
+- **Default roles:** outcomes are recognised by name only (the shared data engine treats the last column as the
+  outcome, a convention of prediction models that does not apply here); empty and constant columns start as
+  "Ignore"; rare categories (fewer than 5 patients) of clustering variables are flagged.
 - **Wording:** the agreement of the bedside rules is "agreement with the unsupervised cluster assignments, not
   clinical accuracy"; a new patient's class is an approximation, not a diagnosis.
 
@@ -193,7 +207,7 @@ used because the page must also work when opened directly from disk, where brows
 ## Validation status and limitations
 
 - Verified: every computational method against an established implementation (85 reference checks) and the
-  behaviour of the decisions in simulations (31 checks, including a pinned regression check of the multiple imputation), with the interface tested end to end in a browser.
+  behaviour of the decisions in simulations (32 checks, including a pinned regression check of the multiple imputation), with the interface tested end to end in a browser.
 - Not yet done: application to real cohorts and independent review by a statistician. A protocol for the first
   is in [`docs/validation_protocol.md`](docs/validation_protocol.md). Clusters found in one dataset are
   hypotheses until they are replicated in another.
@@ -209,8 +223,8 @@ used because the page must also work when opened directly from disk, where brows
 
 ```bash
 node tests/reference_check.js && python3 tests/reference_check.py   # 85 checks against scikit-learn, SciPy, NumPy, umap-learn and R (cluster, poLCA, mclust, FactoMineR)
-node tests/behaviour_check.js                                       # 31 simulations: true k found, 1 cluster when there are none, calibration and power of the tests, stability
-node tests/ui_check.js                                              # browser (Playwright + Chrome): every demo end to end, the audit features, privacy, layout, no page errors
+node tests/behaviour_check.js                                       # 32 simulations: true k found, 1 cluster when there are none, calibration and power of the tests, stability
+node tests/ui_check.js                                              # browser (Playwright + Chrome): every demo end to end, the audit features, edge cases, privacy, the R script, layout, no page errors
 npx eslint@9.39.5 -c eslint.config.mjs src cluster-engine.js embed-engine.js anomaly-engine.js nn-engine.js  # undefined names and real mistakes
 ```
 

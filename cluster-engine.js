@@ -818,6 +818,7 @@
         // (mean over recorded variables of the absolute z-score difference, capped at 2, or category mismatch)
         const dissim = (a, b) => { let s = 0, w = 0; for (let j = 0; j < p; j++) { const x = C[j][a], y = C[j][b]; if (x === null || y === null) continue; s += cont[j] ? Math.min(2, Math.abs(x - y)) / 2 : (x === y ? 0 : 1); w++; } return w ? s / w : 1; };
         let best = null;
+        const startLL = [];
         for (let s = 0; s < nInit; s++) {
             const seeds = []; while (seeds.length < k) { const c = Math.floor(rng() * n); if (!seeds.includes(c)) seeds.push(c); }
             const R0 = Array.from({ length: n }, (_, i) => { const d = seeds.map(sd0 => dissim(i, sd0)); let b = 0; d.forEach((v, c) => { if (v < d[b] || (v === d[b] && rng() < 0.5)) b = c; }); const r = new Array(k).fill(0); r[b] = 1; return r; });
@@ -829,6 +830,7 @@
                 yield;
             }
             if (!best || cur.ll > best.ll + 1e-9) best = { ll: cur.ll, R: cur.R, par, converged, iterations: it };
+            startLL.push(cur.ll);
         }
         // Order classes by size (modal assignment), largest first
         const modal = best.R.map(r => r.reduce((b, v, c) => (v > r[b] ? c : b), 0));
@@ -842,6 +844,8 @@
         let ent = 0; posterior.forEach(r => r.forEach(v => { if (v > 0) ent -= v * Math.log(v); }));
         return { labels, posterior, logLik, nParams, bic: -2 * logLik + nParams * Math.log(n), entropy: k > 1 ? 1 - ent / (n * Math.log(k)) : 1,
             converged: best.converged, iterations: best.iterations,
+            // starts that reached the best log-likelihood: a best solution reached only once may be a chance local optimum
+            startsAtBest: startLL.filter(v => Math.abs(v - best.ll) <= 1e-6 * Math.abs(best.ll) + 1e-9).length, starts: nInit,
             model: { k, vars, levels, mean, sd, pi: par.pi, mu: par.mu, va: par.va, pr: par.pr } };
     }
     /** Class membership probabilities of a new patient (raw values, null for missing) under a fitted LCA model */

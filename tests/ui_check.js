@@ -13,6 +13,8 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': TYPES[path.extname(f)] || 'application/octet-stream' }); fs.createReadStream(f).pipe(res);
 });
 let failed = 0;
+const waitUntil = async (fn, ms = 120000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await fn()) return true; await new Promise(r => setTimeout(r, 250)); } throw new Error('timed out'); };
+const CE_PRNG = seed => { let t = seed >>> 0; return () => { t = (t + 0x6D2B79F5) >>> 0; let x = Math.imul(t ^ (t >>> 15), t | 1); x ^= x + Math.imul(x ^ (x >>> 7), x | 61); return ((x ^ (x >>> 14)) >>> 0) / 4294967296; }; };
 const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if (!ok) failed++; };
 (async () => {
     await new Promise(r => server.listen(0, '127.0.0.1', r));
@@ -58,6 +60,11 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         const verdict = (await p.locator('.verdict').innerText()).replace(/\s+/g, ' ');
         check(expectReal ? !/Do not interpret/.test(verdict) : /Do not interpret/.test(verdict), `${name}: verdict (${verdict.slice(0, 90)}...)`);
         check((await p.locator('#clusters-out svg').count()) >= 2, `${name}: silhouette plot and map drawn`);
+        {
+            const ev = await p.locator('#clusters-out details.evidence').innerText();
+            check(/Stability \(weakest cluster/.test(ev) && /Separation \(average silhouette\)/.test(ev) && /Smallest cluster/.test(ev) && /Not tested by the app \(clinical usefulness\)/.test(ev) && (method !== 'lca' || /random starts reached the best solution/.test(ev)), `${name}: an evidence summary separates statistical evidence from clinical usefulness`);
+        }
+        if (missing) check(/Missing values by cluster/.test(await p.locator('#clusters-out').innerText()), `${name}: missing values are compared between clusters`);
         if (missing === 'mice') {
             const ct = await p.locator('#clusters-out').innerText();
             await p.check('#map-imp');
@@ -96,6 +103,13 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         await p.fill(`#np-${ageIdx}`, '70'); await p.click('#np-go');
         const np = await p.locator('#np-out').innerText();
         check(/By the rules:/.test(np) && (method === 'lca' ? /By the latent class model: .*probability \d+%/ : /By the full clustering:/).test(np), `${name}: a new patient is classified by the rules and by the ${method === 'lca' ? 'latent class model (with probabilities)' : 'full clustering'}`);
+        if (method !== 'lca') {
+            const numIdx = await p.evaluate(() => window.UMEApp.state.explore.P.specs.map((sp, j) => (sp.type === 'continuous' ? j : -1)).filter(j => j >= 0));
+            for (const j of numIdx) await p.fill(`#np-${j}`, '100000');
+            await p.click('#np-go');
+            check(/Poorly represented: treat as unclassified/.test(await p.locator('#np-out').innerText()), `${name}: a patient far from every class is reported as poorly represented (unclassified)`);
+            await p.click('#np-clear');
+        }
         await p.fill('#name-0', 'Classic CSF-dynamic'); await p.locator('#name-0').dispatchEvent('change');
         check(/A · Classic CSF-dynamic/.test(await p.locator('#use-out').innerText()), `${name}: renaming a class updates the rules`);
         // Step 8: decision tree diagram, consistent with the bedside rules of step 7
@@ -154,7 +168,7 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         check(/Data: problems\.csv \(60 rows, your file\)/.test(await p.locator('#data-banner').innerText()) && /not a medical device/.test(await p.locator('section.step[data-step="1"]').innerText()), `${name}: a banner names the user's own file, and step 1 states that the tool is not a medical device`);
         await p.selectOption('#role-1', 'cluster');
         const warn = await p.locator('#var-warnings').innerText();
-        check(/Visit_Date: looks like dates/.test(warn) && /Constant: the same value for every patient/.test(warn) && /-999 \(\d+ patients\) may be a code for "not recorded"/.test(warn) && /Strongly related clustering variables: .*Score and Score_Copy/.test(warn), `${name}: warnings before the analysis for dates, a constant column, a missing-value code and two variables measuring the same thing`);
+        check(/Visit_Date: looks like dates/.test(warn) && await p.evaluate(() => window.UMEApp.state.vars.Constant.role) === 'ignore' && /-999 \(\d+ patients\) may be a code for "not recorded"/.test(warn) && /Strongly related clustering variables: .*Score and Score_Copy/.test(warn), `${name}: warnings before the analysis for dates, a missing-value code and two variables measuring the same thing; a constant column starts as "Ignore"`);
         // The phenotype demo with a confirmatory purpose, PAM / Gower, 3 clusters
         await p.click('#to-step3');
         check(/warning\(s\) about the data were shown in step 2/.test(await p.locator('#warn-reminder').innerText()), `${name}: step 4 reminds the user of the warnings before the analysis`);
@@ -202,6 +216,42 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         const store = await p.evaluate(async () => ({ ls: localStorage.length, ss: sessionStorage.length, cookie: document.cookie, idb: indexedDB.databases ? (await indexedDB.databases()).length : 0, caches: 'caches' in window ? (await caches.keys()).length : 0 }));
         check(foreign.length === 0 && store.ls === 0 && store.ss === 0 && store.cookie === '' && store.idb === 0 && store.caches === 0, `${name}: privacy: ${reqs.length} requests, all GETs of the app's own files; no browser storage, cookies or caches used${foreign.length ? ': ' + JSON.stringify(foreign.slice(0, 3)) : ''}`);
         check(errs.length === 0, `${name}: no page errors${errs.length ? ': ' + errs.join(' | ') : ''}`);
+        await p.close();
+    }
+    // Edge cases: very small data, rare categories, an all-missing column, duplicate identifiers, extreme numbers.
+    // The page must either complete or explain why it cannot, without page errors.
+    {
+        const name = 'edge cases', p = await browser.newPage({ viewport: { width: 1200, height: 900 } });
+        const errs = []; p.on('pageerror', e => errs.push(String(e))); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); }); p.on('dialog', d => d.accept());
+        const r = CE_PRNG(9), files = {
+            'tiny.csv': ['ID,A,B', ...Array.from({ length: 12 }, (_, i) => `T${i},${(i % 2) * 5 + r()},${(i % 2) * 5 + r()}`)],
+            'awkward.csv': ['ID,Score,Big,Empty,Group,Constant', ...Array.from({ length: 80 }, (_, i) => `${i < 3 ? 'D1' : 'P' + i},${(i % 2) * 4 + r()},${(1e9 * (1 + r())).toFixed(0)},,${i === 5 ? 'Rare' : i % 2 ? 'Left' : 'Right'},7`)],
+            'one-variable.csv': ['ID,Only', ...Array.from({ length: 40 }, (_, i) => `O${i},${(i % 2) * 6 + r()}`)]
+        };
+        for (const [fname, lines] of Object.entries(files)) {
+            await p.goto(url);
+            await p.setInputFiles('#file', { name: fname, mimeType: 'text/csv', buffer: Buffer.from(lines.join('\n')) });
+            await p.waitForSelector('#var-table table');
+            let outcome;
+            if (await p.isDisabled('#to-step3')) outcome = `stops at step 2: ${(await p.locator('#var-summary').innerText()).match(/Choose at least two variables[^.]*\./)?.[0] || 'next step not available'} (${JSON.stringify(await p.evaluate(() => Object.fromEntries(Object.entries(window.UMEApp.state.vars).map(([h, v]) => [h, v.role]))))})`;
+            else {
+                await p.click('#to-step3'); await p.click('#explore-btn');
+                await waitUntil(async () => (await p.$('#describe-btn')) || /stopped|cannot|could not|needs|at least/i.test(await p.locator('#explore-status').innerText()));
+                outcome = (await p.locator('#explore-status').innerText()).trim();
+            }
+            if (await p.$('#describe-btn')) {
+                await p.click('#describe-btn');
+                await waitUntil(async () => (await p.$('#to-use')) || /stopped|cannot|could not/i.test(await p.locator('#clusters-status').innerText()));
+                outcome = (await p.$('#to-use')) ? 'completed' : (await p.locator('#clusters-status').innerText()).trim();
+            }
+            check(errs.length === 0 && outcome.length > 0, `${name}: ${fname} is handled without page errors (${outcome.slice(0, 90)})`);
+        }
+        await p.goto(url);
+        await p.setInputFiles('#file', { name: 'awkward.csv', mimeType: 'text/csv', buffer: Buffer.from(files['awkward.csv'].join('\n')) });
+        await p.waitForSelector('#var-table table');
+        const w = await p.locator('#var-warnings').innerText();
+        const roles = await p.evaluate(() => Object.fromEntries(Object.entries(window.UMEApp.state.vars).map(([h, v]) => [h, v.role])));
+        check(/Rare categories.*"Rare" \(1\)/.test(w) && roles.Empty === 'ignore' && roles.Constant === 'ignore' && roles.Group === 'cluster', `${name}: the rare category is named; the empty and constant columns start as "Ignore", and the last column is not taken as an outcome`);
         await p.close();
     }
     // Step 3: data checks on the cohort with planted problems, and exclusion carried into the analysis

@@ -117,3 +117,4 @@ table.axis-factors td { vertical-align: top; } table.axis-factors td .muted { fo
 .form input[type="text"] { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); max-width: 100%; }
 
 .data-banner { margin-top: 4px; margin-bottom: 6px; font-size: 0.8rem; color: var(--muted); }
+.evidence td.ok { color: var(--good); } .evidence td.warn { color: var(--warn); font-weight: 600; } .evidence { margin: 10px 0; }
