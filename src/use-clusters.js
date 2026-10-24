@@ -122,7 +122,8 @@
     function references() {
         const { P } = ctx, labels = ctx.S.result.labels, k = ctx.S.result.k, n = labels.length;
         if (P.method === 'lca' && ctx.S.result.model) return { kind: 'model', model: ctx.S.result.model };
-        if (P.method === 'pam-gower' || P.method === 'lca') {
+        if (P.method === 'neural' && ctx.S.result.neural && ctx.S.result.neural.unitLabels) return { kind: 'neural', nn: ctx.S.result.neural };
+        if ((P.method === 'pam-gower' || P.method === 'lca') && !P.sampleIdx) {
             const D = P.gower.D, medoids = [];
             for (let c = 0; c < k; c++) {
                 const idx = labels.map((l, i) => (l === c ? i : -1)).filter(i => i >= 0);
@@ -157,6 +158,16 @@
         if (ref.kind === 'model') {
             const prob = CE.lcaPosterior(ref.model, x), order = prob.map((v, c) => c).sort((a, b) => prob[b] - prob[a]);
             return { prob, order, borderline: prob[order[0]] < 0.7, kind: 'model' };
+        }
+        if (ref.kind === 'neural') {
+            // The new record coded as the training records, placed on its best-matching unit of the map; distances to
+            // the group centres (recorded values only) show how clear-cut the class is
+            const NN = root.NNEngine, cr = NN.codeRow(ref.nn.coded, x);
+            if (!cr.m.some(v => v)) return null;
+            const unit = NN.somUnit(ref.nn.map, cr.x, cr.m), C = ref.nn.centroids;
+            d = C.map(c => { let s2 = 0, n2 = 0; c.forEach((v, j) => { if (cr.m[j]) { s2 += (v - cr.x[j]) ** 2; n2++; } }); return Math.sqrt((s2 * c.length) / Math.max(1, n2)); });
+            const cls = ref.nn.unitLabels[unit], rest = d.map((v, c) => c).filter(c => c !== cls).sort((a2, b2) => d[a2] - d[b2]), order = [cls, ...rest];
+            return { d, order, borderline: k > 1 && d[order[1]] > 0 && d[order[0]] / d[order[1]] > 0.85, kind: 'neural', unit };
         }
         if (ref.kind === 'medoid') {
             const vars = varsOf(P), dist = CE.gowerDistances(x, ref.medoids.map(i => P.raw[i]), vars, P.gower.weights);
@@ -228,7 +239,7 @@
             <div class="grid2"><div><div class="table-wrap">${confTable}</div><p class="muted small">Cross-validated: rows are the clusters, columns the class given by the rules.</p></div>
                 <div><div class="table-wrap"><table><thead><tr><th>Conditions per rule</th><th>Agreement (cross-validated)</th><th>Kappa</th></tr></thead><tbody>${depthRows}</tbody></table></div><p class="muted small">The suggested depth is the simplest within 2 percentage points of the best agreement: longer rules are harder to apply and to replicate.</p></div></div>
             <h3>3. Classify a new patient</h3>
-            <p class="muted small">Enter the values of the clustering variables (leave any that are not available). The patient is classified by the rules and by the full clustering (${U.ref ? (U.ref.kind === 'model' ? 'probabilities from the latent class model' : U.ref.kind === 'medoid' ? 'nearest representative patient by Gower dissimilarity' : 'nearest cluster centre on the standardised variables') : 'not available for these data'}). Nothing is stored or sent.</p>
+            <p class="muted small">Enter the values of the clustering variables (leave any that are not available). The patient is classified by the rules and by the full clustering (${U.ref ? (U.ref.kind === 'neural' ? 'its unit on the self-organising map' : U.ref.kind === 'model' ? 'probabilities from the latent class model' : U.ref.kind === 'medoid' ? 'nearest representative patient by Gower dissimilarity' : 'nearest cluster centre on the standardised variables') : 'not available for these data'}). Nothing is stored or sent.</p>
             <div class="newpatient">${form}<div class="row"><button id="np-go" class="btn primary" type="button">Classify this patient</button><button id="np-clear" class="btn" type="button">Clear</button></div></div>
             <div id="np-out" aria-live="polite"></div>
             <h3>4. Do the classes differ in outcomes?</h3>
@@ -269,8 +280,9 @@
         let html = `<div class="verdict ${full && full.order[0] !== byRules ? 'mixed' : 'good'}">`;
         html += `<p><strong>By the rules: ${esc(classLabel(byRules))}</strong>${steps.length ? ` because ${steps.join(', and ')}.` : '.'}</p>`;
         if (full) {
-            const a = full.order[0], b = full.order[1], unit = full.kind === 'medoid' ? 'Gower dissimilarity' : 'distance';
+            const a = full.order[0], b = full.order[1], unit = full.kind === 'medoid' ? 'Gower dissimilarity' : full.kind === 'neural' ? 'distance to the group centre' : 'distance';
             if (full.kind === 'model') html += `<p><strong>By the latent class model: ${esc(classLabel(a))}</strong> (probability ${pct(full.prob[a])}${b !== undefined ? `; ${esc(classLabel(b))} ${pct(full.prob[b])}` : ''}).${full.borderline ? ' The model is not confident: the patient could belong to either class.' : ''}</p>`;
+            else if (full.kind === 'neural') html += `<p><strong>By the self-organising map: ${esc(classLabel(a))}</strong> (unit ${full.unit + 1} of the map; distance to the group centre ${full.d[a].toFixed(2)}${b !== undefined ? `; next ${esc(classLabel(b))}, ${full.d[b].toFixed(2)}` : ''}).${full.borderline ? ' The record lies near the boundary between these two classes.' : ''}</p>`;
             else html += `<p><strong>By the full clustering: ${esc(classLabel(a))}</strong> (${unit} ${full.d[a].toFixed(2)}${b !== undefined ? `; next ${esc(classLabel(b))}, ${full.d[b].toFixed(2)}` : ''}).${full.borderline ? ' The patient lies near the boundary between these two classes.' : ''}</p>`;
             html += a === byRules ? '<p>Both agree.</p>' : '<p>The rules and the full clustering disagree: the patient is near a boundary, so the class is uncertain.</p>';
         }

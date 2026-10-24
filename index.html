@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>Unsupervised Medical Explorer</title>
-<link rel="stylesheet" href="style.css?v=23">
+<link rel="stylesheet" href="style.css?v=26">
 <link rel="icon" href="data:,">
 </head>
 <body>
@@ -37,6 +37,7 @@
       <button id="demo-phenotypes" class="btn" type="button">iNPH with three sub-types (360 patients)</button>
       <button id="demo-none" class="btn" type="button">No real sub-types (360 patients)</button>
       <button id="demo-errors" class="btn" type="button">iNPH with planted data errors (360 patients)</button>
+      <button id="demo-referrals" class="btn" type="button">Referral patterns (8,000 referrals)</button>
     </div>
     <p id="data-status" class="status" role="status"></p>
     <div id="data-summary"></div>
@@ -67,10 +68,11 @@
       <label for="method">Method</label>
       <div id="method-advice" class="advice"></div>
       <select id="method">
-        <option value="pam-gower" selected>k-medoids (PAM) with Gower dissimilarity</option>
+        <option value="pam-gower" id="method-pam" selected>k-medoids (PAM) with Gower dissimilarity (up to 3,000 records)</option>
         <option value="kmeans">k-means on standardised variables</option>
-        <option value="ward">Hierarchical clustering (Ward) on standardised variables</option>
+        <option value="ward" id="method-ward">Hierarchical clustering (Ward) on standardised variables (up to 3,000 records)</option>
         <option value="lca">Latent class analysis (model-based; numbers, grades and categories)</option>
+        <option value="neural" id="method-neural">Neural network: self-organising map (at least 1,000 records)</option>
         <option value="gmm" id="method-gmm">Gaussian mixture model (numerical variables only)</option>
       </select>
       <p id="method-hint" class="muted small"></p>
@@ -84,7 +86,7 @@
         <option value="fill" selected>Fill with the median or most frequent value</option>
         <option value="mice">Multiple imputation (MICE: 5 imputed datasets, combined)</option>
         <option value="complete">Leave out patients with any missing value</option>
-        <option value="gower">Use only the recorded values (PAM / Gower or latent class; no map or test)</option>
+        <option value="gower">Use only the recorded values (PAM / Gower, latent class or neural network; no test of "no real sub-groups")</option>
       </select>
       <p class="muted small">Filling with the median is quick and fine when few values are missing. Multiple imputation (chained equations with predictive mean matching) fills each missing value from patients with similar recorded values, five times over, clusters each version and combines them; it also shows whether the clusters depend on the imputed values. Only the clustering variables are used to impute, so outcomes cannot shape the clusters. Patients missing every clustering variable are best removed first.</p>
       <label for="kmax">Numbers of clusters to compare: from 2 up to</label>
@@ -125,16 +127,16 @@
   <p>Conceived, designed and directed by Dr G Narenthiran · implemented with AI pair programming (Anthropic Claude Code) · © 2026 Dr G Narenthiran. All rights reserved.</p>
   <p>For research and education only; not a medical device. Clusters found in one dataset are hypotheses: replicate them in another cohort before any clinical use.</p>
 </footer>
-<script src="data-engine.js?v=23"></script>
-<script src="cluster-engine.js?v=23"></script>
-<script src="embed-engine.js?v=23"></script>
-<script src="anomaly-engine.js?v=23"></script>
-<script src="nn-engine.js?v=23"></script>
-<script src="src/charts.js?v=23"></script>
-<script src="src/maps.js?v=23"></script>
-<script src="src/checks.js?v=23"></script>
-<script src="src/use-clusters.js?v=23"></script>
-<script src="src/export.js?v=23"></script>
-<script src="src/app.js?v=23"></script>
+<script src="data-engine.js?v=26"></script>
+<script src="cluster-engine.js?v=26"></script>
+<script src="embed-engine.js?v=26"></script>
+<script src="anomaly-engine.js?v=26"></script>
+<script src="nn-engine.js?v=26"></script>
+<script src="src/charts.js?v=26"></script>
+<script src="src/maps.js?v=26"></script>
+<script src="src/checks.js?v=26"></script>
+<script src="src/use-clusters.js?v=26"></script>
+<script src="src/export.js?v=26"></script>
+<script src="src/app.js?v=26"></script>
 </body>
 </html>

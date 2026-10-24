@@ -247,5 +247,34 @@ check('Autoencoder: the training error counts recorded values only, and the same
     assert(same && Math.abs(loss - manual) < 1e-12, `same ${same}, loss ${loss} vs ${manual}`);
     return 'loss equals the error over recorded values; identical networks from the same seed';
 });
+check('Large datasets: fast balanced Gower weights, pairwise dissimilarity and record-by-record local outlier factor equal the full-matrix versions', () => {
+    const r = CE.createPRNG(5), rows = Array.from({ length: 300 }, () => [r() < 0.1 ? null : Math.round(50 + 20 * r()), ['a', 'b', 'c'][Math.floor(r() * 3)], r() < 0.05 ? null : (r() * 10).toFixed(1), ['0', '1', '2'][Math.floor(r() * 3)]]);
+    const vars = [{ type: 'continuous' }, { type: 'nominal' }, { type: 'continuous' }, { type: 'ordinal', levels: ['0', '1', '2'] }];
+    const G = CE.gowerMatrix(rows, vars, { weights: 'balanced' }), w = CE.gowerBalancedWeights(rows, vars), f = CE.gowerPairFn(rows, vars, w);
+    let md = 0; for (let i = 0; i < 300; i++) for (let j = 0; j < 300; j++) if (i !== j) md = Math.max(md, Math.abs(f(i, j) - G.D[i * 300 + j]));
+    const a = AE.lof(G, 20), b = AE.lofStream(300, (i, j) => G.D[i * 300 + j], 20), wd = Math.max(...w.map((v, j) => Math.abs(v - G.weights[j]))), ld = Math.max(...a.map((v, i) => Math.abs(v - b[i])));
+    assert(wd < 1e-10 && md < 1e-12 && ld === 0, `weights ${wd}, pairs ${md}, lof ${ld}`);
+    return `largest differences: weights ${wd.toExponential(1)}, dissimilarities ${md.toExponential(1)}, local outlier factor ${ld}`;
+});
+// Self-organising map (the neural-network method for large datasets)
+check('Self-organising map keeps the layout of the data: low topographic error on a two-dimensional sheet in 4 variables', () => {
+    const r = CE.createPRNG(91), X = Array.from({ length: 1500 }, () => { const a = r() * 4, b = r() * 4; return [a, b, a + b, a - b].map(v => v + 0.05 * (r() - 0.5)); }), M1 = X.map(x => x.map(() => 1));
+    const m = NN.som(CE.standardize(X).Z, M1, { rows: 10, cols: 10 });
+    assert(m.te < 0.1, `topographic error ${m.te}`);
+    return `topographic error ${(100 * m.te).toFixed(1)}%, quantisation error ${m.qe.toFixed(3)}`;
+});
+check('Self-organising map with grouped units recovers simulated referral-like patterns in mixed data as well as k-means (within 0.03), reproducibly', () => {
+    const r = CE.createPRNG(92), gz = () => { const u = r() || 1e-12, v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+    const pick = probs => { let u = r(), j = 0; while (j < probs.length - 1 && u > probs[j]) { u -= probs[j]; j++; } return j; };
+    const pat = [{ src: [0.85, 0.05, 0.1], urg: [0.9, 0.1], days: 90, prior: 0.3 }, { src: [0.05, 0.85, 0.1], urg: [0.05, 0.95], days: 6, prior: 0.2 }, { src: [0.35, 0.05, 0.6], urg: [0.9, 0.1], days: 150, prior: 4 }];
+    const rows = [], truth = [];
+    for (let i = 0; i < 3000; i++) { const c = i % 3, q = pat[c]; truth.push(c); rows.push([['GP', 'ED', 'Physio'][pick(q.src)], ['Routine', 'Urgent'][pick(q.urg)], q.days * Math.exp(0.35 * gz()), Math.max(0, Math.round(q.prior + 0.8 * gz()))]); }
+    const vars = [{ name: 'src', type: 'nominal' }, { name: 'urg', type: 'nominal' }, { name: 'days', type: 'continuous' }, { name: 'prior', type: 'continuous' }];
+    const coded = NN.codeData(rows, vars), m = NN.som(coded.X, coded.M, {}), g = NN.weightedKmeans(m.W, m.hits, 3, { seed: 1 }), lab = m.bmu.map(u => g.labels[u]);
+    const m2 = NN.som(coded.X, coded.M, {}), same = JSON.stringify(m.W) === JSON.stringify(m2.W), a = CE.adjustedRand(lab, truth);
+    const km = CE.adjustedRand(CE.kmeans(coded.X, 3, { seed: 1, nInit: 10 }).labels, truth);
+    assert(a >= 0.55 && a >= km - 0.03 && same, `ARI ${a} (k-means ${km}), reproducible ${same}`);
+    return `adjusted Rand ${a.toFixed(3)} (k-means ${km.toFixed(3)}; ${m.rows} x ${m.cols} map); identical map when trained again`;
+});
 console.log(`\n${passed}/${passed + failed} behaviour checks passed`);
 process.exit(failed ? 1 : 0);

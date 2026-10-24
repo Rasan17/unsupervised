@@ -124,6 +124,29 @@
         return Array.from({ length: n }, (_, i) => nb[i].reduce((a, j) => a + lrd[j], 0) / k / lrd[i]);
     }
 
+    /** Local outlier factor for large datasets: dissimilarities computed one record at a time from dist(i, j), keeping
+     *  only each record's k nearest neighbours (memory n x k instead of n x n); identical results to lof(). */
+    function lofStream(n, dist, k = 20) {
+        k = Math.min(k, n - 1);
+        const nb = new Array(n), nd = new Array(n), kd = new Float64Array(n);
+        for (let i = 0; i < n; i++) {
+            const bi = [], bd = [];
+            for (let j = 0; j < n; j++) {
+                if (j === i) continue;
+                const d = dist(i, j);
+                if (bi.length < k || d < bd[k - 1] || (d === bd[k - 1] && j < bi[k - 1])) {
+                    let q = bi.length < k ? bi.length : k - 1;
+                    while (q > 0 && (bd[q - 1] > d || (bd[q - 1] === d && bi[q - 1] > j))) { if (q < k) { bd[q] = bd[q - 1]; bi[q] = bi[q - 1]; } q--; }
+                    bd[q] = d; bi[q] = j; if (bd.length > k) { bd.length = k; bi.length = k; }
+                }
+            }
+            nb[i] = bi; nd[i] = bd; kd[i] = bd[k - 1];
+        }
+        const lrd = new Float64Array(n);
+        for (let i = 0; i < n; i++) { let s = 0; for (let q = 0; q < k; q++) s += Math.max(kd[nb[i][q]], nd[i][q]); lrd[i] = 1 / (s / k + 1e-10); }
+        return Array.from({ length: n }, (_, i) => nb[i].reduce((a, j) => a + lrd[j], 0) / k / lrd[i]);
+    }
+
     // ------------------------------------------------------------------------------------------- robust z and data checks
     function median(xs) { const s = xs.slice().sort((a, b) => a - b), h = (s.length - 1) / 2; return (s[Math.floor(h)] + s[Math.ceil(h)]) / 2; }
     /** Robust z-scores: (x - median) / (1.4826 x median absolute deviation); falls back to the interquartile range
@@ -136,6 +159,15 @@
         if (!(scale > 0)) { const s = obs.slice().sort((a, b) => a - b), q = f => { const h = (s.length - 1) * f, l = Math.floor(h); return s[l] + (s[Math.ceil(h)] - s[l]) * (h - l); }; scale = (q(0.75) - q(0.25)) / 1.349; }
         if (!(scale > 0)) { const m = obs.reduce((a, b) => a + b, 0) / obs.length; scale = Math.sqrt(obs.reduce((a, b) => a + (b - m) ** 2, 0) / Math.max(1, obs.length - 1)); }
         return { med, scale, z: xs.map(v => (Number.isFinite(v) && scale > 0 ? (v - med) / scale : NaN)) };
+    }
+    /** True for a clearly right-skewed measurement with no negative values (Kelly's decile skewness above 0.2): such
+     *  variables are judged on the log(1 + x) scale, so a long natural tail is not mistaken for errors or outliers */
+    function skewedNonNegative(xs) {
+        const v = xs.filter(Number.isFinite);
+        if (v.length < 20 || !v.every(x => x >= 0)) return false;
+        const t = v.slice().sort((a, b) => a - b), q = f => { const h = (t.length - 1) * f, l = Math.floor(h); return t[l] + (t[Math.ceil(h)] - t[l]) * (h - l); };
+        const lo = q(0.1), md = q(0.5), hi = q(0.9);
+        return hi > lo && (hi + lo - 2 * md) / (hi - lo) > 0.2;
     }
     const missing = v => v === null || v === undefined || String(v).trim() === '' || /^(na|n\/a|nan|null|missing|\.)$/i.test(String(v).trim());
     /**
@@ -151,11 +183,11 @@
                 raw.forEach((v, i) => { if (!missing(v) && !Number.isFinite(parsed[i])) out.push({ row: i, column: name, value: String(v), kind: 'text', message: /^-?\d+,\d+$/.test(String(v).trim()) ? 'a decimal comma instead of a decimal point' : 'text in a column of numbers' }); });
                 const xs = parsed.map(v => (Number.isFinite(v) ? v : NaN));
                 // Clearly right-skewed positive measurements (e.g. CRP) are judged on the log scale, so a genuine long
-                // tail is not mistaken for errors: right-skewed (Kelly's decile skewness above 0.2) and more symmetric on the log scale
+                // tail is not mistaken for errors: right-skewed (Kelly's decile skewness above 0.2) with no negative values, judged on
+                // the log(1 + x) scale (which also handles zeros, as in counts and waiting times)
                 const pos = xs.filter(Number.isFinite);
-                const kelly = vals => { const t = vals.slice().sort((a, b) => a - b), q = f => { const h = (t.length - 1) * f, l = Math.floor(h); return t[l] + (t[Math.ceil(h)] - t[l]) * (h - l); }; const lo = q(0.1), md = q(0.5), hi = q(0.9); return hi > lo ? (hi + lo - 2 * md) / (hi - lo) : 0; };
-                const skewed = pos.length >= 20 && pos.every(v => v > 0) && (() => { const k0 = kelly(pos); return k0 > 0.2 && Math.abs(kelly(pos.map(Math.log))) < k0; })();
-                const scaleXs = skewed ? xs.map(v => (Number.isFinite(v) && v > 0 ? Math.log(v) : NaN)) : xs;
+                const skewed = skewedNonNegative(pos);
+                const scaleXs = skewed ? xs.map(v => (Number.isFinite(v) && v >= 0 ? Math.log1p(v) : NaN)) : xs;
                 const { scale, z } = robustZ(scaleXs), med = robustZ(xs).med;
                 const sorted = scaleXs.filter(Number.isFinite).sort((a, b) => a - b);
                 // Gap to the nearest other recorded value (an isolated value is suspicious even at a moderate z)
@@ -170,7 +202,7 @@
                     const ratio = med !== 0 ? v / med : NaN, l10 = Math.log10(Math.abs(ratio)), r10 = Math.round(l10);
                     const decimal = Number.isFinite(l10) && r10 !== 0 && Math.abs(l10 - r10) < 0.15 && ratio > 0;
                     out.push({ row: i, column: name, value: String(raw[i]), kind: decimal ? 'decimal' : 'extreme', z: z[i],
-                        message: decimal ? `about ${r10 > 0 ? Math.pow(10, r10) + ' times' : '1/' + Math.pow(10, -r10) + ' of'} the typical value (${fmt(med)}): possibly a decimal-point or unit error` : Math.abs(z[i]) >= zLimit ? `far from the other values${skewed ? ', even allowing for the skewed distribution' : ''} (typical ${fmt(med)}, robust z ${z[i].toFixed(1)}${skewed ? ' on the log scale' : ''})` : `isolated from the other values (nearest other value ${fmt(skewed ? Math.exp(nearest(scaleXs[i])) : nearest(v))}; typical ${fmt(med)})` });
+                        message: decimal ? `about ${r10 > 0 ? Math.pow(10, r10) + ' times' : '1/' + Math.pow(10, -r10) + ' of'} the typical value (${fmt(med)}): possibly a decimal-point or unit error` : Math.abs(z[i]) >= zLimit ? `far from the other values${skewed ? ', even allowing for the skewed distribution' : ''} (typical ${fmt(med)}, robust z ${z[i].toFixed(1)}${skewed ? ' on the log scale' : ''})` : `isolated from the other values (nearest other value ${fmt(skewed ? Math.expm1(nearest(scaleXs[i])) : nearest(v))}; typical ${fmt(med)})` });
                 });
             } else if (kind === 'category') {
                 const vals = raw.filter(v => !missing(v)).map(v => String(v));
@@ -200,5 +232,5 @@
     }
     function fmt(v) { return Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : Number(v.toPrecision(3)).toString(); }
 
-    root.AnomalyEngine = { chi2Sf, chi2Cdf, chi2Ppf, mcd, isolationForest, avgPath, lof, robustZ, dataChecks, median };
+    root.AnomalyEngine = { skewedNonNegative, chi2Sf, chi2Cdf, chi2Ppf, mcd, isolationForest, avgPath, lof, lofStream, robustZ, dataChecks, median };
 })(typeof window !== 'undefined' ? window : globalThis);

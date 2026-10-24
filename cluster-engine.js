@@ -889,8 +889,32 @@
         return pe < 1 ? (po - pe) / (1 - pe) : 1;
     }
 
+    /** Balanced Gower weights without the n x n matrix: the mean contribution of each variable over all pairs, from
+     *  sorted values for numbers and grades (sum over pairs of |a - b| = sum of x(k) (2k - n - 1)) and from the category
+     *  shares for categories (chance two patients differ = 1 - sum of squared shares); equals gowerMatrix's weights */
+    function gowerBalancedWeights(rows, vars) {
+        return vars.map((v, j) => {
+            const val = rows.map(r => codeValue(r[j], v)).filter(x => x !== null), m = val.length;
+            if (m < 2) return 0;
+            const pairs = (m * (m - 1)) / 2;
+            if (v.type === 'nominal') { const cnt = new Map(); val.forEach(x => cnt.set(x, (cnt.get(x) || 0) + 1)); let same = 0; cnt.forEach(c => { same += (c * (c - 1)) / 2; }); const diff = (pairs - same) / pairs; return diff > 0 ? 1 / diff : 0; }
+            const s = val.slice().sort((a, b) => a - b), range = s[m - 1] - s[0];
+            if (!(range > 0)) return 0;
+            let tot = 0; s.forEach((x, k) => { tot += x * (2 * k - m + 1); });
+            const mean = tot / range / pairs;
+            return mean > 0 ? 1 / mean : 0;
+        });
+    }
+    /** Gower dissimilarity of two patients (rows of raw values), with given weights and the data's ranges */
+    function gowerPairFn(rows, vars, weights) {
+        const val = vars.map((v, j) => rows.map(r => codeValue(r[j], v)));
+        const range = vars.map((v, j) => { if (v.type === 'nominal') return 1; let lo = Infinity, hi = -Infinity; val[j].forEach(x => { if (x !== null) { if (x < lo) lo = x; if (x > hi) hi = x; } }); return hi > lo ? hi - lo : 0; });
+        const p = vars.length;
+        return (a, b) => { let s = 0, w = 0; for (let j = 0; j < p; j++) { const x = val[j][a], y = val[j][b], wj = weights ? weights[j] : 1; if (x === null || y === null || !(wj > 0)) continue; w += wj; if (vars[j].type === 'nominal') s += x === y ? 0 : wj; else if (range[j] > 0) s += (wj * Math.abs(x - y)) / range[j]; } return w ? s / w : 1; };
+    }
+
     const ClusterEngine = { createPRNG, standardize, euclideanMatrix, gowerMatrix, lloyd, kmeansPlusPlus, kmeans, pam, hierarchical, cutTree, gmm, gmmFromParams, mStep,
         silhouette, calinskiHarabasz, daviesBouldin, withinSS, adjustedRand, symmetricEigen, pca, gapStatistic, bootstrapStability, nullClusterTest, copulaNullTest, normInv, normCdf, chiSquareTest, kruskalWallis, gammaQ, relabelBySize,
-        codeValue, gowerDistances, lca, lcaPosterior, classificationTree, predictTree, treePath, treeRules, cohenKappa };
+        codeValue, gowerDistances, gowerBalancedWeights, gowerPairFn, lca, lcaPosterior, classificationTree, predictTree, treePath, treeRules, cohenKappa };
     root.ClusterEngine = ClusterEngine;
 })(typeof window !== 'undefined' ? window : globalThis);

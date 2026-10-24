@@ -143,5 +143,13 @@ out.lcaCont = { logLik: LP.logLik, bic: LP.bic, shares: LP.model.pi.slice().sort
     const lin = [1, 2].map(d => { const T = NN.createTrainer(Z, Z.map(r => r.map(() => 1)), { hidden: [], latent: d, activation: 'linear', seed: 3, lr: 0.01, weightDecay: 0, batch: Z.length, maxEpochs: 4000, patience: 4000, validation: 0 }); while (!T.done) T.step(500); return NN.lossGrad(T.net, Z, Z.map(r => r.map(() => 1)), Z.map((_, i) => i), 0).loss; });
     out.nn = { Z: Zm, M: Mk, init: init.layers.map(L => ({ W: L.W, b: L.b, act: L.act })), final: net.layers.map(L => ({ W: L.W, b: L.b })), losses, gradRelErr: worst, linLoss: lin };
 }
+// 9. Self-organising map: with no neighbourhood it is Lloyd's k-means (vs scikit-learn); weighted k-means for the units
+{
+    const ones = X.map(r => r.map(() => 1)), init = [X[0], X[70], X[120]];
+    const S0 = NN.som(X, ones, { rows: 1, cols: 3, epochs: 200, sigma0: 0, sigma1: 0, init });
+    const wts = X.map((_, i) => 1 + (i % 4)), WK = NN.weightedKmeans(X, wts, 3, { init, maxIter: 1000 });
+    // Unordered centres for comparison (weighted k-means orders its groups by size)
+    out.som = { init, W: S0.W, wts, wkCentres: WK.centres };
+}
 fs.writeFileSync(path.join(__dirname, 'reference_values.json'), JSON.stringify(out));
 console.log('Engine values written to tests/reference_values.json; now run: python3 tests/reference_check.py');

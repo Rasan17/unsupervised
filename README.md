@@ -23,7 +23,7 @@ for slides), with its legend, in light colours on white.
 After changing a script or `style.css`, raise its `?v=` number in `index.html` so browsers do not keep the old copy.
 
 Open `index.html` directly, or serve the folder (`python3 -m http.server`). Two demo cohorts (`tools/make_demo_cohorts.py`):
-simulated iNPH patients with three sub-types (the true sub-type is included as a describe-only column, to see how
+a referral-patterns demo (`tools/make_referral_demo.py`, 8,000 referrals with five patterns), simulated iNPH patients with three sub-types (the true sub-type is included as a describe-only column, to see how
 well clustering recovers it) and a cohort of one population, where the app should find nothing.
 
 ## Statistical engine
@@ -33,6 +33,18 @@ well clustering recovers it) and a cohort of one population, where the app shoul
   covariance, EM from k-means starts, BIC), and latent class analysis for mixed data (normal numbers, categorical
   grades and categories, local independence; missing values left out of each patient's likelihood; EM from
   several starts; BIC, relative entropy, membership probabilities; checked against R poLCA and mclust).
+- **Neural network for large datasets: self-organising map** (`nn-engine.js`): batch SOM (Kohonen; grid of about
+  5 sqrt(n) units, Gaussian neighbourhood, linear initialisation on the principal components, missing values left
+  out of the distances), whose units are grouped by k-means weighted by the records they hold (Vesanto & Alhoniemi
+  2000). Not offered below 1,000 records; suggested from 5,000 (the advisor states this for every dataset).
+  Verified: with no neighbourhood the SOM equals k-means (vs scikit-learn), weighted k-means vs scikit-learn with
+  sample weights; on the 8,000-referral demo it recovers the five patterns as well as k-means (adjusted Rand 0.80).
+  An autoencoder followed by k-means, and IDEC deep clustering, were tried first and recovered the patterns poorly
+  (about 0.45), in line with the literature on deep clustering of tabular data, so they are not used.
+- **Large datasets:** above 3,000 records, silhouettes and maps use a random sample of 2,000; PAM and Ward (which
+  need every pairwise dissimilarity) are not offered; multiple-imputation consensus is by aligned majority vote;
+  local outlier factor is computed record by record. Skewed non-negative measurements (waiting times, distances,
+  counts) are judged on the log(1 + x) scale in the data checks.
 - **Method advisor:** step 3 suggests a method from the mix of variable types, the share of missing values and
   the number of patients, preselects it, and recommends confirming the sub-groups with a second method.
 - **Dissimilarities:** Euclidean; Gower for mixed clinical data (numbers, ordered grades, categories) with
@@ -89,7 +101,7 @@ well clustering recovers it) and a cohort of one population, where the app shoul
 ## Verification
 
 ```bash
-node tests/reference_check.js && python3 tests/reference_check.py   # 80 checks against scikit-learn, SciPy, NumPy, umap-learn and R (poLCA, mclust, cluster, FactoMineR) (cluster::daisy, cluster::pam)
+node tests/reference_check.js && python3 tests/reference_check.py   # 82 checks against scikit-learn, SciPy, NumPy, umap-learn and R (poLCA, mclust, cluster, FactoMineR) (cluster::daisy, cluster::pam)
 node tests/behaviour_check.js                                       # simulations: true k found, 1 cluster when there are none, test calibration, stability
 node tests/ui_check.js                                              # browser (Playwright + Chrome): both demo cohorts end to end (incl. MICE and step 6), layout, no page errors
 npx eslint@9.39.5 -c eslint.config.mjs src cluster-engine.js embed-engine.js anomaly-engine.js nn-engine.js  # undefined names and real mistakes

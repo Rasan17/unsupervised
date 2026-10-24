@@ -7,6 +7,12 @@
     const NN = root.NNEngine, AE = root.AnomalyEngine, CE = root.ClusterEngine, EE = root.EmbedEngine, DE = root.DataEngine, CH = root.UMECharts, esc = CH.esc;
     const $ = id => document.getElementById(id);
     const LIMITS = { mcd: 0.999, iso: 0.6, lof: 1.6 };
+    // Local outlier factor has no natural scale: its limit is 1.6, raised where needed to the robust upper fence of
+    // the scores (upper quartile + 3 interquartile ranges, on the log scale), as in large administrative datasets
+    function lofLimit(lf) {
+        const l = lf.filter(v => v > 0 && Number.isFinite(v)).map(Math.log).sort((a, b) => a - b), q = f => l[Math.floor(f * (l.length - 1))];
+        return l.length >= 20 ? Math.max(LIMITS.lof, Math.exp(q(0.75) + 3 * (q(0.75) - q(0.25)))) : LIMITS.lof;
+    }
     const ID_RE = /(^|[\s_-])(id|mrn|nhs|hospital[\s_-]?number|record|patient)([\s_-]?(id|no|number))?$/i;
     let C = null;   // { S, onChange, results }
 
@@ -26,14 +32,19 @@
         const numCols = cl.filter(h => S.vars[h].type !== 'nominal'), catCols = cl.filter(h => S.vars[h].type === 'nominal');
         const num = h => rows.map(r => (isNum(r[h]) ? Number(String(r[h]).trim()) : NaN));
         const numVals = Object.fromEntries(numCols.map(h => [h, num(h)]));
-        const rz = Object.fromEntries(numCols.map(h => [h, AE.robustZ(numVals[h])]));
+        // The multivariate methods use log(1 + x) for clearly right-skewed non-negative measurements (waiting times,
+        // distances, counts), so that a long natural tail does not make records look unusual; reasons quote raw values
+        const skewedCols = new Set(numCols.filter(h => S.vars[h].type === 'continuous' && AE.skewedNonNegative(numVals[h])));
+        const mv = Object.fromEntries(numCols.map(h => [h, skewedCols.has(h) ? numVals[h].map(v => (Number.isFinite(v) ? Math.log1p(v) : NaN)) : numVals[h]]));
+        const mvRaw = r => cl.map(h => { const v = r[h]; if (DE.isMissing(v)) return null; if (S.vars[h].type === 'continuous') { if (!isNum(v)) return null; const x = Number(String(v).trim()); return skewedCols.has(h) && x >= 0 ? Math.log1p(x) : x; } return String(v).trim(); });
+        const rz = Object.fromEntries(numCols.map(h => [h, AE.robustZ(mv[h])]));
         const flags = Array.from({ length: n }, () => ({ mcd: null, iso: null, lof: null, ae: null }));
         const methods = [];
         // 1. Robust Mahalanobis distance (numbers and grades; patients with all of them recorded)
         let robust = null;
-        const complete = rows.map((_, i) => i).filter(i => numCols.every(h => Number.isFinite(numVals[h][i])));
+        const complete = rows.map((_, i) => i).filter(i => numCols.every(h => Number.isFinite(mv[h][i])));
         if (numCols.length >= 2 && complete.length >= Math.max(20, 5 * numCols.length)) {
-            const X = complete.map(i => numCols.map(h => numVals[h][i]));
+            const X = complete.map(i => numCols.map(h => mv[h][i]));
             try {
                 robust = AE.mcd(X, { seed: 2024 }); robust.cols = numCols; robust.rows = complete;
                 const cut = AE.chi2Ppf(LIMITS.mcd, numCols.length);
@@ -44,7 +55,7 @@
         // 2. Isolation forest (all clustering variables; missing numbers -> median, missing category -> most frequent)
         if (cl.length >= 2 && n >= 20) {
             const X = rows.map(() => []);
-            numCols.forEach(h => { const med = rz[h].med; rows.forEach((_, i) => X[i].push(Number.isFinite(numVals[h][i]) ? numVals[h][i] : med)); });
+            numCols.forEach(h => { const med = rz[h].med; rows.forEach((_, i) => X[i].push(Number.isFinite(mv[h][i]) ? mv[h][i] : med)); });
             catCols.forEach(h => {
                 const vals = rows.map(r => (DE.isMissing(r[h]) ? null : String(r[h]).trim())), cnt = new Map(); vals.forEach(v => { if (v !== null) cnt.set(v, (cnt.get(v) || 0) + 1); });
                 const mode = [...cnt.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
@@ -55,13 +66,22 @@
             methods.push({ key: 'iso', name: 'Isolation', note: `isolation forest on all ${cl.length} clustering variables (100 trees); flagged when the anomaly score is above ${LIMITS.iso} (isolated much faster than the others)` });
         }
         // 3. Local outlier factor on balanced Gower dissimilarities (mixed data, missing values)
-        if (cl.length >= 2 && n >= 25) {
+        if (cl.length >= 2 && n >= 25 && n > 3000) {
+            // Large datasets: the same local outlier factor, with dissimilarities computed one record at a time
             const specs = cl.map(h => ({ type: S.vars[h].type, levels: S.vars[h].type === 'continuous' ? null : [...new Set(rows.map(r => r[h]).filter(v => !DE.isMissing(v)).map(v => String(v).trim()))].sort((a, b) => (isNum(a) && isNum(b) ? a - b : a < b ? -1 : 1)) }));
-            const raw = rows.map(r => cl.map((h, j) => { const v = r[h]; if (DE.isMissing(v)) return null; if (specs[j].type === 'continuous') return isNum(v) ? Number(String(v).trim()) : null; return String(v).trim(); }));
+            const raw = rows.map(mvRaw);
+            const lf = AE.lofStream(n, CE.gowerPairFn(raw, specs, CE.gowerBalancedWeights(raw, specs)), 20), lim = lofLimit(lf);
+            lf.forEach((v, i) => { flags[i].lof = { value: v, flagged: v > lim }; });
+            methods.push({ key: 'lof', name: 'Local density', note: `local outlier factor (20 neighbours) on balanced Gower dissimilarities of the clustering variables, computed record by record for the ${n.toLocaleString('en-GB')} records; flagged above ${lim.toFixed(2)} (in a much sparser region than its neighbours; the limit is 1.6, raised to the robust upper fence of these scores where that is higher)` });
+            C.famdRaw = { raw, specs: cl.map((h, j) => ({ name: h, type: specs[j].type, levels: specs[j].levels })) };
+        }
+        if (cl.length >= 2 && n >= 25 && n <= 3000) {
+            const specs = cl.map(h => ({ type: S.vars[h].type, levels: S.vars[h].type === 'continuous' ? null : [...new Set(rows.map(r => r[h]).filter(v => !DE.isMissing(v)).map(v => String(v).trim()))].sort((a, b) => (isNum(a) && isNum(b) ? a - b : a < b ? -1 : 1)) }));
+            const raw = rows.map(mvRaw);
             try {
-                const G = CE.gowerMatrix(raw, specs, { weights: 'balanced' }), lf = AE.lof(G, 20);
-                lf.forEach((v, i) => { flags[i].lof = { value: v, flagged: v > LIMITS.lof }; });
-                methods.push({ key: 'lof', name: 'Local density', note: `local outlier factor (20 neighbours) on balanced Gower dissimilarities of the clustering variables; flagged above ${LIMITS.lof} (in a much sparser region than its neighbours)` });
+                const G = CE.gowerMatrix(raw, specs, { weights: 'balanced' }), lf = AE.lof(G, 20), lim = lofLimit(lf);
+                lf.forEach((v, i) => { flags[i].lof = { value: v, flagged: v > lim }; });
+                methods.push({ key: 'lof', name: 'Local density', note: `local outlier factor (20 neighbours) on balanced Gower dissimilarities of the clustering variables; flagged above ${lim.toFixed(2)} (in a much sparser region than its neighbours${lim > LIMITS.lof ? '; the usual limit of 1.6 raised to the robust upper fence of these scores' : ''})` });
                 C.famdRaw = { raw, specs: cl.map((h, j) => ({ name: h, type: specs[j].type, levels: specs[j].levels })) };
             } catch (e) { /* patients sharing no recorded variable: no local outlier factor */ }
         }
@@ -69,7 +89,7 @@
         let aeWorst = null;
         if (C.useAE && cl.length >= 2 && n >= 50) {
             const vars = cl.map(h => ({ name: h, type: S.vars[h].type, levels: S.vars[h].type === 'continuous' ? null : [...new Set(rows.map(r => r[h]).filter(v => !DE.isMissing(v)).map(v => String(v).trim()))].sort((a, b) => (isNum(a) && isNum(b) ? a - b : a < b ? -1 : 1)) }));
-            const raw = rows.map(r => cl.map(h => { const v = r[h]; if (DE.isMissing(v)) return null; if (S.vars[h].type === 'continuous') return isNum(v) ? Number(String(v).trim()) : null; return String(v).trim(); }));
+            const raw = rows.map(mvRaw);
             const coded = NN.codeData(raw, vars), T = NN.train(coded.X, coded.M, { hidden: [8], latent: 2, seed: 2024 }), E = NN.errors(T.net, coded.X, coded.M);
             const e = E.map(x => x.mean), srt = e.filter(Number.isFinite).sort((a, b) => a - b), q = f => srt[Math.min(srt.length - 1, Math.floor(f * (srt.length - 1)))], fence = q(0.75) + 3 * (q(0.75) - q(0.25));
             e.forEach((v, i) => { flags[i].ae = { value: v, flagged: v > fence }; });
@@ -79,7 +99,7 @@
         // Reasons: extreme single values, rare categories, otherwise the most unusual pair of numbers
         const reason = i => {
             const parts = [];
-            numCols.forEach(h => { const z = rz[h].z[i]; if (Math.abs(z) >= 3) parts.push(`${pretty(h)} ${numVals[h][i]} (typical ${fmtV(rz[h].med)}; ${z > 0 ? 'very high' : 'very low'})`); });
+            numCols.forEach(h => { const z = rz[h].z[i]; if (Math.abs(z) >= 3) parts.push(`${pretty(h)} ${numVals[h][i]} (typical ${fmtV(skewedCols.has(h) ? Math.expm1(rz[h].med) : rz[h].med)}; ${z > 0 ? 'very high' : 'very low'})`); });
             catCols.forEach(h => { const v = rows[i][h]; if (DE.isMissing(v)) return; const share = rows.filter(r => String(r[h] ?? '').trim() === String(v).trim()).length / n; if (share < 0.03) parts.push(`${pretty(h)} "${String(v).trim()}" (only ${Math.round(share * n)} patient${Math.round(share * n) === 1 ? '' : 's'})`); });
             if (parts.length) return parts.join('; ');
             if (robust && numCols.length >= 2) {
@@ -89,7 +109,7 @@
                     for (let a = 0; a < numCols.length; a++) for (let b = a + 1; b < numCols.length; b++) {
                         const S2 = [[robust.covariance[a][a], robust.covariance[a][b]], [robust.covariance[b][a], robust.covariance[b][b]]], det = S2[0][0] * S2[1][1] - S2[0][1] * S2[1][0];
                         if (!(det > 0)) continue;
-                        const x = [numVals[numCols[a]][i] - robust.location[a], numVals[numCols[b]][i] - robust.location[b]];
+                        const x = [mv[numCols[a]][i] - robust.location[a], mv[numCols[b]][i] - robust.location[b]];
                         const d2 = (S2[1][1] * x[0] * x[0] - 2 * S2[0][1] * x[0] * x[1] + S2[0][0] * x[1] * x[1]) / det;
                         if (!best || d2 > best.d2) best = { a, b, d2 };
                     }
@@ -104,7 +124,9 @@
         const unusual = flags.map((f, i) => ({ i, count: ['mcd', 'iso', 'lof', 'ae'].filter(k => f[k] && f[k].flagged).length, f })).filter(u => u.count > 0)
             .sort((a, b) => b.count - a.count || (b.f.lof?.value ?? 0) - (a.f.lof?.value ?? 0));
         unusual.forEach(u => { u.why = reason(u.i) + (aeWorst && u.f.ae && u.f.ae.flagged ? ` (rebuilt worst by the autoencoder: ${aeWorst[u.i].join(', ')})` : ''); });
-        return { issues, unusual, methods, nMethods: methods.length };
+        const active = methods.filter(m => !m.skipped);
+        const allScores = Object.fromEntries(['mcd', 'iso', 'lof', 'ae'].map(k => [k, flags.map(f => (f[k] ? f[k].value : null)).filter(v => v !== null)]));
+        return { issues, unusual, methods: active, notes: methods.filter(m => m.skipped), nMethods: active.length, allScores };
     }
 
     function render(ctx) {
@@ -114,7 +136,7 @@
     function draw() {
         const el = $('check-out'), { S } = C;
         if (!C.results) { el.innerHTML = ''; summary(); return; }
-        const { issues, unusual, methods, nMethods } = C.results;
+        const { issues, unusual, methods, nMethods, notes = [] } = C.results;
         const ex = S.excluded;
         const box = i => `<input type="checkbox" class="excl" data-row="${i}" aria-label="Exclude ${esc(label(S, i))}"${ex.has(i) ? ' checked' : ''}>`;
         // "Exclude all" / "Include all" for the patients of one table
@@ -143,7 +165,7 @@
             <h3>Unusual patients (${strong.length}${nMethods >= 2 ? ' flagged by at least 2 of the ' + nMethods + ' methods' : ''})</h3>
             ${strong.length ? `${bulk('strong', `${strong.length} unusual patient(s)`)}<div class="table-wrap"><table><thead>${uHead}</thead><tbody>${strong.map(uRow).join('')}</tbody></table></div>` : '<p>None.</p>'}
             ${weak.length ? `<details><summary>${weak.length} patient(s) flagged by one method only</summary>${bulk('weak', `${weak.length} patient(s) flagged by one method`)}<div class="table-wrap"><table><thead>${uHead}</thead><tbody>${weak.map(uRow).join('')}</tbody></table></div></details>` : ''}
-            <div class="grid2"><div>${map}</div><div class="muted small">${methods.map(m => `<p><strong>${esc(m.name)}</strong>: ${esc(m.note)}.</p>`).join('')}
+            <div class="grid2"><div>${map}</div><div class="muted small">${[...methods, ...notes].map(m => `<p><strong>${esc(m.name)}</strong>: ${esc(m.note)}.</p>`).join('')}
                 <p>Unusual is not the same as wrong: check flagged patients against the records. Exclude only clear errors or patients outside the population of interest; rare but genuine patients may matter clinically. Report any exclusions.</p></div></div>`;
         el.querySelectorAll('[data-bulk]').forEach(b => b.addEventListener('click', () => {
             const on = b.dataset.on === '1';

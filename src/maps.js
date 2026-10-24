@@ -26,11 +26,14 @@
     };
     let M = null;   // { key, kind, colourBy, maps: { kind: { Y, idx, trust, xLabel, yLabel } }, busy }
 
+    // The clustering dissimilarities; for large datasets they cover a random sample, whose original row numbers are
+    // in M.Didx (identity otherwise)
     function dissim(P) {
         if (M.D) return M.D;
+        M.Didx = P.sampleIdx || P.rows.map((_, i) => i);
         if (!P.impP) { M.D = P.D; return M.D; }
         // With multiple imputation: the dissimilarities averaged over the imputed datasets
-        const n = P.rows.length, D = new Float64Array(n * n);
+        const n = P.D.n, D = new Float64Array(n * n);
         P.impP.forEach(Q => { for (let i = 0; i < n * n; i++) D[i] += Q.D.D[i] / P.impP.length; });
         M.D = { n, D };
         return M.D;
@@ -66,15 +69,21 @@
                 M.kind = 'famd';
             } else {
                 const D = dissim(P);
-                if (D) { M.maps.mds = { Y: EE.classicalMDS(D, 2), idx: all, xLabel: 'Dimension 1', yLabel: 'Dimension 2' }; M.kind = 'mds'; }
+                if (D) { M.maps.mds = { Y: EE.classicalMDS(D, 2), idx: M.Didx.slice(), xLabel: 'Dimension 1', yLabel: 'Dimension 2' }; M.kind = 'mds'; }
             }
         }
         M.ctx = ctx;
         draw();
         drawDimensions();
     }
+    // Trustworthiness on the patients that have dissimilarities (all, or the random sample), at most 2000
     function trustOf(map) {
-        if (map.trust === undefined) { const D = subset(dissim(M.ctx.P), map.idx); map.trust = EE.trustworthiness(D, map.Y, kTrust(D.n)); map.k = kTrust(D.n); }
+        if (map.trust === undefined) {
+            const D0 = dissim(M.ctx.P), posOf = new Map(M.Didx.map((o, q) => [o, q])), rowsIn = [];
+            map.idx.forEach((o, r) => { if (posOf.has(o) && rowsIn.length < 2000) rowsIn.push(r); });
+            const D = subset(D0, rowsIn.map(r => posOf.get(map.idx[r])));
+            map.trust = EE.trustworthiness(D, rowsIn.map(r => map.Y[r]), kTrust(D.n)); map.k = kTrust(D.n);
+        }
         return map.trust;
     }
     async function compute(kind) {
@@ -82,7 +91,9 @@
         const P = M.ctx.P, D0 = dissim(P);
         if (!D0) return;
         M.busy = true;
-        const idx = sampleIdx(D0.n, LIMIT[kind], P.seed), D = subset(D0, idx);
+        // t-SNE and UMAP work from the dissimilarities (positions within them); the autoencoder from the records
+        const pos = kind === 'ae' ? null : sampleIdx(D0.n, LIMIT[kind], P.seed), D = pos ? subset(D0, pos) : null;
+        const idx = pos ? pos.map(q => M.Didx[q]) : sampleIdx(P.rows.length, LIMIT.ae, P.seed);
         const status = $('map-status');
         try {
             if (kind === 'tsne') {

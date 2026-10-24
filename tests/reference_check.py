@@ -176,6 +176,13 @@ chk('Autoencoder training, 30 Adam steps with weight decay and missing values: l
 chk('Autoencoder training: weights after 30 steps (vs NumPy)', np.concatenate([np.ravel(L['W']) for L in nn['final']] + [np.ravel(L['b']) for L in nn['final']]), np.concatenate([W.ravel() for W in Ws] + [b.ravel() for b in bs]), 1e-11)
 ev = PCA().fit(X).explained_variance_ * (n - 1) / n; Zs = (X - X.mean(0)) / X.std(0); evz = PCA().fit(Zs).explained_variance_ * (n - 1) / n
 chk('Linear autoencoder reaches the PCA reconstruction error (bottleneck 1 and 2; Baldi & Hornik 1989)', nn['linLoss'], [evz[1:].sum() / 3, evz[2:].sum() / 3], 1e-5)
+# Self-organising map without neighbourhood = k-means; weighted k-means (vs scikit-learn, same start)
+sm = o['som']
+kmS = KMeans(3, init=np.array(sm['init']), n_init=1, algorithm='lloyd', tol=0, max_iter=1000).fit(X)
+chk('Self-organising map with no neighbourhood equals k-means from the same start: prototypes (vs scikit-learn)', np.array(sm['W']), kmS.cluster_centers_, 1e-9)
+kmW = KMeans(3, init=np.array(sm['init']), n_init=1, algorithm='lloyd', tol=0, max_iter=1000).fit(X, sample_weight=np.array(sm['wts'], float))
+srt = lambda C: np.array(sorted(np.array(C).tolist()))
+chk('Weighted k-means for the map units: centres (vs scikit-learn with sample weights)', srt(sm['wkCentres']), srt(kmW.cluster_centers_), 1e-9)
 # R: Gower (daisy), PAM
 rs = shutil.which('Rscript')
 if rs:

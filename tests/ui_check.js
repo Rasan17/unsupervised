@@ -41,6 +41,7 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
             await p.click('#check-next');
         }
         const advice = await p.locator('#method-advice').innerText();
+        check(await p.isDisabled('#method-neural') && /needs at least 1,000 records, so it is not offered for these data \(360\)/.test(advice), `${name}: the neural network is not offered for 360 patients, and the advisor states the minimum of 1,000 records`);
         check(/Suggested for these data: k-medoids \(PAM\)/.test(advice) && (await p.inputValue('#method')) === 'pam-gower', `${name}: method advisor suggests and preselects PAM / Gower for these mixed data`);
         if (method) { await p.selectOption('#method', method); await p.selectOption('#missing', missing); }
         else check(!(await p.isDisabled('#gower-weights')) && (await p.inputValue('#gower-weights')) === 'balanced', `${name}: PAM / Gower uses balanced weighting by default`);
@@ -144,6 +145,32 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         check(/1 patient\(s\) will be left out/.test(await p.locator('#check-summary').innerText()), `${name}: excluding a patient is summarised`);
         await p.click('#check-next'); await p.click('#explore-btn'); await p.waitForSelector('#describe-btn', { timeout: 300000 });
         check(/1 patient\(s\) were left out after the data checks/.test(await p.locator('#explore-out .lead').innerText()) && await p.evaluate(() => window.UMEApp.state.explore.P.rows.length) === 359, `${name}: the exclusion is applied to the analysis (359 patients)`);
+        check(errs.length === 0, `${name}: no page errors${errs.length ? ': ' + errs.join(' | ') : ''}`);
+        await p.close();
+    }
+    // Large administrative dataset: 8,000 referrals with the neural network (self-organising map)
+    {
+        const name = 'referral patterns (8,000 records)', p = await browser.newPage({ viewport: { width: 1200, height: 900 } });
+        const errs = []; p.on('pageerror', e => errs.push(String(e))); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
+        await p.goto(url); await p.click('#demo-referrals'); await p.waitForSelector('#var-table table');
+        await p.click('#to-check'); await p.click('#check-btn'); await p.waitForSelector('#check-out h3', { timeout: 600000 });
+        const rc = await p.locator('#check-out').innerText(), nU = Number((rc.match(/Unusual patients \((\d+)/) || [])[1]);
+        check(/Possible data errors \(0\)/.test(rc) && nU <= 80 && /computed record by record/.test(rc), `${name}: data checks on 8,000 records: no false data errors, ${nU} unusual records (at most 1%), local density computed record by record`);
+        await p.click('#check-next');
+        const adv = await p.locator('#method-advice').innerText();
+        check((await p.inputValue('#method')) === 'neural' && /suitable at this size \(8,000 records; it needs at least 1,000/.test(adv) && await p.isDisabled('#method-pam') && await p.isDisabled('#method-ward'), `${name}: the advisor suggests the neural network, states the minimum, and PAM and Ward are not offered`);
+        await p.selectOption('#missing', 'gower'); await p.selectOption('#kmax', '6');
+        const t0 = Date.now(); await p.click('#explore-btn'); await p.waitForSelector('#describe-btn', { timeout: 600000 });
+        const lead = await p.locator('#explore-out .lead').innerText();
+        check(/Self-organising map of \d+ x \d+ units/.test(lead) && /random sample of 2,000 of the 8,000 records/.test(lead), `${name}: map trained and silhouettes on a sample (${((Date.now() - t0) / 1000).toFixed(1)} s)`);
+        const ari5 = await p.evaluate(() => { const S = window.UMEApp.state, t = S.explore.P.rows.map(r => r.Simulated_Referral_Pattern), lv = [...new Set(t)], r5 = S.explore.res.find(r => r.k === 5); return window.ClusterEngine.adjustedRand(r5.labels, t.map(x => lv.indexOf(x))); });
+        check(ari5 >= 0.7, `${name}: 5 groups recover the simulated referral patterns (adjusted Rand ${ari5.toFixed(2)})`);
+        await p.selectOption('#k-choice', '5'); await p.click('#describe-btn'); await p.waitForSelector('#to-use', { timeout: 600000 });
+        check((await p.locator('#clusters-out svg[aria-label="Self-organising map of the records coloured by cluster"]').count()) === 1, `${name}: the self-organising map is drawn`);
+        await p.click('#to-use'); await p.waitForSelector('#np-go');
+        const j = await p.evaluate(() => window.UMEApp.state.explore.P.specs.findIndex(sp => sp.col === 'Urgency'));
+        await p.selectOption(`#np-${j}`, 'Two-week wait'); await p.click('#np-go');
+        check(/By the self-organising map:/.test(await p.locator('#np-out').innerText()), `${name}: a new referral is classified by the map`);
         check(errs.length === 0, `${name}: no page errors${errs.length ? ': ' + errs.join(' | ') : ''}`);
         await p.close();
     }

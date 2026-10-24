@@ -3,7 +3,7 @@
 // browser; every value from the data is escaped before display.
 (function () {
     'use strict';
-    const DE = window.DataEngine, CE = window.ClusterEngine, CH = window.UMECharts, esc = CH.esc;
+    const DE = window.DataEngine, CE = window.ClusterEngine, NN = window.NNEngine, CH = window.UMECharts, esc = CH.esc;
     const $ = id => document.getElementById(id);
     const yieldUI = () => new Promise(r => setTimeout(r, 0));
     const S = { data: null, vars: {}, prep: null, explore: null, result: null };
@@ -16,10 +16,16 @@
         'kmeans': { name: 'k-means on standardised variables', short: 'k-means', note: 'For numerical variables; categories are coded 0/1. Assumes roughly round clusters of similar spread.' },
         'ward': { name: 'Hierarchical clustering (Ward) on standardised variables', short: 'Hierarchical (Ward)', note: 'Builds a tree of nested groupings; cutting it gives the clusters. Similar to k-means; needs no random start.' },
         'lca': { name: 'Latent class analysis (model-based; numbers, grades and categories)', short: 'Latent class', note: 'A statistical model: each class has its own distribution of every variable (averages and spreads for numbers, proportions for grades and categories). Gives each patient a probability of belonging to each class and BIC to compare numbers of classes; uses the recorded values directly when some are missing. Widely used for clinical phenotypes. Assumes the variables are unrelated within a class, so strongly related variables can create extra classes.' },
+        'neural': { name: 'Neural network: self-organising map (at least 1,000 records)', short: 'Neural network (SOM)', note: 'A self-organising map (Kohonen) is a neural network that arranges the records on a grid of units, similar records on the same or neighbouring units, so it also gives a map of the patterns (for example of referral patterns). The units are then grouped with k-means weighted by the records they hold (Vesanto & Alhoniemi 2000). Numbers, grades and categories are used; missing values are left out of the distances. Suited to large administrative datasets: it is not offered below 1,000 records and works best with 5,000 or more. The map is trained once on all records; the stability check regroups its units in bootstrap resamples.' },
         'gmm': { name: 'Gaussian mixture model (numerical variables only)', short: 'Gaussian mixture', note: 'Allows clusters of different size and spread, with BIC to compare numbers of clusters. Only meaningful for numerical variables (yes/no and graded variables make BIC unreliable).' }
     };
 
     const MICE_M = 5;   // number of imputed datasets
+    // Large datasets: dissimilarities between every pair of patients (silhouettes, maps, PAM, Ward) need n x n
+    // memory, so above SAMPLE_MAX they are computed on a random sample of SAMPLE_N patients
+    const SAMPLE_MAX = 3000, SAMPLE_N = 2000;
+    // Neural-network clustering: not offered below NEURAL_MIN records; suggested from NEURAL_GOOD
+    const NEURAL_MIN = 1000, NEURAL_GOOD = 5000;
 
     // ------------------------------------------------------------------------------------- step navigation
     function goTo(step) {
@@ -111,6 +117,9 @@
         renderAdvice(used);
         const onlyNumbers = used.every(h => S.vars[h].type === 'continuous');
         $('method-gmm').disabled = !onlyNumbers;
+        const nRec = includedRows().length;
+        $('method-neural').disabled = nRec < NEURAL_MIN; $('method-pam').disabled = nRec > SAMPLE_MAX; $('method-ward').disabled = nRec > SAMPLE_MAX;
+        ['neural', 'pam-gower', 'ward'].forEach(m => { if ($('method').value === m && $('method' + (m === 'pam-gower' ? '-pam' : '-' + m)).disabled) $('method').value = nRec > SAMPLE_MAX ? 'lca' : 'pam-gower'; });
         if (!onlyNumbers && $('method').value === 'gmm') $('method').value = 'pam-gower';
         $('gower-weights').disabled = !['pam-gower', 'lca'].includes($('method').value);
         $('method-hint').textContent = METHOD[$('method').value].note + (onlyNumbers ? '' : ' (Gaussian mixtures need numerical variables only.)');
@@ -122,6 +131,7 @@
         const miss = used.reduce((a, h) => a + S.data.rows.filter(r => DE.isMissing(r[h]) || (S.vars[h].type === 'continuous' && !Number.isFinite(Number(r[h])))).length, 0) / Math.max(1, n * used.length);
         const missText = miss > 0.05 ? ` About ${Math.round(100 * miss)}% of the values are missing.` : '';
         if (!used.length) return null;
+        if (n >= NEURAL_GOOD) return { method: 'neural', why: `A large dataset (${n.toLocaleString('en-GB')} records): a neural network (self-organising map) arranges the records on a map of similar patterns and groups its units, which suits large administrative data with variables of mixed types. Confirm the groups with k-means or latent class analysis: patterns that appear with both are more convincing.${missText}` };
         if (!nCat && miss <= 0.05) return { method: 'kmeans', why: `All ${used.length} clustering variables are numbers and few values are missing: k-means on standardised variables is simple and efficient. Latent class analysis (latent profiles) or a Gaussian mixture also allow clusters of different spread and give membership probabilities.` };
         if (!nCat) return { method: 'lca', why: `All clustering variables are numbers, but some values are missing.${missText} Latent class analysis (latent profiles) uses each patient's recorded values directly, without filling them in.` };
         if (nCat >= nCont) return { method: 'lca', why: `Most clustering variables are categories or grades (${nCat} of ${used.length}): latent class analysis is designed for these, gives each patient's probability of belonging to each class, and uses recorded values directly when some are missing.${missText}` };
@@ -132,19 +142,24 @@
         const a = advise(used), box = $('method-advice');
         if (!a) { box.innerHTML = ''; return; }
         if (!S.methodTouched && $('method').value !== a.method && !(a.method === 'gmm' && $('method-gmm').disabled)) { $('method').value = a.method; }
-        box.innerHTML = `<p><strong>Suggested for these data: ${esc(METHOD[a.method].name)}.</strong> ${esc(a.why)}${$('method').value === a.method ? '' : ` <button id="use-advice" class="btn small" type="button">Use it</button>`}</p><p class="muted small">Tip: repeat the analysis with a second method. Sub-groups that appear with both are more convincing.</p>`;
+        const n = includedRows().length, nTxt = n.toLocaleString('en-GB');
+        const neuralNote = n < NEURAL_MIN ? `Neural-network clustering needs at least ${NEURAL_MIN.toLocaleString('en-GB')} records, so it is not offered for these data (${nTxt}): with fewer records a network learns the noise of these particular patients and its groups change from run to run.`
+            : n < NEURAL_GOOD ? `Neural-network clustering is available (at least ${NEURAL_MIN.toLocaleString('en-GB')} records; these data have ${nTxt}), but below about ${NEURAL_GOOD.toLocaleString('en-GB')} records simpler methods are usually as good and more stable.`
+                : `Neural-network clustering is suitable at this size (${nTxt} records; it needs at least ${NEURAL_MIN.toLocaleString('en-GB')} and works best from ${NEURAL_GOOD.toLocaleString('en-GB')}).`;
+        const sizeNote = n > SAMPLE_MAX ? ` With more than ${SAMPLE_MAX.toLocaleString('en-GB')} records, PAM and Ward are not offered (they need the dissimilarity of every pair of records), and silhouettes and maps use a random sample of ${SAMPLE_N.toLocaleString('en-GB')} records.` : '';
+        box.innerHTML = `<p><strong>Suggested for these data: ${esc(METHOD[a.method].name)}.</strong> ${esc(a.why)}${$('method').value === a.method ? '' : ` <button id="use-advice" class="btn small" type="button">Use it</button>`}</p><p class="small">${esc(neuralNote + sizeNote)}</p><p class="muted small">Tip: repeat the analysis with a second method. Sub-groups that appear with both are more convincing.</p>`;
         const b = $('use-advice'); if (b) b.addEventListener('click', () => { $('method').value = a.method; S.methodTouched = true; updateVarSummary(); });
     }
 
     // ------------------------------------------------------------------------------------- data preparation
     function prepare() {
-        const method = $('method').value, missing = $('missing').value, gowerWeights = $('gower-weights').value, cols = S.data.headers.filter(h => S.vars[h].role === 'cluster');
+        const method = $('method').value, missingChoice = $('missing').value, missing = method === 'neural' && missingChoice === 'mice' ? 'gower' : missingChoice, gowerWeights = $('gower-weights').value, cols = S.data.headers.filter(h => S.vars[h].role === 'cluster');
         const describeCols = S.data.headers.filter(h => S.vars[h].role === 'describe');
         const specs = cols.map(h => ({ col: h, type: S.vars[h].type, levels: S.vars[h].type === 'continuous' ? null : levelsOf(h) }));
         let rows = includedRows();
         const isMiss = (r, h) => DE.isMissing(r[h]) || (S.vars[h].type === 'continuous' && !Number.isFinite(Number(r[h])));
         const nAll = rows.length;
-        if (missing === 'complete' || (missing === 'gower' && method !== 'pam-gower' && method !== 'lca')) rows = rows.filter(r => cols.every(h => !isMiss(r, h)));
+        if (missing === 'complete' || (missing === 'gower' && method !== 'pam-gower' && method !== 'lca' && method !== 'neural')) rows = rows.filter(r => cols.every(h => !isMiss(r, h)));
         let filled = 0;
         const fillVal = {};
         if (missing === 'fill') specs.forEach(s => {
@@ -155,9 +170,13 @@
         if (missing === 'fill') rows = rows.map(r => { const c = { ...r }; cols.forEach(h => { if (isMiss(r, h)) { c[h] = fillVal[h]; filled++; } }); return c; });
         if (rows.length < 10) throw new Error(`Only ${rows.length} patients remain after handling missing values; at least 10 are needed.`);
         const seed = Number($('seed').value) || 2024, pcol = $('patient-col').value;
-        const base = { manualExcluded: S.excluded ? S.excluded.size : 0, method, missing, gowerWeights, cols, describe: describeCols, specs, rows, excluded: nAll - rows.length, filled, seed,
+        if ((method === 'pam-gower' || method === 'ward') && rows.length > SAMPLE_MAX) throw new Error(`${METHOD[method].short} needs the dissimilarity of every pair of records and is limited to ${SAMPLE_MAX.toLocaleString('en-GB')} records; these data have ${rows.length.toLocaleString('en-GB')}. Choose latent class analysis, k-means or the neural network.`);
+        if (method === 'neural' && rows.length < NEURAL_MIN) throw new Error(`The neural network needs at least ${NEURAL_MIN.toLocaleString('en-GB')} records; these data have ${rows.length}.`);
+        // Random sample for the pairwise dissimilarities of large datasets (the same for every imputed dataset)
+        const sampleIdx = rows.length > SAMPLE_MAX ? (() => { const rng = CE.createPRNG(seed + 77), a = rows.map((_, i) => i); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a.slice(0, SAMPLE_N).sort((x, y) => x - y); })() : null;
+        const base = { sampleIdx, neuralMissingNote: method === 'neural' && missingChoice === 'mice', manualExcluded: S.excluded ? S.excluded.size : 0, method, missing, gowerWeights, cols, describe: describeCols, specs, rows, excluded: nAll - rows.length, filled, seed,
             groups: pcol ? rows.map(r => String(r[pcol] ?? '')) : null, patientCol: pcol, allContinuous: specs.every(s => s.type === 'continuous') };
-        if (missing !== 'mice') return { ...base, ...encode(rows, specs, method, isMiss, gowerWeights) };
+        if (missing !== 'mice') return { ...base, ...encode(rows, specs, method, isMiss, gowerWeights, sampleIdx) };
         // Multiple imputation by chained equations (predictive mean matching), from the clustering variables only:
         // outcomes kept for description must not shape the clusters. Each imputed dataset is clustered and the
         // results are combined into a consensus (Basagana et al. 2013, Am J Epidemiol).
@@ -166,7 +185,7 @@
         const missingValues = clean.reduce((a, r) => a + cols.filter(h => DE.isMissing(r[h])).length, 0);
         const missingPatients = clean.filter(r => cols.some(h => DE.isMissing(r[h]))).length;
         const mi = DE.miceImpute(clean, cfg, { m: MICE_M, iterations: 10, seed });
-        const imps = mi.datasets.map(d => encode(d, specs, method, isMiss, gowerWeights));
+        const imps = mi.datasets.map(d => encode(d, specs, method, isMiss, gowerWeights, sampleIdx));
         const P = { ...base, ...imps[0], mice: { m: MICE_M, iterations: 10, missingValues, missingPatients } };
         P.impP = imps.map(e => ({ ...P, ...e }));
         // Map: principal components of the average of the imputed (standardised) datasets
@@ -174,7 +193,7 @@
         return P;
     }
     // Raw values (for Gower and the mixed-data test) and a numerical coding (for k-means, Ward, mixtures, PCA)
-    function encode(rows, specs, method, isMiss, gowerWeights) {
+    function encode(rows, specs, method, isMiss, gowerWeights, sampleIdx = null) {
         const raw = rows.map(r => specs.map(s => (isMiss(r, s.col) ? null : (s.type === 'continuous' ? Number(r[s.col]) : String(r[s.col]).trim()))));
         const complete = raw.every(r => r.every(v => v !== null));
         let X = null, Z = null, zstat = null;
@@ -185,17 +204,30 @@
             const st = CE.standardize(X); Z = st.Z; zstat = { mean: st.mean, sd: st.sd };
         }
         // Gower is also computed for latent classes: silhouettes and the new-patient calculator use it
-        const gower = method === 'pam-gower' || method === 'lca' ? CE.gowerMatrix(raw, specs.map(s => ({ type: s.type, levels: s.levels })), { weights: gowerWeights === 'balanced' ? 'balanced' : null }) : null;
-        const euclid = Z && method !== 'pam-gower' ? CE.euclideanMatrix(Z) : null;
+        const take = A => (sampleIdx ? sampleIdx.map(i => A[i]) : A);
+        const gower = method === 'pam-gower' || method === 'lca' || method === 'neural' ? CE.gowerMatrix(take(raw), specs.map(s => ({ type: s.type, levels: s.levels })), { weights: gowerWeights === 'balanced' ? 'balanced' : null }) : null;
+        const euclid = Z && !gower ? CE.euclideanMatrix(take(Z)) : null;
         return { raw, X, Z, zstat, colNames, gower, euclid, D: gower || euclid };
     }
     const lcaVars = P => P.specs.map(s => ({ type: s.type, levels: s.levels }));
     const modelBased = P => P.method === 'gmm' || P.method === 'lca';
+    // Silhouette on the dissimilarities (on the random sample for large datasets)
+    const sampleLabels = (P, labels) => (P.sampleIdx ? P.sampleIdx.map(i => labels[i]) : labels);
+    const silOf = (Q, labels) => CE.silhouette(Q.D, sampleLabels(Q, labels));
+    // Neural network (self-organising map): trained once on all records (missing values left out of the distances);
+    // its units are grouped by weighted k-means for the full fit and for every bootstrap resample
+    async function trainNeural(P) {
+        const vars = P.specs.map(s => ({ name: s.col, type: s.type, levels: s.levels })), coded = NN.codeData(P.raw, vars);
+        status('explore-status', `Training the self-organising map on ${P.rows.length.toLocaleString('en-GB')} records…`); await yieldUI();
+        const map = NN.som(coded.X, coded.M, {});
+        P.neural = { map, coded, grid: `${map.rows} x ${map.cols}`, units: map.rows * map.cols, epochs: map.epochs, qe: map.qe, te: map.te };
+    }
     // Clustering of a subset of the patients (indices into P.rows), for the main fit and for bootstrap resamples
     function clusterIdx(P, k, idx, seed) {
         const sub = M => { const m = idx.length, D = new Float64Array(m * m); for (let a = 0; a < m; a++) for (let b = 0; b < m; b++) D[a * m + b] = M.D[idx[a] * M.n + idx[b]]; return { n: m, D }; };
         if (P.method === 'pam-gower') return CE.pam(sub(P.gower), k).labels;
         if (P.method === 'kmeans') return CE.kmeans(idx.map(i => P.Z[i]), k, { seed, nInit: 5 }).labels;
+        if (P.method === 'neural') { const m = P.neural.map, w = new Array(m.W.length).fill(0); idx.forEach(i => { w[m.bmu[i]]++; }); const g = NN.weightedKmeans(m.W, w, k, { seed, nInit: 5 }); return idx.map(i => g.labels[m.bmu[i]]); }
         if (P.method === 'ward') return CE.cutTree(CE.hierarchical(sub(P.euclid), 'ward'), idx.length, k);
         // Bootstrap refits: fewer starts and a looser convergence criterion (the classes, not the last decimals, matter)
         if (P.method === 'lca') return CE.lca(idx.map(i => P.raw[i]), lcaVars(P), k, { nInit: 3, seed, tol: 1e-6, maxIter: 300 }).labels;
@@ -204,6 +236,7 @@
     function fitOne(P, k) {
         const all = P.rows.map((_, i) => i);
         if (P.method === 'gmm') { const g = CE.gmm(P.Z, k, { covType: 'diag', nInit: 5, seed: P.seed }); return { labels: g.labels, bic: g.bic }; }
+        if (P.method === 'neural') { const m = P.neural.map, g = NN.weightedKmeans(m.W, m.hits, k, { seed: P.seed, nInit: 10 }); return { labels: m.bmu.map(u => g.labels[u]), centroids: g.centres, unitLabels: g.labels }; }
         if (P.method === 'lca') { const m = CE.lca(P.raw, lcaVars(P), k, { nInit: 10, seed: P.seed, tol: 1e-8, maxIter: 1000 }); return { labels: m.labels, bic: m.bic, entropy: m.entropy, posterior: m.posterior, model: m.model }; }
         return { labels: clusterIdx(P, k, all, P.seed) };
     }
@@ -211,7 +244,15 @@
     // proportion of imputed datasets in which two patients are NOT in the same cluster.
     function fullFit(P, k) {
         if (!P.impP) return fitOne(P, k);
-        const fits = P.impP.map(Q => fitOne(Q, k)), n = P.rows.length, m = fits.length, D = new Float64Array(n * n);
+        const fits = P.impP.map(Q => fitOne(Q, k)), n = P.rows.length, m = fits.length;
+        if (n > SAMPLE_MAX) {
+            // Large datasets: align each imputed dataset's clusters to the first (greatest overlap) and take the majority
+            const ref = fits[0].labels, aligned = fits.map(f => { const tab = Array.from({ length: k }, () => new Array(k).fill(0)); f.labels.forEach((l, i) => { tab[l][ref[i]]++; }); const map = new Array(k).fill(-1), used = new Set(); tab.flatMap((row, a) => row.map((v, b) => [v, a, b])).sort((x, y) => y[0] - x[0]).forEach(([, a, b]) => { if (map[a] < 0 && !used.has(b)) { map[a] = b; used.add(b); } }); return f.labels.map(l => map[l]); });
+            const voted = ref.map((_, i) => { const c = new Array(k).fill(0); aligned.forEach(a => { c[a[i]]++; }); return c.indexOf(Math.max(...c)); });
+            const labels = CE.relabelBySize({ labels: voted }).labels;
+            return { labels, bic: modelBased(P) ? fits.reduce((a, f) => a + f.bic, 0) / m : undefined, entropy: P.method === 'lca' ? fits.reduce((a, f) => a + f.entropy, 0) / m : undefined, agreement: fits.reduce((a, f) => a + CE.adjustedRand(f.labels, labels), 0) / m };
+        }
+        const D = new Float64Array(n * n);
         for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) { let apart = 0; fits.forEach(f => { if (f.labels[a] !== f.labels[b]) apart++; }); D[a * n + b] = D[b * n + a] = apart / m; }
         const labels = CE.pam({ n, D }, k).labels;
         return { labels, bic: modelBased(P) ? fits.reduce((a, f) => a + f.bic, 0) / m : undefined, entropy: P.method === 'lca' ? fits.reduce((a, f) => a + f.entropy, 0) / m : undefined,
@@ -228,6 +269,7 @@
         let P;
         try { P = prepare(); } catch (e) { status('explore-status', e.message, 'bad'); return; }
         S.prep = P; S.result = null;
+        if (P.method === 'neural') { $('explore-btn').disabled = true; try { await trainNeural(P); } catch (e) { status('explore-status', `The neural network could not be trained: ${e.message}`, 'bad'); $('explore-btn').disabled = false; return; } }
         const kMax = Math.min(Number($('kmax').value) || 8, P.rows.length - 1), ks = []; for (let k = 2; k <= kMax; k++) ks.push(k);
         $('explore-out').innerHTML = ''; $('explore-btn').disabled = true;
         const res = [];
@@ -235,11 +277,11 @@
             for (const k of ks) {
                 status('explore-status', `Fitting ${k} clusters, with a quick stability check (${METHOD[P.method].short})…`); await yieldUI();
                 const fit = fullFit(P, k);
-                const sil = pooled(P, Q => CE.silhouette(Q.D, fit.labels).mean);
+                const sil = pooled(P, Q => silOf(Q, fit.labels).mean);
                 const stab = CE.bootstrapStability(P.rows.length, fit.labels, resampleFn(P, k, 1), { B: 25, seed: P.seed, groups: P.groups });
                 const sizes = new Array(k).fill(0); fit.labels.forEach(l => { sizes[l]++; });
                 res.push({ k, labels: fit.labels, silhouette: sil, minJaccard: Math.min(...stab.perCluster.map(c => c.meanJaccard ?? 0)), meanJaccard: stab.perCluster.reduce((a, c) => a + (c.meanJaccard ?? 0), 0) / k,
-                    ch: P.Z ? pooled(P, Q => CE.calinskiHarabasz(Q.Z, fit.labels)) : null, db: P.Z ? pooled(P, Q => CE.daviesBouldin(Q.Z, fit.labels)) : null, bic: fit.bic ?? null, entropy: fit.entropy ?? null, posterior: fit.posterior ?? null, model: fit.model ?? null, smallest: Math.min(...sizes), agreement: fit.agreement ?? null });
+                    ch: P.Z ? pooled(P, Q => CE.calinskiHarabasz(Q.Z, fit.labels)) : null, db: P.Z ? pooled(P, Q => CE.daviesBouldin(Q.Z, fit.labels)) : null, bic: fit.bic ?? null, centroids: fit.centroids ?? null, unitLabels: fit.unitLabels ?? null, entropy: fit.entropy ?? null, posterior: fit.posterior ?? null, model: fit.model ?? null, smallest: Math.min(...sizes), agreement: fit.agreement ?? null });
             }
             let gap = null;
             if (P.Z && (P.method === 'kmeans' || P.method === 'ward')) { status('explore-status', 'Gap statistic (comparison with reference data without clusters)…'); await yieldUI(); gap = CE.gapStatistic(P.Z, kMax, { B: 30, seed: P.seed, nInit: 3 }); }
@@ -275,7 +317,7 @@
         const charts = CH.lineChart({ series: [{ name: 'Average silhouette', cls: 0, points: res.map(r => ({ x: r.k, y: r.silhouette })) }, { name: 'Stability (lowest cluster Jaccard)', cls: 1, points: res.map(r => ({ x: r.k, y: r.minJaccard })) }], xLabel: 'Number of clusters', yLabel: 'Value', aria: 'Silhouette and stability by number of clusters' })
             + CH.legend(['Average silhouette', 'Stability (lowest cluster Jaccard)']);
         $('explore-out').innerHTML = `
-            <p class="lead">${esc(sug.text)} ${P.manualExcluded ? `${P.manualExcluded} patient(s) were left out after the data checks. ` : ''}${P.excluded ? `${P.excluded} patient(s) with missing values were left out.` : ''}${P.filled ? ` ${P.filled} missing value(s) were filled with the median or most frequent value.` : ''}${P.mice ? ` Missing values (${P.mice.missingValues}, in ${P.mice.missingPatients} patients) were multiply imputed: ${P.mice.m} imputed datasets by chained equations with predictive mean matching, from the clustering variables only; each dataset was clustered and the results combined into a consensus.${gap ? ' The gap statistic uses the first imputed dataset.' : ''}` : ''}</p>
+            <p class="lead">${esc(sug.text)} ${P.manualExcluded ? `${P.manualExcluded} patient(s) were left out after the data checks. ` : ''}${P.excluded ? `${P.excluded} patient(s) with missing values were left out.` : ''}${P.filled ? ` ${P.filled} missing value(s) were filled with the median or most frequent value.` : ''}${P.mice ? ` Missing values (${P.mice.missingValues}, in ${P.mice.missingPatients} patients) were multiply imputed: ${P.mice.m} imputed datasets by chained equations with predictive mean matching, from the clustering variables only; each dataset was clustered and the results combined into a consensus.${gap ? ' The gap statistic uses the first imputed dataset.' : ''}` : ''}${P.neural ? ` Self-organising map of ${P.neural.grid} units (${(P.rows.length / P.neural.units).toFixed(0)} records per unit on average), trained for ${P.neural.epochs} epochs; topographic error ${(100 * P.neural.te).toFixed(1)}% (records whose two closest units are not neighbours on the map; low is good). Its units are grouped by k-means weighted by the records they hold.${P.neuralMissingNote ? ' (The map handles missing values itself, so the recorded values were used instead of multiple imputation.)' : ''}` : ''}${P.sampleIdx ? ` Silhouettes use a random sample of ${P.sampleIdx.length.toLocaleString('en-GB')} of the ${P.rows.length.toLocaleString('en-GB')} records.` : ''}</p>
             <div class="grid2"><div>${charts}</div><div class="muted small">
                 <p><strong>Average silhouette</strong>: how clearly patients sit in their own cluster rather than the nearest other one (above 0.5 strong, 0.25–0.5 weak, below 0.25 little structure).</p>
                 <p><strong>Stability</strong>: the clustering is repeated on 25 bootstrap resamples; the lowest mean Jaccard similarity of any cluster to its counterpart (0.75 or more: stable; below 0.5: that cluster does not reproduce).</p>
@@ -309,10 +351,10 @@
                 const tests = P.impP.map(testOne).sort((a, b) => a.pValue - b.pValue), mid = tests[Math.floor(tests.length / 2)];
                 test = { ...mid, pooled: { m: tests.length, min: tests[0].pValue, max: tests[tests.length - 1].pValue } };
             }
-            const sils = (P.impP || [P]).map(Q => CE.silhouette(Q.D, labels));
-            const sil = { mean: sils.reduce((a, x) => a + x.mean, 0) / sils.length, values: labels.map((_, i) => sils.reduce((a, x) => a + x.values[i], 0) / sils.length) };
+            const sils = (P.impP || [P]).map(Q => silOf(Q, labels)), sLab = sampleLabels(P, labels);
+            const sil = { mean: sils.reduce((a, x) => a + x.mean, 0) / sils.length, values: sLab.map((_, i) => sils.reduce((a, x) => a + x.values[i], 0) / sils.length), labels: sLab };
             const pca = P.Z ? CE.pca(P.Zmap || P.Z, 2) : null;
-            S.result = { k, labels, stab, test, sil, pca, posterior: ex.posterior, model: ex.model, entropy: ex.entropy };
+            S.result = { k, labels, stab, test, sil, pca, posterior: ex.posterior, model: ex.model, entropy: ex.entropy, neural: P.neural ? { ...P.neural, centroids: ex.centroids, unitLabels: ex.unitLabels } : null };
             renderClusters();
             status('clusters-status', '');
             enableTabs(8);
@@ -348,6 +390,16 @@
         return `<div class="table-wrap"><table class="profile"><thead><tr><th>Variable</th>${groups.map((g, c) => `<th><i class="sw s${c}"></i>${esc(head(c))}<div class="muted">n = ${g.length}</div></th>`).join('')}<th>All<div class="muted">n = ${n}</div></th><th>p (describe-only variables)</th></tr></thead><tbody>${rowsOut.join('')}</tbody></table></div>
             <p class="muted small">${opts.only === 'describe' ? 'P-values: Kruskal–Wallis test (numbers, grades) or chi-square test (categories); with several variables, some small p-values occur by chance. Differences in outcome support, but do not prove, that the classes are clinically meaningful.</p>' : ''}${opts.only === 'describe' ? '<p hidden>' : '<p class="muted small">'}Variables used to form the clusters differ between clusters by construction, so no p-values are shown for them. For variables used only to describe the clusters (shaded), p-values come from the Kruskal–Wallis test (numbers, grades) or the chi-square test (categories); with several variables, some small p-values occur by chance.</p>`;
     }
+    // The self-organising map as a grid of units coloured by cluster, intensity by the records they hold
+    function somChart(nn) {
+        const m = nn.map, cell = Math.max(12, Math.min(30, Math.floor(440 / Math.max(m.rows, m.cols)))), W = m.cols * cell, H = m.rows * cell, maxHits = Math.max(...m.hits);
+        let g = `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Self-organising map of the records coloured by cluster">`;
+        m.pos.forEach(([r, c], u) => {
+            const hits = m.hits[u], op = hits ? (0.25 + 0.75 * Math.sqrt(hits / maxHits)).toFixed(2) : 1;
+            g += `<rect class="${hits ? `bar s${nn.unitLabels[u] % 8}` : 'pt na'}" x="${c * cell + 1}" y="${r * cell + 1}" width="${cell - 2}" height="${cell - 2}" rx="2" fill-opacity="${op}"><title>Unit ${u + 1}: ${hits} record(s)${hits ? `, cluster ${nn.unitLabels[u] + 1}` : ''}</title></rect>`;
+        });
+        return g + '</svg>';
+    }
     function renderClusters() {
         const { P } = S.explore, { k, labels, stab, test, sil, posterior } = S.result;
         const certainty = posterior ? Array.from({ length: k }, (_, c) => { const idx = labels.map((l, i) => (l === c ? i : -1)).filter(i => i >= 0); return idx.reduce((a, i) => a + posterior[i][c], 0) / Math.max(1, idx.length); }) : null;
@@ -371,11 +423,12 @@
                 </div>
                 <div><h3>Map of the patients</h3><div id="map-panel"></div></div>
             </div>
+            ${S.result.neural && S.result.neural.unitLabels ? `<h3>The self-organising map</h3><div class="grid2"><div>${somChart(S.result.neural)}${CH.legend(Array.from({ length: k }, (_, c) => `Cluster ${c + 1}`))}</div><div class="muted small"><p>Each square is a unit of the map: records with similar values fall on the same or neighbouring units. Colour: the cluster of the unit; the stronger the colour, the more records it holds (hover for the number). Clusters that touch on the map are similar; units without records are left grey.</p></div></div>` : ''}
             <h3>Dimensions of the data: what drives the differences between patients</h3>
             <div id="dims-panel"></div>
             <h3>How well each patient fits (silhouette)</h3>
-            <div class="sil">${CH.silhouettePlot({ values: sil.values, labels, aria: 'Silhouette width of each patient by cluster' })}</div>
-            <p class="muted small">Average silhouette ${f3(sil.mean)}${P.mice ? ' (averaged over the imputed datasets)' : ''}. Silhouette width: 1 = clearly in its own cluster, 0 = between two clusters, below 0 = closer to another cluster than to its own.</p>
+            <div class="sil">${CH.silhouettePlot({ values: sil.values, labels: sil.labels || labels, aria: 'Silhouette width of each patient by cluster' })}</div>
+            <p class="muted small">Average silhouette ${f3(sil.mean)}${P.mice ? ' (averaged over the imputed datasets)' : ''}${P.sampleIdx ? ` (random sample of ${P.sampleIdx.length.toLocaleString('en-GB')} records)` : ''}. Silhouette width: 1 = clearly in its own cluster, 0 = between two clusters, below 0 = closer to another cluster than to its own.</p>
             <h3>Clinical profile of the clusters</h3>
             ${profileTable()}
             <div class="row"><button id="to-use" class="btn primary" type="button">Next: use the clusters</button><button id="export-btn" class="btn" type="button">Download patients with their cluster (.CSV)</button></div>`;
@@ -403,6 +456,7 @@
         $('demo-phenotypes').addEventListener('click', () => loadDemo('demo_inph_phenotypes.csv'));
         $('demo-none').addEventListener('click', () => loadDemo('demo_no_subtypes.csv'));
         $('demo-errors').addEventListener('click', () => loadDemo('demo_inph_with_errors.csv'));
+        $('demo-referrals').addEventListener('click', () => loadDemo('demo_referrals.csv'));
         $('to-step3').addEventListener('click', () => { enableTabs(4); goTo(4); });
         $('to-check').addEventListener('click', () => { enableTabs(4); goTo(3); renderChecks(); });
         $('check-btn').addEventListener('click', () => { renderChecks(); window.UMEChecks.start(); });
