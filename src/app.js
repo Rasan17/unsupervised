@@ -221,7 +221,11 @@
         if (method === 'neural' && rows.length < NEURAL_MIN) throw new Error(`The neural network needs at least ${NEURAL_MIN.toLocaleString('en-GB')} records; these data have ${rows.length}.`);
         // Random sample for the pairwise dissimilarities of large datasets (the same for every imputed dataset)
         const sampleIdx = rows.length > SAMPLE_MAX ? (() => { const rng = CE.createPRNG(seed + 77), a = rows.map((_, i) => i); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a.slice(0, SAMPLE_N).sort((x, y) => x - y); })() : null;
-        const base = { rowIds: rows.map(r => r.__row), sampleIdx, neuralMissingNote: method === 'neural' && missingChoice === 'mice', manualExcluded: S.excluded ? S.excluded.size : 0, method, missing, gowerWeights, cols, describe: describeCols, specs, rows, excluded: nAll - rows.length, filled, seed,
+        // Records with a clustering value that was not recorded: imputed (filled or multiply imputed) or, with methods
+        // that use recorded values only, left out of that record's distances
+        const incomplete = rows.map(r => cols.some(h => isMiss(S.data.rows[r.__row], h)));
+        const incompleteKind = missing === 'fill' || missing === 'mice' ? 'imputed' : missing === 'complete' ? null : 'missing';
+        const base = { fillVal, incomplete, incompleteKind, rowIds: rows.map(r => r.__row), sampleIdx, neuralMissingNote: method === 'neural' && missingChoice === 'mice', manualExcluded: S.excluded ? S.excluded.size : 0, method, missing, gowerWeights, cols, describe: describeCols, specs, rows, excluded: nAll - rows.length, filled, seed,
             groups: pcol ? rows.map(r => String(r[pcol] ?? '')) : null, patientCol: pcol, allContinuous: specs.every(s => s.type === 'continuous') };
         if (missing !== 'mice') return { ...base, ...encode(rows, specs, method, isMiss, gowerWeights, sampleIdx) };
         // Multiple imputation by chained equations (predictive mean matching), from the clustering variables only:
@@ -280,18 +284,20 @@
         if (P.method === 'lca') return CE.lca(idx.map(i => P.raw[i]), lcaVars(P), k, { nInit: 3, seed, tol: 1e-6, maxIter: 300 }).labels;
         return CE.gmm(idx.map(i => P.Z[i]), k, { covType: 'diag', nInit: 3, seed }).labels;
     }
-    function fitOne(P, k) {
+    async function fitOne(P, k) {
         const all = P.rows.map((_, i) => i);
         if (P.method === 'gmm') { const g = CE.gmm(P.Z, k, { covType: 'diag', nInit: 5, seed: P.seed }); return { labels: g.labels, bic: g.bic }; }
         if (P.method === 'neural') { const m = P.neural.map, g = NN.weightedKmeans(m.W, m.hits, k, { seed: P.seed, nInit: 10 }); return { labels: m.bmu.map(u => g.labels[u]), centroids: g.centres, unitLabels: g.labels }; }
-        if (P.method === 'lca') { const m = CE.lca(P.raw, lcaVars(P), k, { nInit: 10, seed: P.seed, tol: 1e-8, maxIter: 1000 }); return { labels: m.labels, bic: m.bic, entropy: m.entropy, posterior: m.posterior, model: m.model }; }
+        if (P.method === 'lca') { const m = await CE.lcaAsync(P.raw, lcaVars(P), k, { nInit: 10, seed: P.seed, tol: 1e-8, maxIter: 1000 }); return { labels: m.labels, bic: m.bic, entropy: m.entropy, posterior: m.posterior, model: m.model }; }
         return { labels: clusterIdx(P, k, all, P.seed) };
     }
     // With multiple imputation: cluster every imputed dataset, then the consensus partition is k-medoids on the
     // proportion of imputed datasets in which two patients are NOT in the same cluster.
-    function fullFit(P, k) {
+    async function fullFit(P, k) {
         if (!P.impP) return fitOne(P, k);
-        const fits = P.impP.map(Q => fitOne(Q, k)), n = P.rows.length, m = fits.length;
+        const fits = [];
+        for (const Q of P.impP) fits.push(await fitOne(Q, k));
+        const n = P.rows.length, m = fits.length;
         if (n > SAMPLE_MAX) {
             // Large datasets: align each imputed dataset's clusters to the first (greatest overlap) and take the majority
             const ref = fits[0].labels, aligned = fits.map(f => { const tab = Array.from({ length: k }, () => new Array(k).fill(0)); f.labels.forEach((l, i) => { tab[l][ref[i]]++; }); const map = new Array(k).fill(-1), used = new Set(); tab.flatMap((row, a) => row.map((v, b) => [v, a, b])).sort((x, y) => y[0] - x[0]).forEach(([, a, b]) => { if (map[a] < 0 && !used.has(b)) { map[a] = b; used.add(b); } }); return f.labels.map(l => map[l]); });
@@ -344,6 +350,12 @@
             sensitivity: R && R.sens ? R.sens.results.map(r => ({ specification: `${r.group}: ${r.label}`, patientsCompared: r.n ?? null, adjustedRand: r3(r.ari), sameCluster: r3(r.same), error: r.error || null })) : null,
             classification: window.UMEUse.summary ? window.UMEUse.summary() : null
         };
+    }
+    // R script repeating the chosen clustering with established packages, to compare with the app (src/r-script.js)
+    function downloadR() {
+        const { P } = S.explore, text = window.UMERScript.build({ S, P, R: S.result, build: BUILD, seed: P.seed });
+        const url = URL.createObjectURL(new Blob([text], { type: 'text/plain' })), a = document.createElement('a');
+        a.href = url; a.download = `repeat_in_R_${String(S.data.name).replace(/\.[^.]+$/, '').replace(/[^\w-]+/g, '_')}.R`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
     }
     function recordText(A) {
         const L = [], j = v => (v === null || v === undefined ? '–' : v);
@@ -399,7 +411,7 @@
             try {
                 const Q = prepare({ method: P.method, missing: P.missing, gowerWeights: P.gowerWeights, cols: P.cols, ...sp.o });
                 if (Q.method === 'neural') await trainNeural(Q);
-                const f = fullFit(Q, k), ids = Q.rowIds.filter(id => main.has(id)), lab = new Map(Q.rowIds.map((id, i) => [id, f.labels[i]]));
+                const f = await fullFit(Q, k), ids = Q.rowIds.filter(id => main.has(id)), lab = new Map(Q.rowIds.map((id, i) => [id, f.labels[i]]));
                 // Match the alternative's clusters to the main ones by greatest overlap
                 const kq = Math.max(...f.labels) + 1, tab = Array.from({ length: kq }, () => new Array(k).fill(0));
                 ids.forEach(id => { tab[lab.get(id)][main.get(id)]++; });
@@ -436,9 +448,9 @@
         try {
             for (const k of ks) {
                 status('explore-status', `Fitting ${k} clusters, with a quick stability check (${METHOD[P.method].short})…`); await yieldUI();
-                const fit = fullFit(P, k);
+                const fit = await fullFit(P, k);
                 const sil = pooled(P, Q => silOf(Q, fit.labels).mean);
-                const stab = CE.bootstrapStability(P.rows.length, fit.labels, resampleFn(P, k, 1), { B: 25, seed: P.seed, groups: P.groups });
+                const stab = await CE.bootstrapStabilityAsync(P.rows.length, fit.labels, resampleFn(P, k, 1), { B: 25, seed: P.seed, groups: P.groups }, (d, B) => status('explore-status', `${k} clusters (${METHOD[P.method].short}): stability check, resample ${d} of ${B}…`));
                 const sizes = new Array(k).fill(0); fit.labels.forEach(l => { sizes[l]++; });
                 const weakC = stab.perCluster.reduce((a, c) => ((c.meanJaccard ?? 0) < (a.meanJaccard ?? 0) ? c : a));
                 res.push({ k, labels: fit.labels, silhouette: sil, minCI: weakC.ciMean, minJaccard: Math.min(...stab.perCluster.map(c => c.meanJaccard ?? 0)), meanJaccard: stab.perCluster.reduce((a, c) => a + (c.meanJaccard ?? 0), 0) / k,
@@ -502,7 +514,7 @@
         try {
             status('clusters-status', `Checking stability on 100 bootstrap resamples…`); await yieldUI();
             const labels = ex.labels;
-            const stab = CE.bootstrapStability(P.rows.length, labels, resampleFn(P, k, 7), { B: 100, seed: P.seed + 1, groups: P.groups });
+            const stab = await CE.bootstrapStabilityAsync(P.rows.length, labels, resampleFn(P, k, 7), { B: 100, seed: P.seed + 1, groups: P.groups }, (d, B) => status('clusters-status', `Checking stability: bootstrap resample ${d} of ${B}…`));
             status('clusters-status', 'Testing whether the data have more structure than a single population…'); await yieldUI();
             let test = null;
             // Mixed data: categories with more than two levels enter the test with one reference level left out (their
@@ -515,11 +527,13 @@
             // the copula reference, which keeps each variable's own distribution
             const skewedVar = P.allContinuous && P.X ? P.specs.some((sp, j) => { const xs = P.X.map(r => r[j]).slice().sort((a2, b2) => a2 - b2), q = f => xs[Math.floor(f * (xs.length - 1))], lo = q(0.1), md = q(0.5), hi = q(0.9); return hi > lo && Math.abs((hi + lo - 2 * md) / (hi - lo)) > 0.2; }) : false;
             const useGaussian = P.allContinuous && !skewedVar;
-            const testOne = Q => (useGaussian ? { ...CE.nullClusterTest(Q.Z, k, { B: 99, seed: P.seed }), kind: 'gaussian' } : { ...CE.copulaNullTest(refX(Q.X), k, { B: 99, seed: P.seed, groups }), kind: 'copula', skewedNumbers: skewedVar });
-            if (P.X && !P.impP) test = testOne(P);
+            const testOne = async Q => (useGaussian ? { ...await CE.nullClusterTestAsync(Q.Z, k, { B: 99, seed: P.seed }), kind: 'gaussian' } : { ...await CE.copulaNullTestAsync(refX(Q.X), k, { B: 99, seed: P.seed, groups }), kind: 'copula', skewedNumbers: skewedVar });
+            if (P.X && !P.impP) test = await testOne(P);
             if (P.X && P.impP) {
                 // One test per imputed dataset, combined by the median p-value (Eekhout et al. 2017)
-                const tests = P.impP.map(testOne).sort((a, b) => a.pValue - b.pValue), mid = tests[Math.floor(tests.length / 2)];
+                const tests = [];
+                for (const Q of P.impP) tests.push(await testOne(Q));
+                tests.sort((a, b) => a.pValue - b.pValue); const mid = tests[Math.floor(tests.length / 2)];
                 test = { ...mid, pooled: { m: tests.length, min: tests[0].pValue, max: tests[tests.length - 1].pValue } };
             }
             const sils = (P.impP || [P]).map(Q => silOf(Q, labels)), sLab = sampleLabels(P, labels);
@@ -572,6 +586,10 @@
     }
     function renderClusters() {
         const { P } = S.explore, { k, labels, stab, test, sil, posterior } = S.result;
+        // Share of each cluster's patients with imputed (or, with recorded-values-only methods, missing) clustering values
+        const anyInc = P.incomplete && P.incompleteKind && P.incomplete.some(Boolean);
+        const impCol = anyInc ? (P.incompleteKind === 'imputed' ? 'Patients with imputed values' : 'Patients with missing values') : null;
+        const impShare = c => { const m = labels.map((l, i) => (l === c ? i : -1)).filter(i => i >= 0), x = m.filter(i => P.incomplete[i]).length; return `${Math.round(100 * x / Math.max(1, m.length))}%`; };
         const certainty = posterior ? Array.from({ length: k }, (_, c) => { const idx = labels.map((l, i) => (l === c ? i : -1)).filter(i => i >= 0); return idx.reduce((a, i) => a + posterior[i][c], 0) / Math.max(1, idx.length); }) : null;
         const sizes = new Array(k).fill(0); labels.forEach(l => { sizes[l]++; });
         const stabWord = v => (v >= 0.75 ? 'stable' : v >= 0.6 ? 'indicates a pattern' : v >= 0.5 ? 'weak' : 'not reproducible');
@@ -589,9 +607,10 @@
                 ${verdict === 'good' ? `These clusters are consistent with real sub-groups in these data (stable, and more separated than a single population); they still need replication in another cohort before clinical interpretation.${test ? ' Note: a single population with a curved or branching (non-linear) pattern can also give this result; check the map of the patients for gaps between the clusters' + (P.method === 'neural' ? ' (and the self-organising map for grey, empty units between them)' : '') + ', and the dimensions panel for a continuum.' : ''}` : verdict === 'bad' ? 'These clusters may be artefacts of the method: clustering algorithms always return clusters, even in data without sub-groups. Do not interpret them as patient sub-types.' : (conservativeMiss ? 'The clusters reproduce in resamples, but the (conservative) test did not find more separation than a single population: they may reflect modest structure or a continuum rather than distinct sub-groups. Treat them as exploratory.' : 'The evidence is mixed: treat the clusters as exploratory.')}</div>
             ${{ confirmatory: '<p class="small note">Confirmatory purpose: the sub-groups and the outcomes compared must have been specified before the analysis; report the q-values and effect sizes, and the sensitivity analysis.</p>', groundwork: '<p class="small note">Groundwork for a prediction model: clusters are not predictors of outcome by themselves; a prediction model needs its own development and validation.</p>' }[$('purpose').value] || ''}
             <div class="grid2">
-                <div><h3>Clusters</h3><div class="table-wrap"><table><thead><tr><th>Cluster</th><th>Patients</th><th>Stability (mean Jaccard, 95% interval)</th><th>Share of patients across resamples</th><th>Dissolved in</th>${certainty ? '<th>Average membership probability</th>' : ''}</tr></thead><tbody>
-                    ${stab.perCluster.map(c => `<tr><td><i class="sw s${c.cluster}"></i>Cluster ${c.cluster + 1}</td><td>${c.size} (${(100 * c.size / labels.length).toFixed(0)}%)</td><td>${f3(c.meanJaccard)}${c.ciMean ? ` <span class="muted">(${f3(c.ciMean[0])}–${f3(c.ciMean[1])})</span>` : ''} <span class="muted">${stabWord(c.meanJaccard)}${c.ciMean && c.ciMean[0] < 0.75 && c.ciMean[1] >= 0.75 ? ', borderline' : ''}</span></td><td>${c.shareRange ? `${Math.round(100 * c.shareRange[0])}–${Math.round(100 * c.shareRange[1])}%` : '–'} <span class="muted">(${(100 * c.size / labels.length).toFixed(0)}% in all data)</span></td><td>${(100 * c.dissolved).toFixed(0)}% of resamples</td>${certainty ? `<td>${f3(certainty[c.cluster])}</td>` : ''}</tr>`).join('')}</tbody></table></div>
+                <div><h3>Clusters</h3><div class="table-wrap"><table><thead><tr><th>Cluster</th><th>Patients</th><th>Stability (mean Jaccard, 95% interval)</th><th>Share of patients across resamples</th><th>Dissolved in</th>${impCol ? `<th>${impCol}</th>` : ''}${certainty ? '<th>Average membership probability</th>' : ''}</tr></thead><tbody>
+                    ${stab.perCluster.map(c => `<tr><td><i class="sw s${c.cluster}"></i>Cluster ${c.cluster + 1}</td><td>${c.size} (${(100 * c.size / labels.length).toFixed(0)}%)</td><td>${f3(c.meanJaccard)}${c.ciMean ? ` <span class="muted">(${f3(c.ciMean[0])}–${f3(c.ciMean[1])})</span>` : ''} <span class="muted">${stabWord(c.meanJaccard)}${c.ciMean && c.ciMean[0] < 0.75 && c.ciMean[1] >= 0.75 ? ', borderline' : ''}</span></td><td>${c.shareRange ? `${Math.round(100 * c.shareRange[0])}–${Math.round(100 * c.shareRange[1])}%` : '–'} <span class="muted">(${(100 * c.size / labels.length).toFixed(0)}% in all data)</span></td><td>${(100 * c.dissolved).toFixed(0)}% of resamples</td>${impCol ? `<td>${impShare(c.cluster)}</td>` : ''}${certainty ? `<td>${f3(certainty[c.cluster])}</td>` : ''}</tr>`).join('')}</tbody></table></div>
                     ${certainty ? `<p class="muted small">Average membership probability: how certain the model is, on average, that the patients of a class belong to it (above 0.8: well separated). Entropy ${f3(S.result.entropy)}.</p>` : ''}
+                    ${impCol ? `<p class="small">${P.incompleteKind === 'imputed' ? `${impCol}: patients with at least one clustering value that was not recorded and was ${P.missing === 'mice' ? 'multiply imputed' : 'filled in'}.` : `${impCol}: patients with at least one clustering value not recorded (left out of their dissimilarities).`} A cluster with a much larger share than the others may be shaped by ${P.incompleteKind === 'imputed' ? 'the imputed values' : 'the missing values'} rather than by recorded data: treat it with caution. The maps can mark these patients.</p>` : ''}
                     <p class="muted small">Stability: ${stab.resamples} bootstrap resamples${P.groups ? ` (whole patients by "${esc(P.patientCol)}")` : ''}; mean Jaccard 0.75 or more: stable; 0.6–0.75: indicates a pattern; below 0.5: not reproducible (Hennig 2007). Average agreement with the full-data clustering: adjusted Rand ${f3(stab.meanAdjustedRand)}. The 95% interval shows how precisely the ${stab.resamples} resamples estimate the mean; "borderline" when it includes 0.75. The 0.75 limit is a convention (Hennig 2007), not proof that a cluster is real.${(() => { const ps = (stab.patientStability || []).filter(v => v !== null); if (!ps.length) return ''; const hi = ps.filter(v => v >= 0.9).length, lo = ps.filter(v => v < 0.7).length; return ` <strong>Patients:</strong> ${Math.round(100 * hi / ps.length)}% stay in their cluster in at least 90% of the resamples that include them; ${Math.round(100 * lo / ps.length)}% in fewer than 70% (assignments that depend on the sample; the download lists each patient's stability).`; })()}${P.mice ? ` The resamples cycle through the ${P.mice.m} imputed datasets. Agreement of each imputed dataset's clustering with the consensus: adjusted Rand ${f3(S.explore.res.find(r => r.k === k).agreement)}.` : ''}</p>
                     ${test ? `<p class="muted small">Test of "no real sub-groups": the separation of the clustering (R² = ${f3(test.observed)}) against ${test.B} reference datasets from ${test.kind === 'gaussian' ? 'a single Gaussian population with exactly the data\'s covariance (exact for Gaussian data)' : `a single population with each variable's own distribution and the observed correlations (a Gaussian copula; conservative: a small p is strong evidence, a large p does not prove there are no sub-groups${test.skewedNumbers ? '; used instead of the Gaussian reference because at least one measurement is skewed, which makes the Gaussian reference give false positives' : ''})`}: reference mean ${f3(test.nullMean)}, 95th centile ${f3(test.nullQuantile95)}.${Number.isFinite(test.fitError) ? ` The reference data reproduce the observed correlations to within ${test.fitError.toFixed(3)} (largest difference)${test.fitError > 0.05 ? '<strong>: some correlations could only be approximated, so the reference is approximate and the p-value should be read with caution</strong>' : ''}.` : ''}${test.pooled ? ` With multiple imputation the test was run on each of the ${test.pooled.m} imputed datasets and the median p-value is reported (range ${pf(test.pooled.min)} to ${pf(test.pooled.max)}); the figures above are from the median dataset.` : ''}</p>` : '<p class="muted small">The test of "no real sub-groups" needs complete data (choose to fill or leave out missing values).</p>'}
                 </div>
@@ -608,12 +627,13 @@
             <p id="sens-status" class="status small" role="status"></p><div id="sens-out"></div>
             <h3>Clinical profile of the clusters</h3>
             ${profileTable()}
-            <div class="row"><button id="to-use" class="btn primary" type="button">Next: use the clusters</button><button id="export-btn" class="btn" type="button">Download patients with their cluster (.CSV)</button><button id="record-txt" class="btn" type="button">Download the analysis report (.txt)</button><button id="record-json" class="btn" type="button">Download the analysis record (.json)</button></div>
+            <div class="row"><button id="to-use" class="btn primary" type="button">Next: use the clusters</button><button id="export-btn" class="btn" type="button">Download patients with their cluster (.CSV)</button><button id="record-txt" class="btn" type="button">Download the analysis report (.txt)</button><button id="record-json" class="btn" type="button">Download the analysis record (.json)</button><button id="record-r" class="btn" type="button">Download an R script to repeat it (.R)</button></div>
             <p class="muted small">The report and record list the purpose, data, exclusions with their reasons, variable roles, warnings, every setting (including the random seed), all candidate solutions, the chosen one with its uncertainty, the sensitivity analysis and the classification: everything needed to report and repeat the analysis. They contain no patient-level data.</p>`;
         $('export-btn').addEventListener('click', exportCsv);
         $('sens-btn').addEventListener('click', () => sensitivity());
         $('record-txt').addEventListener('click', () => downloadRecord('txt'));
         $('record-json').addEventListener('click', () => downloadRecord('json'));
+        $('record-r').addEventListener('click', downloadR);
         renderSensitivity();
         $('to-use').addEventListener('click', () => goTo(7));
         $('tree-out').innerHTML = '';
@@ -627,9 +647,9 @@
         const extra = window.UMEUse.exportColumns();
         const ps = S.result.stab && S.result.stab.patientStability;
         const sens = S.result.sens ? S.result.sens.share : null;
-        const head = [...S.data.headers, 'Cluster', 'Assignment stability (share of resamples)', ...(sens ? ['Robustness to modelling choices (share of alternatives)'] : []), ...(extra ? ['Class', 'Class by bedside rules'] : [])];
+        const head = [...S.data.headers, 'Row in file', 'Cluster', 'Assignment stability (share of resamples)', ...(P.incompleteKind ? [P.incompleteKind === 'imputed' ? 'Imputed clustering values' : 'Missing clustering values'] : []), ...(sens ? ['Robustness to modelling choices (share of alternatives)'] : []), ...(extra ? ['Class', 'Class by bedside rules'] : [])];
         const cell = v => { let s = String(v ?? ''); if (/^[=+\-@\t\r]/.test(s) && !Number.isFinite(Number(s))) s = `'${s}`; return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
-        const lines = [head.map(cell).join(','), ...P.rows.map((r, i) => [...S.data.headers.map(h => r[h]), labels[i] + 1, ps && ps[i] !== null ? ps[i].toFixed(2) : '', ...(sens ? [sens.get(P.rowIds[i]) !== null && sens.get(P.rowIds[i]) !== undefined ? sens.get(P.rowIds[i]).toFixed(2) : ''] : []), ...(extra ? [extra.names[i], extra.rules[i]] : [])].map(cell).join(','))];
+        const lines = [head.map(cell).join(','), ...P.rows.map((r, i) => [...S.data.headers.map(h => S.data.rows[P.rowIds[i]][h]), P.rowIds[i] + 1, labels[i] + 1, ps && ps[i] !== null ? ps[i].toFixed(2) : '', ...(P.incompleteKind ? [P.incomplete[i] ? 'yes' : ''] : []), ...(sens ? [sens.get(P.rowIds[i]) !== null && sens.get(P.rowIds[i]) !== undefined ? sens.get(P.rowIds[i]).toFixed(2) : ''] : []), ...(extra ? [extra.names[i], extra.rules[i]] : [])].map(cell).join(','))];
         const url = URL.createObjectURL(new Blob([lines.join('\r\n')], { type: 'text/csv' }));
         const a = document.createElement('a'); a.href = url; a.download = `clusters_${String(S.data.name).replace(/\.[^.]+$/, '').replace(/[^\w-]+/g, '_')}.csv`;
         document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);

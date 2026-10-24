@@ -58,6 +58,14 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         const verdict = (await p.locator('.verdict').innerText()).replace(/\s+/g, ' ');
         check(expectReal ? !/Do not interpret/.test(verdict) : /Do not interpret/.test(verdict), `${name}: verdict (${verdict.slice(0, 90)}...)`);
         check((await p.locator('#clusters-out svg').count()) >= 2, `${name}: silhouette plot and map drawn`);
+        if (missing === 'mice') {
+            const ct = await p.locator('#clusters-out').innerText();
+            await p.check('#map-imp');
+            const want = await p.evaluate(() => { const P = window.UMEApp.state.explore.P, m = window.UMEMaps._state().maps[window.UMEMaps._state().kind]; return m.idx.filter(i => P.incomplete[i]).length; });
+            const got = await p.$$eval('#map-panel circle.hl', c => c.length);
+            check(/Patients with imputed values/.test(ct) && /multiply imputed/.test(ct) && want > 0 && got === want && /patient\(s\) on this map with imputed values/.test(await p.locator('#map-panel').innerText()), `${name}: each cluster's share of patients with imputed values is shown, and the map highlights those patients (${got})`);
+            await p.uncheck('#map-imp');
+        }
         // Maps: t-SNE and UMAP made on request, faithful (trustworthiness), coloured by a variable
         if (method !== 'lca') {
             for (const m of ['ae', 'tsne', 'umap']) {
@@ -170,6 +178,18 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         check(rec.software && rec.clinicalQuestion === 'Are there sub-types of iNPH?' && /Confirmatory/.test(rec.purpose) && rec.chosen && rec.sensitivity && rec.sensitivity.length === nAlt && rec.settings && rec.data.simulatedDemo === true && /not a medical device/.test(rec.disclaimer), `${name}: the analysis record (.json) holds the software version, purpose, question, settings, chosen solution and sensitivity analysis`);
         const [dt] = await Promise.all([p.waitForEvent('download'), p.click('#record-txt')]);
         check(/Are there sub-types of iNPH\?/.test(require('fs').readFileSync(await dt.path(), 'utf8')), `${name}: the analysis report (.txt) downloads`);
+        // R script: holds no patient data, and (when R is installed) repeats the PAM / Gower clustering exactly
+        {
+            const os = require('os'), cp = require('child_process'), dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ume-r-'));
+            const [dr] = await Promise.all([p.waitForEvent('download'), p.click('#record-r')]); const rFile = path.join(dir, dr.suggestedFilename()); await dr.saveAs(rFile);
+            const [dc] = await Promise.all([p.waitForEvent('download'), p.click('#export-btn')]); await dc.saveAs(path.join(dir, dc.suggestedFilename()));
+            fs.copyFileSync(path.join(ROOT, 'demo_inph_phenotypes.csv'), path.join(dir, 'demo_inph_phenotypes.csv'));
+            const rText = fs.readFileSync(rFile, 'utf8'), ids = await p.evaluate(() => window.UMEApp.state.data.rows.slice(0, 50).map(r => r.Patient_ID));
+            check(/cluster::pam\(D, k, diss = TRUE\)/.test(rText) && /weights = w/.test(rText) && ids.every(id => !rText.includes(id)), `${name}: an R script to repeat the analysis downloads, without patient data`);
+            let rOut = null; try { rOut = cp.execFileSync('Rscript', [path.basename(rFile)], { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); } catch (e) { rOut = e.code === 'ENOENT' ? null : `error: ${String(e.stderr || e.message).slice(-300)}`; }
+            if (rOut === null) console.log('SKIP  R is not installed: the R script was not run');
+            else check(/adjusted Rand index\): 1\b/.test(rOut), `${name}: run in R (cluster::pam on cluster::daisy), the script reproduces the app's clusters exactly${/Rand index\): ([\d.]+)/.test(rOut) ? ` (adjusted Rand ${rOut.match(/Rand index\): ([\d.]+)/)[1]})` : `: ${rOut.slice(-200)}`}`);
+        }
         // Step 7: classify an independent cohort without retraining
         await p.click('#to-use'); await p.waitForSelector('#np-go', { timeout: 300000 });
         await p.setInputFiles('#val-file', path.join(ROOT, 'demo_inph_validation.csv'));

@@ -32,7 +32,7 @@ referral patterns (`tools/make_referral_demo.py`).
 
 - **Clustering:** k-means (k-means++ starts), k-medoids (PAM, BUILD and SWAP) on any dissimilarity, hierarchical
   clustering (Ward, average, complete, single; nearest-neighbour chain), Gaussian mixtures (full or diagonal
-  covariance, EM from k-means starts, BIC), and latent class analysis for mixed data (normal numbers, categorical
+  covariance, EM from k-means and random starts, best kept, BIC), and latent class analysis for mixed data (normal numbers, categorical
   grades and categories, local independence; missing values left out of each patient's likelihood; EM from
   several starts; BIC, relative entropy, membership probabilities; checked against R poLCA and mclust).
 - **Neural network for large datasets: self-organising map** (`nn-engine.js`): batch SOM (Kohonen; grid of about
@@ -150,6 +150,18 @@ referral patterns (`tools/make_referral_demo.py`).
   yet validated on real cohorts or reviewed independently. Warnings about the data are repeated in step 4, before
   the analysis; on the self-organising map, grey (empty) units between clusters suggest a gap, and clusters that
   touch without them may be parts of a continuum.
+- **Imputed values:** with multiple imputation or filling, the clusters table shows each cluster's share of
+  patients with imputed clustering values (with methods that use recorded values only, the share with missing
+  values), the maps can highlight those patients, the self-organising map's selection reports their share, and the
+  download marks them. A cluster made up largely of such patients may be shaped by the imputation. The download
+  holds the values as recorded, not as filled in.
+- **Repeat it in R:** step 6 downloads an R script (no patient data: file name, variable names and levels,
+  settings, Gower weights and row numbers of records left out) that repeats the chosen clustering with
+  established packages (cluster::daisy and pam, kmeans, hclust ward.D2, VarSelLCM, poLCA, mice, kohonen) and
+  compares R's clusters with the app's download by adjusted Rand index. Checked on the demos: identical clusters
+  (adjusted Rand 1) for PAM / Gower, k-means, Ward and latent classes; 0.99 with multiple imputation (R imputes
+  differently) and for Gaussian mixtures; 0.86 for the self-organising map (kohonen trains differently). The
+  browser tests run the PAM script in R on every change.
 - **Wording:** the agreement of the bedside rules is "agreement with the unsupervised cluster assignments, not
   clinical accuracy"; a new patient's class is an approximation, not a diagnosis.
 
@@ -168,9 +180,15 @@ and all browser storage is empty.
 Measured on an Apple M2 Max laptop in Chrome, 8,000 simulated referrals unless stated:
 data checks about 10 s; self-organising map and comparison of 2 to 10 clusters about 3.5 s; describing the chosen
 clusters (100 bootstrap resamples, test of no real sub-groups) 2.5 to 13 s depending on the method; latent class
-analysis about 50 s; maps: UMAP about 5 s, autoencoder about 10 s, t-SNE about 51 s (on the 2,000-record sample).
+analysis: comparing 2 to 10 classes about 2 minutes and describing the chosen classes about 1 minute; maps: UMAP about 5 s, autoencoder about 10 s, t-SNE about 51 s (on the 2,000-record sample).
 For 360 patients every step takes a few seconds; the sensitivity analysis refits the clustering once per alternative (16 for the iNPH demo). Above
 3,000 records, silhouettes and maps use a random sample of 2,000, and PAM and Ward are not offered.
+
+The page stays responsive during these computations: latent class fits, bootstrap resamples and the tests of no
+real sub-groups hand control back to the browser about every 100 ms and the status line counts the resamples
+(the longest pause measured on the referral demo is about 2 s, down from 44 s). They are written as generators,
+so the asynchronous results are identical to the direct ones (checked in the simulations). Web Workers were not
+used because the page must also work when opened directly from disk, where browsers do not allow them.
 
 ## Validation status and limitations
 

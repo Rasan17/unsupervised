@@ -338,5 +338,20 @@ check('Multiple imputation (MICE) is reproducible and unchanged by refactoring: 
     assert(kept && donors && text === JSON.stringify(d2.map(d => d.map(o => cols.map(c => o[c])))) && h.toString(16) === PINNED, `kept ${kept}, donors ${donors}, checksum ${h.toString(16)}`);
     return `3 imputed datasets identical when run again; checksum ${h.toString(16)}`;
 });
-console.log(`\n${passed}/${passed + failed} behaviour checks passed`);
-process.exit(failed ? 1 : 0);
+// Asynchronous versions (which hand control back to the page) must give exactly the same results
+const asyncSame = (async () => {
+    const r = CE.createPRNG(55), gz = () => { const u = r() || 1e-12, v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+    const X = Array.from({ length: 150 }, (_, i) => [gz() + 3 * (i % 3 === 0), gz(), Math.exp(gz())]);
+    const rows = X.map(x => [x[0], x[1] > 0 ? 'Yes' : 'No']), vars = [{ type: 'continuous' }, { type: 'nominal' }];
+    const fn = idx => CE.kmeans(idx.map(i => X[i]), 2, { seed: 3, nInit: 3 }).labels, lab = CE.kmeans(X, 2, { seed: 3, nInit: 3 }).labels;
+    const pairs = [[CE.lca(rows, vars, 2, { nInit: 3, seed: 4 }), await CE.lcaAsync(rows, vars, 2, { nInit: 3, seed: 4 })],
+        [CE.nullClusterTest(X, 2, { B: 19, seed: 5 }), await CE.nullClusterTestAsync(X, 2, { B: 19, seed: 5 })],
+        [CE.copulaNullTest(X, 2, { B: 19, seed: 6 }), await CE.copulaNullTestAsync(X, 2, { B: 19, seed: 6 })],
+        [CE.bootstrapStability(150, lab, fn, { B: 20, seed: 7 }), await CE.bootstrapStabilityAsync(150, lab, fn, { B: 20, seed: 7 })]];
+    return pairs.every(([a, b]) => JSON.stringify(a) === JSON.stringify(b));
+})();
+asyncSame.then(same => {
+    check('Latent classes, both tests of no real sub-groups and bootstrap stability give identical results when run asynchronously (keeping the page responsive)', () => { assert(same, 'results differ'); return 'identical'; });
+    console.log(`\n${passed}/${passed + failed} behaviour checks passed`);
+    process.exit(failed ? 1 : 0);
+});

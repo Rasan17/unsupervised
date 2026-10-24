@@ -147,15 +147,18 @@
         const { P } = M.ctx, n = P.rows.length;
         const kinds = [M.maps.pca ? 'pca' : M.maps.famd ? 'famd' : 'mds', 'tsne', 'umap', 'ae'];
         const vars = [...P.cols, ...P.describe];
+        const Pm = M.ctx.P, impWord = Pm.incompleteKind && Pm.incomplete && Pm.incomplete.some(Boolean) ? (Pm.incompleteKind === 'imputed' ? 'imputed values' : 'missing values') : null;
         const map = M.maps[M.kind];
         let body = '<p class="muted">No map is available for these data.</p>';
         if (map) {
             const c = colouring(map);
-            const svg = CH.scatter({ points: map.idx.map((i, r) => ({ x: map.Y[r][0], y: map.Y[r][1], ...c.pts(i), row: i, ...(HL ? { mark: HL.has(i) ? 'hl' : 'dim' } : {}) })), xLabel: map.xLabel, yLabel: map.yLabel, noAxes: M.kind === 'tsne' || M.kind === 'umap' || M.kind === 'ae', aria: `${NAMES[M.kind]} map of the patients` });
+            const inc = M.ctx.P.incomplete || [], impOn = M.markImp && !HL && impWord;
+            const svg = CH.scatter({ points: map.idx.map((i, r) => ({ x: map.Y[r][0], y: map.Y[r][1], ...c.pts(i), row: i, ...(HL ? { mark: HL.has(i) ? 'hl' : 'dim' } : impOn ? { mark: inc[i] ? 'hl' : 'dim' } : {}) })), xLabel: map.xLabel, yLabel: map.yLabel, noAxes: M.kind === 'tsne' || M.kind === 'umap' || M.kind === 'ae', aria: `${NAMES[M.kind]} map of the patients` });
             const tr = trustOf(map);
             const hlShown = HL ? map.idx.filter(i => HL.has(i)).length : 0;
             body = `${svg}${c.legend}
                 ${M.ctx.S.result.neural && M.ctx.S.result.neural.unitLabels ? '<p class="muted small">Select patients here: click a point, drag a rectangle, or hold Option (Alt) and drag (with either mouse button) for a freehand outline. Hold Shift to add, Cmd (Ctrl on Windows) to remove. Deselect: click an empty area, press Escape, or "Clear selection". The self-organising map below shows where they are.</p>' : ''}
+                ${impOn ? `<p class="small note">Highlighted: the ${map.idx.filter(i => inc[i]).length.toLocaleString('en-GB')} patient(s) on this map with ${impWord}; the others are faded. Where one cluster is made up largely of such patients, it may be shaped by ${impWord === 'imputed values' ? 'the imputation' : 'the missing values'} rather than by recorded data.</p>` : ''}
                 ${HL ? `<p class="small note">Highlighted: the ${HL.size.toLocaleString('en-GB')} record(s) selected ${root.UMESom && root.UMESom._state() && root.UMESom._state().rec ? 'here' : 'on the self-organising map below'}${hlShown < HL.size ? ` (${hlShown.toLocaleString('en-GB')} of them are on this map, which shows a sample)` : ''}. <button type="button" class="btn small" id="map-clear">Clear selection</button></p>` : ''}
                 ${map.history ? `<details><summary class="small">Training curve</summary>${CH.lineChart({ series: [{ name: 'Training patients', cls: 0, points: map.history.map(h => ({ x: h.epoch, y: h.train })) }, { name: 'Held-back patients', cls: 1, points: map.history.map(h => ({ x: h.epoch, y: h.val })) }], xLabel: 'Epoch', yLabel: 'Reconstruction error', aria: 'Training curve of the autoencoder', H: 220 })}${CH.legend(['Training patients', 'Held-back patients'])}<p class="muted small">If the error on held-back patients rises while the training error keeps falling, the network is learning the noise of these patients (overfitting); the weights from the lowest held-back error are used.</p></details>` : ''}
                 ${M.kind === 'pca' || M.kind === 'famd' ? axisFactors() : '<p class="muted small">The axes of this map have no fixed meaning (it keeps neighbours, not directions); for what drives the differences between patients, see the PCA / FAMD map or "Dimensions of the data".</p>'}
@@ -164,6 +167,7 @@
         }
         el.innerHTML = `
             <div class="row map-controls" role="group" aria-label="Type of map">${kinds.map(k => `<button type="button" class="btn small${M.kind === k ? ' primary' : ''}" data-map="${k}" aria-pressed="${M.kind === k}"${M.busy ? ' disabled' : ''}>${NAMES[k]}${(k === 'tsne' || k === 'umap' || k === 'ae') && !M.maps[k] ? ' (make)' : ''}</button>`).join('')}
+                ${impWord ? `<label class="small check"><input type="checkbox" id="map-imp"${M.markImp ? ' checked' : ''}> Highlight patients with ${impWord}</label>` : ''}
                 <label for="map-colour" class="small">Colour by</label><select id="map-colour"><option value="__cluster">Cluster</option>${vars.map(v => `<option value="${esc(v)}"${M.colourBy === v ? ' selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
             <p id="map-status" class="status small" role="status"></p>
             ${body}`;
@@ -174,6 +178,7 @@
         const mc = el.querySelector('#map-clear'); if (mc) mc.addEventListener('click', () => root.UMESom.clear());
         el.querySelectorAll('[data-map]').forEach(b => b.addEventListener('click', () => { const k = b.dataset.map; if (M.maps[k]) { M.kind = k; draw(); } else compute(k); }));
         $('map-colour').addEventListener('change', e => { M.colourBy = e.target.value; draw(); });
+        const mi = $('map-imp'); if (mi) mi.addEventListener('change', e => { M.markImp = e.target.checked; draw(); });
     }
     // ---------------------------------------------------------------------------------- dimensions of the data
     function famdOf(P) {

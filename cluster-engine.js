@@ -360,10 +360,13 @@
     function gmm(X, k, { covType = 'full', nInit = 5, seed = 2024, reg = 1e-6, maxIter = 500, tol = 1e-6 } = {}) {
         const p = checkMatrix(X), n = X.length;
         let best = null;
-        for (let s = 0; s < nInit; s++) {
-            const km = kmeans(X, k, { nInit: 1, seed: seed + s * 7919 });
-            const R = km.labels.map(l => Array.from({ length: k }, (_, c) => (c === l ? 1 : 0)));
-            try { const r = gmmFromParams(X, mStep(X, R, k, covType, reg), { covType, reg, maxIter, tol }); if (!best || r.logLik > best.logLik) best = r; } catch (e) { if (!best && s === nInit - 1) throw e; }
+        // Starts: nInit k-means partitions (as scikit-learn) and nInit random partitions (k-means starts tend to fall in
+        // the same region, and a random start sometimes reaches a higher likelihood); the best fit is kept
+        const rng = createPRNG(seed + 104729);
+        for (let s = 0; s < 2 * nInit; s++) {
+            const lab = s < nInit ? kmeans(X, k, { nInit: 1, seed: seed + s * 7919 }).labels : Array.from({ length: n }, (_, i) => (i < k ? i : Math.floor(rng() * k)));
+            const R = lab.map(l => Array.from({ length: k }, (_, c) => (c === l ? 1 : 0)));
+            try { const r = gmmFromParams(X, mStep(X, R, k, covType, reg), { covType, reg, maxIter, tol }); if (!best || r.logLik > best.logLik) best = r; } catch (e) { if (!best && s === 2 * nInit - 1) throw e; }
         }
         if (!best) throw new Error('The mixture model could not be fitted.');
         const nParams = (k - 1) + k * p + (covType === 'diag' ? k * p : k * p * (p + 1) / 2);
@@ -495,7 +498,19 @@
      * patterns; < 0.5: dissolved (not reproducible). clusterFn(indices) -> labels for those patients.
      * groups (optional, one key per patient row): whole patients are resampled.
      */
-    function bootstrapStability(n, labels, clusterFn, { B = 100, seed = 2024, groups = null } = {}) {
+    // Long computations are written as generators that yield at regular points; run straight through they give the
+    // result directly, and the async versions hand control back to the page about every 100 ms (same results)
+    function runSteps(g) { for (;;) { const r = g.next(); if (r.done) return r.value; } }
+    async function runStepsAsync(g) {
+        let last = Date.now();
+        for (;;) { const r = g.next(); if (r.done) return r.value; if (Date.now() - last > 100) { await new Promise(res => setTimeout(res, 0)); last = Date.now(); } }
+    }
+    const lca = (...a) => runSteps(lcaSteps(...a)), lcaAsync = (...a) => runStepsAsync(lcaSteps(...a));
+    const nullClusterTest = (...a) => runSteps(nullClusterSteps(...a)), nullClusterTestAsync = (...a) => runStepsAsync(nullClusterSteps(...a));
+    const copulaNullTest = (...a) => runSteps(copulaNullSteps(...a)), copulaNullTestAsync = (...a) => runStepsAsync(copulaNullSteps(...a));
+    // The resampling is a generator that yields after each resample, so that the page can stay responsive and show
+    // progress (bootstrapStabilityAsync); bootstrapStability runs it straight through. Both give identical results.
+    function* bootstrapSteps(n, labels, clusterFn, { B = 100, seed = 2024, groups = null } = {}) {
         const rng = createPRNG(seed), k = Math.max(...labels) + 1;
         const clusters = Array.from({ length: k }, (_, c) => labels.map((l, i) => (l === c ? i : -1)).filter(i => i >= 0));
         const byGroup = groups ? [...groups.reduce((m, g, i) => { const key = String(g); if (!m.has(key)) m.set(key, []); m.get(key).push(i); return m; }, new Map()).values()] : null;
@@ -507,7 +522,7 @@
         for (let b = 0; b < B; b++) {
             const idx = byGroup ? [].concat(...Array.from({ length: byGroup.length }, () => byGroup[Math.floor(rng() * byGroup.length)])) : Array.from({ length: n }, () => Math.floor(rng() * n));
             let lb;
-            try { lb = clusterFn(idx); } catch (e) { failed++; continue; }
+            try { lb = clusterFn(idx); } catch (e) { failed++; yield b + 1; continue; }
             // the resample's clusters, on the distinct patients drawn (a patient drawn twice keeps its first label)
             const lab = new Map(); idx.forEach((i, t) => { if (!lab.has(i)) lab.set(i, lb[t]); });
             const kb = Math.max(...lab.values()) + 1;
@@ -525,6 +540,7 @@
             });
             const shared = [...lab.keys()];
             aris.push(adjustedRand(shared.map(i => labels[i]), shared.map(i => lab.get(i))));
+            yield b + 1;
         }
         const mean = a => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
         const sd = a => { if (a.length < 2) return null; const m = mean(a); return Math.sqrt(a.reduce((x, y) => x + (y - m) ** 2, 0) / (a.length - 1)); };
@@ -541,6 +557,20 @@
             patientStability: Array.from(same, (v, i) => (seen[i] ? v / seen[i] : null)),
             meanAdjustedRand: mean(aris), resamples: B - failed, failed };
     }
+    function bootstrapStability(n, labels, clusterFn, opts = {}) {
+        const g = bootstrapSteps(n, labels, clusterFn, opts);
+        for (;;) { const r = g.next(); if (r.done) return r.value; }
+    }
+    /** As bootstrapStability, returning a promise; hands control back to the page about every 100 ms and reports
+     *  progress (onProgress(done, B)) */
+    async function bootstrapStabilityAsync(n, labels, clusterFn, opts = {}, onProgress = null) {
+        const g = bootstrapSteps(n, labels, clusterFn, opts), B = opts.B ?? 100;
+        let last = Date.now();
+        for (;;) {
+            const r = g.next(); if (r.done) return r.value;
+            if (Date.now() - last > 100) { if (onProgress) onProgress(r.value, B); await new Promise(res => setTimeout(res, 0)); last = Date.now(); }
+        }
+    }
 
     // ------------------------------------------------------------------------------------------- is there structure?
     /**
@@ -551,7 +581,7 @@
      * cloud with the same covariance gives by chance. Skewed or heavy-tailed data without clusters can still give
      * small p-values (the test is about departure from one Gaussian cloud).
      */
-    function nullClusterTest(X, k, { B = 100, seed = 2024, nInit = 5 } = {}) {
+    function* nullClusterSteps(X, k, { B = 100, seed = 2024, nInit = 5 } = {}) {
         checkMatrix(X);
         const n = X.length, p = X[0].length, rng = createPRNG(seed);
         if (n <= p + 1) throw new Error('The test needs more patients than variables.');
@@ -568,6 +598,7 @@
             // scores of Y on its own principal axes, scaled to unit variance, then given the data's axes and variances
             const Yt = Q.scores.map(sc => { const z = sc.map((v, c) => (sdY[c] > 0 ? v / sdY[c] : 0) * sdObs[c]); return P.mean.map((m, j) => m + U.reduce((acc, u, c) => acc + u[j] * z[c], 0)); });
             nulls.push(r2(Yt));
+            yield;
         }
         const ge = nulls.filter(v => v >= obs).length;
         return { observed: obs, nullMean: nulls.reduce((a, b) => a + b, 0) / B, nullQuantile95: nulls.slice().sort((a, b) => a - b)[Math.floor(0.95 * (B - 1))], pValue: (1 + ge) / (1 + B), B, p };
@@ -598,7 +629,7 @@
      * same discreteness, so only sub-types beyond it count. X: the numerically coded data (before standardisation);
      * the clustering statistic is k-means R^2 on standardised data, as for the observed data.
      */
-    function copulaNullTest(X0, k, { B = 100, seed = 2024, nInit = 5, groups = [] } = {}) {
+    function* copulaNullSteps(X0, k, { B = 100, seed = 2024, nInit = 5, groups = [] } = {}) {
         checkMatrix(X0);
         const n = X0.length, rng = createPRNG(seed);
         const stat = data => { const Z = standardize(data).Z, tss = withinSS(Z, new Array(n).fill(0)); return tss > 0 ? 1 - kmeans(Z, k, { nInit, seed: Math.floor(rng() * 1e9) }).inertia / tss : 0; };
@@ -658,6 +689,7 @@
         for (let b = 0; b < B; b++) {
             const Y = Array.from({ length: n }, () => mapRow(drawLatent(L, rng)));
             nulls.push(stat(groups.length ? Y.map(fromReduced) : Y));
+            yield;
         }
         const ge = nulls.filter(v => v >= obs).length;
         return { observed: obs, nullMean: nulls.reduce((a, b) => a + b, 0) / B, nullQuantile95: nulls.slice().sort((a, b) => a - b)[Math.floor(0.95 * (B - 1))], pValue: (1 + ge) / (1 + B), B, p: X0[0].length, reference: 'copula', fitError };
@@ -712,7 +744,7 @@
      * Returns labels (modal class, 0 = largest), posterior probabilities, log-likelihood on the original scale,
      * number of parameters, BIC, relative entropy, and the model (for classifying new patients).
      */
-    function lca(rows, vars, k, { nInit = 10, seed = 2024, maxIter = 2000, tol = 1e-10, reg = 1e-6 } = {}) {
+    function* lcaSteps(rows, vars, k, { nInit = 10, seed = 2024, maxIter = 2000, tol = 1e-10, reg = 1e-6 } = {}) {
         const n = rows.length, p = vars.length;
         if (k < 1 || k > n) throw new Error('Invalid number of classes.');
         const levels = vars.map((v, j) => {
@@ -794,6 +826,7 @@
                 cur = lcaE(par);
                 if (cur.ll - prev < tol * Math.abs(cur.ll)) { converged = true; break; }
                 prev = cur.ll; par = lcaM(cur.R);
+                yield;
             }
             if (!best || cur.ll > best.ll + 1e-9) best = { ll: cur.ll, R: cur.R, par, converged, iterations: it };
         }
@@ -975,7 +1008,7 @@
     const epsilonSquared = (H, n) => (n > 1 ? H / (n - 1) : null);
 
     const ClusterEngine = { createPRNG, standardize, euclideanMatrix, gowerMatrix, lloyd, kmeansPlusPlus, kmeans, pam, hierarchical, cutTree, gmm, gmmFromParams, mStep,
-        silhouette, calinskiHarabasz, daviesBouldin, withinSS, adjustedRand, symmetricEigen, pca, gapStatistic, bootstrapStability, nullClusterTest, copulaNullTest, normInv, normCdf, chiSquareTest, kruskalWallis, gammaQ, relabelBySize,
+        silhouette, calinskiHarabasz, daviesBouldin, withinSS, adjustedRand, symmetricEigen, pca, gapStatistic, bootstrapStability, bootstrapStabilityAsync, nullClusterTest, nullClusterTestAsync, copulaNullTest, copulaNullTestAsync, lcaAsync, normInv, normCdf, chiSquareTest, kruskalWallis, gammaQ, relabelBySize,
         benjaminiHochberg, cramersV, epsilonSquared, codeValue, gowerDistances, gowerBalancedWeights, gowerPairFn, lca, lcaPosterior, classificationTree, predictTree, treePath, treeRules, cohenKappa };
     root.ClusterEngine = ClusterEngine;
 })(typeof window !== 'undefined' ? window : globalThis);
