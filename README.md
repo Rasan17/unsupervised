@@ -11,6 +11,8 @@ the variables to cluster on and those only to describe, choose a method, compare
 stability, gap statistic or BIC), then describe the chosen clusters with a verdict on whether they are more than
 chance, a silhouette plot, a PCA map and a profile table. Next: t-SNE/UMAP maps, anomaly detection, autoencoders.
 
+After changing a script or `style.css`, raise its `?v=` number in `index.html` so browsers do not keep the old copy.
+
 Open `index.html` directly, or serve the folder (`python3 -m http.server`). Two demo cohorts (`tools/make_demo_cohorts.py`):
 simulated iNPH patients with three sub-types (the true sub-type is included as a describe-only column, to see how
 well clustering recovers it) and a cohort of one population, where the app should find nothing.
