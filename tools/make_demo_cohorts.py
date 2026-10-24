@@ -10,6 +10,8 @@ demo_inph_phenotypes.csv   360 patients with three built-in sub-types of idiopat
 demo_inph_with_errors.csv  The same cohort with 11 planted data problems (decimal and typing errors, a minus sign,
                            spelling variants, a decimal comma, a duplicate, an out-of-scale grade and one patient
                            with an unusual combination of plausible values), described in Simulated_Planted_Problem.
+demo_inph_validation.csv   200 new patients from the same three sub-types in other proportions (70 / 90 / 40), as an
+                           independent cohort for testing a classification (step 7) without retraining.
 demo_no_subtypes.csv       360 patients with the same variables drawn from one population (correlated
                            variables, no sub-types): any "clusters" found here are artefacts.
 
@@ -102,4 +104,9 @@ if __name__ == '__main__':
     rng2 = np.random.default_rng(2032)
     write('demo_no_subtypes.csv', draw(rng2, 'single', 360), rng2, 'NS')
     plant_errors('demo_inph_phenotypes.csv', 'demo_inph_with_errors.csv')
-    print('written: demo_inph_phenotypes.csv (sub-types 150 / 120 / 90), demo_no_subtypes.csv (one population, 360), demo_inph_with_errors.csv (11 planted problems)')
+    # An independent cohort ("another hospital"): new patients, different sub-type proportions, for step 7's external test
+    rng3 = np.random.default_rng(2051)
+    rows3 = draw(rng3, 'classic', 70) + draw(rng3, 'vascular', 90) + draw(rng3, 'neuro', 40)
+    order3 = rng3.permutation(len(rows3)); rows3 = [rows3[i] for i in order3]
+    write('demo_inph_validation.csv', rows3, rng3, 'VH')
+    print('written: demo_inph_phenotypes.csv (sub-types 150 / 120 / 90), demo_no_subtypes.csv (one population, 360), demo_inph_with_errors.csv (11 planted problems), demo_inph_validation.csv (200 independent patients)')

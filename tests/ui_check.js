@@ -130,6 +130,53 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         check(errs.length === 0, `${name}: no page errors${errs.length ? ': ' + errs.join(' | ') : ''}`);
         await p.close();
     }
+    // Audit features: warnings before the analysis, uncertainty of stability, q-values and effect sizes, sensitivity
+    // analysis, the analysis record, a new cohort classified without retraining, and privacy (no data leave the page)
+    {
+        const name = 'audit features', p = await browser.newPage({ viewport: { width: 1200, height: 900 } });
+        const errs = [], reqs = [];
+        p.on('pageerror', e => errs.push(String(e))); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); }); p.on('dialog', d => d.accept());
+        p.on('request', r => reqs.push({ method: r.method(), url: r.url() }));
+        await p.goto(url);
+        // A file with problems that are not errors in single values
+        const lines = ['ID,Visit_Date,Score,Score_Copy,Constant,Grade'];
+        for (let i = 0; i < 60; i++) lines.push(`P${i},2024-0${1 + (i % 9)}-1${i % 9},${i % 7 === 0 ? -999 : 10 + (i % 13)},${i % 7 === 0 ? -999 : 20 + 2 * (i % 13)},same,${i % 3}`);
+        await p.setInputFiles('#file', { name: 'problems.csv', mimeType: 'text/csv', buffer: Buffer.from(lines.join('\n')) });
+        await p.waitForSelector('#var-table table');
+        await p.selectOption('#role-1', 'cluster');
+        const warn = await p.locator('#var-warnings').innerText();
+        check(/Visit_Date: looks like dates/.test(warn) && /Constant: the same value for every patient/.test(warn) && /-999 \(\d+ patients\) may be a code for "not recorded"/.test(warn) && /Strongly related clustering variables: .*Score and Score_Copy/.test(warn), `${name}: warnings before the analysis for dates, a constant column, a missing-value code and two variables measuring the same thing`);
+        // The phenotype demo with a confirmatory purpose, PAM / Gower, 3 clusters
+        await p.click('.tab[data-step="1"]'); await p.click('#demo-phenotypes'); await p.waitForSelector('#var-table table'); await p.click('#to-step3');
+        await p.selectOption('#purpose', 'confirmatory'); await p.fill('#question', 'Are there sub-types of iNPH?');
+        await p.click('#explore-btn'); await p.waitForSelector('#describe-btn', { timeout: 300000 });
+        check(/\(0\.\d{3}–[01]\.\d{3}\)/.test(await p.locator('#explore-out table').first().innerText()), `${name}: step 5 shows the 95% interval of the stability of each candidate`);
+        await p.selectOption('#k-choice', '3'); await p.click('#describe-btn'); await p.waitForSelector('#to-use', { timeout: 300000 });
+        const co = await p.locator('#clusters-out').innerText();
+        check(/Confirmatory purpose/.test(co) && /The 0.75 limit is a convention/.test(co) && /Patients: \d+% stay in their cluster in at least 90%/.test(co) && /\d+–\d+%/.test(co), `${name}: step 6 shows the purpose, interval and share range of each cluster's stability, and patient-level stability`);
+        check(/Benjamini–Hochberg/.test(co) && /Cramér's V/.test(co), `${name}: the cluster profile gives q-values (false discovery rate) and effect sizes`);
+        await p.click('#sens-btn'); await p.waitForSelector('#sens-out table', { timeout: 600000 });
+        const so = await p.locator('#sens-out').innerText(), nAlt = await p.$$eval('#sens-out tbody tr', r => r.length);
+        check(/Without Callosal_Angle_Deg/.test(so) && /Method:/.test(so) && /Patients: \d+% stay in the same cluster under every alternative/.test(so) && nAlt >= 6, `${name}: the sensitivity analysis compares ${nAlt} alternative specifications, at patient level`);
+        const [dj] = await Promise.all([p.waitForEvent('download'), p.click('#record-json')]);
+        const rec = JSON.parse(require('fs').readFileSync(await dj.path(), 'utf8'));
+        check(rec.software && rec.clinicalQuestion === 'Are there sub-types of iNPH?' && /Confirmatory/.test(rec.purpose) && rec.chosen && rec.sensitivity && rec.sensitivity.length === nAlt && rec.settings, `${name}: the analysis record (.json) holds the software version, purpose, question, settings, chosen solution and sensitivity analysis`);
+        const [dt] = await Promise.all([p.waitForEvent('download'), p.click('#record-txt')]);
+        check(/Are there sub-types of iNPH\?/.test(require('fs').readFileSync(await dt.path(), 'utf8')), `${name}: the analysis report (.txt) downloads`);
+        // Step 7: classify an independent cohort without retraining
+        await p.click('#to-use'); await p.waitForSelector('#np-go', { timeout: 300000 });
+        await p.setInputFiles('#val-file', path.join(ROOT, 'demo_inph_validation.csv'));
+        await p.waitForSelector('#val-out table');
+        const vo = await p.locator('#val-out').innerText();
+        const agreeV = Number((vo.match(/same class for (\d+)%/) || [])[1]);
+        check(/200 records classified without retraining/.test(vo) && agreeV >= 70 && /Outcomes by class in the new cohort/.test(vo) && /Gait_Improvement_12mo/.test(vo), `${name}: a new cohort is classified without retraining, with agreement (${agreeV}%) and outcomes by class`);
+        // Privacy: only the page's own files were requested (all GET, same origin); nothing stored in the browser
+        const origin = new URL(url).origin, foreign = reqs.filter(r => r.method !== 'GET' || !(r.url.startsWith(origin) || r.url.startsWith('blob:') || r.url.startsWith('data:')));
+        const store = await p.evaluate(async () => ({ ls: localStorage.length, ss: sessionStorage.length, cookie: document.cookie, idb: indexedDB.databases ? (await indexedDB.databases()).length : 0, caches: 'caches' in window ? (await caches.keys()).length : 0 }));
+        check(foreign.length === 0 && store.ls === 0 && store.ss === 0 && store.cookie === '' && store.idb === 0 && store.caches === 0, `${name}: privacy: ${reqs.length} requests, all GETs of the app's own files; no browser storage, cookies or caches used${foreign.length ? ': ' + JSON.stringify(foreign.slice(0, 3)) : ''}`);
+        check(errs.length === 0, `${name}: no page errors${errs.length ? ': ' + errs.join(' | ') : ''}`);
+        await p.close();
+    }
     // Step 3: data checks on the cohort with planted problems, and exclusion carried into the analysis
     {
         const name = 'planted data errors', p = await browser.newPage({ viewport: { width: 1200, height: 900 } });

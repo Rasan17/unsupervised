@@ -169,6 +169,21 @@
         const lo = q(0.1), md = q(0.5), hi = q(0.9);
         return hi > lo && (hi + lo - 2 * md) / (hi - lo) > 0.2;
     }
+    // Typical codes used for "not recorded" in clinical spreadsheets
+    const CODE_VALUES = [-9999, -999, -99, -9, 99, 999, 9999, 88, 888, 8888, 77, 777, 7777];
+    /** Possible missing-value codes in a column of numbers: a typical code (e.g. -99, 999) recorded for at least 3
+     *  patients and lying outside the range of the other values. Returns [{ value, count }]. */
+    function missingCodes(xs) {
+        const v = xs.filter(Number.isFinite);
+        return CODE_VALUES.map(code => {
+            const count = v.filter(x => x === code).length;
+            if (count < 3) return null;
+            const others = v.filter(x => x !== code);
+            if (others.length < 10) return null;
+            const lo = Math.min(...others), hi = Math.max(...others);
+            return code < lo || code > hi ? { value: code, count } : null;
+        }).filter(Boolean);
+    }
     const missing = v => v === null || v === undefined || String(v).trim() === '' || /^(na|n\/a|nan|null|missing|\.)$/i.test(String(v).trim());
     /**
      * Checks for likely data-entry errors, column by column. columns: [{ name, kind: 'number' | 'category' | 'id' }];
@@ -181,7 +196,9 @@
             if (kind === 'number') {
                 const parsed = raw.map(v => (missing(v) ? null : Number(String(v).trim())));
                 raw.forEach((v, i) => { if (!missing(v) && !Number.isFinite(parsed[i])) out.push({ row: i, column: name, value: String(v), kind: 'text', message: /^-?\d+,\d+$/.test(String(v).trim()) ? 'a decimal comma instead of a decimal point' : 'text in a column of numbers' }); });
-                const xs = parsed.map(v => (Number.isFinite(v) ? v : NaN));
+                const codes = missingCodes(parsed.map(v => (Number.isFinite(v) ? v : NaN))), codeSet = new Set(codes.map(c => c.value));
+                parsed.forEach((v, i) => { if (codeSet.has(v)) out.push({ row: i, column: name, value: String(raw[i]), kind: 'code', message: `possibly a code for "not recorded" (${v} is used for ${codes.find(c => c.value === v).count} patients, outside the range of the other values): if so, leave these cells empty` }); });
+                const xs = parsed.map(v => (Number.isFinite(v) && !codeSet.has(v) ? v : NaN));
                 // Clearly right-skewed positive measurements (e.g. CRP) are judged on the log scale, so a genuine long
                 // tail is not mistaken for errors: right-skewed (Kelly's decile skewness above 0.2) with no negative values, judged on
                 // the log(1 + x) scale (which also handles zeros, as in counts and waiting times)
@@ -232,5 +249,5 @@
     }
     function fmt(v) { return Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : Number(v.toPrecision(3)).toString(); }
 
-    root.AnomalyEngine = { skewedNonNegative, chi2Sf, chi2Cdf, chi2Ppf, mcd, isolationForest, avgPath, lof, lofStream, robustZ, dataChecks, median };
+    root.AnomalyEngine = { missingCodes, skewedNonNegative, chi2Sf, chi2Cdf, chi2Ppf, mcd, isolationForest, avgPath, lof, lofStream, robustZ, dataChecks, median };
 })(typeof window !== 'undefined' ? window : globalThis);

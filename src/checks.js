@@ -188,5 +188,12 @@
         draw();
     }
     function status(t) { const el = $('check-status'); if (el) el.textContent = t; }
-    root.UMEChecks = { render, start, run: S => { C = C || { S, onChange: () => {} }; C.S = S; return run(S); }, label };
+    // Why a patient was listed (for the analysis record): data-error messages and the reason for being unusual
+    function reasonsFor(i) {
+        if (!C || !C.results) return [];
+        const out = C.results.issues.filter(x => x.row === i).map(x => `${x.column}: ${x.message}`);
+        const u = C.results.unusual.find(x => x.i === i); if (u) out.push(`unusual (${u.count} method(s)): ${u.why}`);
+        return out;
+    }
+    root.UMEChecks = { reasonsFor, render, start, run: S => { C = C || { S, onChange: () => {} }; C.S = S; return run(S); }, label };
 })(typeof window !== 'undefined' ? window : globalThis);

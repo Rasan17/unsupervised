@@ -270,6 +270,36 @@ check('Mixed-data test (copula reference) stays valid with categories of several
     assert(errors === 0 && fp / 60 <= 0.07, `${fp} false positives, ${errors} errors`);
     return `${fp} of 60 false positives (${(100 * fp / 60).toFixed(1)}%); no failures`;
 });
+// Calibration of the tests of "no real sub-groups" under difficult distributions (one population each)
+function oneSim(kind, s) {
+    const r = CE.createPRNG(5000 + s), g = () => { const u = r() || 1e-12, v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+    return Array.from({ length: 200 }, () => {
+        const a = g(), b = g(), c = g(), d = g(), base = [a, 0.6 * a + 0.8 * b, 0.5 * b + 0.86 * c, 0.4 * c + 0.9 * d];
+        if (kind === 'heavy') { const w = Math.sqrt(3 / (g() ** 2 + g() ** 2 + g() ** 2)); return base.map(v => v * w); }
+        return base.map(v => Math.exp(0.8 * v));   // skewed (log-normal)
+    });
+}
+check('Tests of no real sub-groups with one population: Gaussian reference valid for heavy tails, copula reference valid for skewed measurements (at most 7% false positives, 40 datasets each)', () => {
+    let fpHeavy = 0, fpSkewG = 0, fpSkewC = 0;
+    for (let s = 0; s < 40; s++) {
+        if (CE.nullClusterTest(CE.standardize(oneSim('heavy', s)).Z, 3, { B: 39, seed: s }).pValue <= 0.05) fpHeavy++;
+        const Xs = oneSim('skewed', s);
+        if (CE.nullClusterTest(CE.standardize(Xs).Z, 3, { B: 39, seed: s }).pValue <= 0.05) fpSkewG++;
+        if (CE.copulaNullTest(Xs, 3, { B: 39, seed: s }).pValue <= 0.05) fpSkewC++;
+    }
+    // The Gaussian reference is not valid for skewed measurements: the app then uses the copula reference
+    assert(fpHeavy / 40 <= 0.07 && fpSkewC / 40 <= 0.07 && fpSkewG / 40 > 0.2, `heavy ${fpHeavy}, skewed Gaussian ${fpSkewG}, skewed copula ${fpSkewC}`);
+    return `false positives: heavy tails (Gaussian) ${fpHeavy}/40; skewed: Gaussian ${fpSkewG}/40 (why the app switches), copula ${fpSkewC}/40`;
+});
+check('Copula reference: power to detect sub-groups in mixed data (clearly separated: at least 90%; moderate overlap reported; 30 datasets each)', () => {
+    const power = sep => { let hit = 0; for (let s = 0; s < 30; s++) {
+        const r = CE.createPRNG(6000 + s), g = () => { const u = r() || 1e-12, v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+        const X = Array.from({ length: 240 }, (_, i) => { const c = i % 3; return [g() + sep * (c === 0), g() + sep * (c === 1), Math.exp(0.5 * g() + 0.4 * sep * (c === 2)), r() < [0.2, 0.5, 0.8][c] ? 1 : 0]; });
+        if (CE.copulaNullTest(X, 3, { B: 39, seed: s }).pValue <= 0.05) hit++; } return hit; };
+    const clear = power(3), moderate = power(2.2);
+    assert(clear >= 27, `clear ${clear}/30`);
+    return `detected: clearly separated (3 SD) ${clear}/30; moderate overlap (2.2 SD) ${moderate}/30 (a conservative test: a large p does not show that sub-groups are absent)`;
+});
 // Self-organising map (the neural-network method for large datasets)
 check('Self-organising map keeps the layout of the data: low topographic error on a two-dimensional sheet in 4 variables', () => {
     const r = CE.createPRNG(91), X = Array.from({ length: 1500 }, () => { const a = r() * 4, b = r() * 4; return [a, b, a + b, a - b].map(v => v + 0.05 * (r() - 0.5)); }), M1 = X.map(x => x.map(() => 1));

@@ -55,6 +55,7 @@ tr.describe td { background: var(--soft); }
 .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 18px; align-items: start; } .grid2 > * { min-width: 0; }
 .grid2 > div { min-width: 0; }
 .verdict { border-radius: 8px; padding: 12px 14px; border-left: 4px solid; }
+.warnbox { border-radius: 8px; padding: 12px 14px; border-left: 4px solid var(--warn); background: var(--warn-bg); }
 .verdict.good { background: var(--good-bg); border-color: var(--good); } .verdict.mixed { background: var(--warn-bg); border-color: var(--warn); } .verdict.bad { background: var(--bad-bg); border-color: var(--bad); }
 .chart { width: 100%; height: auto; }
 .chart .grid { stroke: var(--line); stroke-width: 1; } .chart .axis { stroke: var(--muted); stroke-width: 1; }
@@ -113,3 +114,4 @@ button.sort:focus-visible { outline: 2px solid var(--accent); outline-offset: 2p
 .chart.som rect.part { stroke-dasharray: 3 2; }
 .chart .band.remove { fill: var(--bad); stroke: var(--bad); }
 table.axis-factors td { vertical-align: top; } table.axis-factors td .muted { font-size: 12px; }
+.form input[type="text"] { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); max-width: 100%; }

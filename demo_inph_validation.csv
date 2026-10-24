@@ -1,0 +1,201 @@
+Patient_ID,Age,Sex,Hypertension,White_Matter_Fazekas,MMSE,Gait_Score,Evans_Index,Callosal_Angle_Deg,DESH_Sign,Rout_mmHg_min_ml,Tap_Test_Gait_Gain_Pct,Shunt_Response,Gait_Improvement_12mo,Simulated_True_Subtype
+VH-001,73,Male,Yes,0,25,3,0.37,63,Present,18.8,36,Responder,3,Classic CSF-dynamic
+VH-002,81,Male,Yes,3,22,4,0.36,80,Present,8.4,18,Responder,2,Vascular-comorbid
+VH-003,78,Male,Yes,3,22,3,0.38,95,Absent,12.2,13,Non-responder,0,Vascular-comorbid
+VH-004,76,Male,No,1,25,2,0.39,66,Present,15.5,38,Responder,1,Classic CSF-dynamic
+VH-005,81,Male,Yes,3,26,2,0.33,89,Absent,15.7,14,Responder,3,Vascular-comorbid
+VH-006,72,Male,No,0,25,2,0.40,71,Present,22.1,31,Responder,1,Classic CSF-dynamic
+VH-007,78,Male,Yes,0,15,4,0.35,111,Absent,15.3,1,Non-responder,0,Neurodegenerative overlap
+VH-008,70,Female,No,2,17,3,0.35,95,Absent,14.8,6,Non-responder,0,Neurodegenerative overlap
+VH-009,82,Male,No,0,17,1,0.37,114,Absent,7.1,1,Responder,2,Neurodegenerative overlap
+VH-010,87,Male,Yes,2,23,3,0.35,91,Absent,11.1,13,Responder,1,Vascular-comorbid
+VH-011,70,Male,Yes,1,25,4,0.42,54,Present,22.4,21,Responder,2,Classic CSF-dynamic
+VH-012,81,Male,No,2,16,3,0.37,106,Absent,12.7,9,Non-responder,0,Neurodegenerative overlap
+VH-013,79,Male,Yes,3,27,4,0.34,95,Present,10.5,2,Responder,3,Vascular-comorbid
+VH-014,69,Male,No,0,21,4,0.38,70,Present,,33,Responder,1,Classic CSF-dynamic
+VH-015,75,Female,No,3,22,3,0.38,85,Absent,6.4,22,Non-responder,1,Vascular-comorbid
+VH-016,60,Male,No,0,18,4,0.41,101,Present,7.0,18,Non-responder,-1,Neurodegenerative overlap
+VH-017,79,Female,Yes,2,24,4,0.37,95,Absent,13.9,13,Non-responder,0,Vascular-comorbid
+VH-018,78,Male,Yes,2,21,4,0.30,95,Absent,8.6,8,Responder,2,Vascular-comorbid
+VH-019,74,Male,No,0,19,2,0.34,102,Absent,10.4,6,Non-responder,1,Neurodegenerative overlap
+VH-020,80,Female,Yes,3,21,2,0.36,91,Absent,11.2,-2,Non-responder,-1,Vascular-comorbid
+VH-021,77,Female,Yes,2,28,2,0.38,106,Present,6.6,14,Non-responder,1,Vascular-comorbid
+VH-022,80,Male,Yes,2,22,3,0.35,86,Absent,13.0,13,Responder,2,Vascular-comorbid
+VH-023,59,Male,No,0,22,1,0.41,72,Present,19.7,29,Responder,1,Classic CSF-dynamic
+VH-024,69,Female,No,1,29,2,0.38,75,Present,17.6,31,Responder,0,Classic CSF-dynamic
+VH-025,77,Male,Yes,0,22,3,0.37,45,Present,25.4,43,Responder,2,Classic CSF-dynamic
+VH-026,78,Female,No,0,26,3,0.38,71,Present,15.0,23,Responder,3,Classic CSF-dynamic
+VH-027,79,Male,No,3,20,3,0.35,81,Absent,,7,Responder,2,Vascular-comorbid
+VH-028,76,Male,Yes,0,21,2,0.38,103,Present,16.1,9,Non-responder,2,Neurodegenerative overlap
+VH-029,66,Male,No,1,26,3,0.34,49,Present,20.7,33,Responder,2,Classic CSF-dynamic
+VH-030,69,Female,Yes,0,17,2,0.36,113,Absent,11.1,3,Responder,1,Neurodegenerative overlap
+VH-031,77,Female,Yes,1,14,1,0.37,115,Absent,8.0,19,Non-responder,0,Neurodegenerative overlap
+VH-032,70,Female,No,3,19,3,0.38,96,Absent,7.4,7,Non-responder,0,Neurodegenerative overlap
+VH-033,77,Female,Yes,1,26,4,0.36,85,Absent,11.2,14,Responder,1,Vascular-comorbid
+VH-034,73,Female,No,3,18,1,0.34,109,Absent,8.3,-1,Responder,1,Neurodegenerative overlap
+VH-035,82,Male,No,0,24,2,0.41,67,Present,19.4,17,Responder,2,Classic CSF-dynamic
+VH-036,73,Male,No,0,29,3,0.40,58,Present,18.1,30,Responder,2,Classic CSF-dynamic
+VH-037,84,Male,Yes,1,25,3,0.32,105,Absent,11.9,20,Responder,1,Vascular-comorbid
+VH-038,72,Male,No,3,25,2,0.33,62,Present,19.3,28,Non-responder,0,Classic CSF-dynamic
+VH-039,69,Male,No,1,22,1,0.37,103,Absent,11.0,-1,Non-responder,1,Neurodegenerative overlap
+VH-040,69,Male,Yes,3,26,2,0.31,74,Absent,11.7,18,Non-responder,1,Vascular-comorbid
+VH-041,76,Female,No,0,28,3,0.39,89,Present,17.1,25,Responder,2,Classic CSF-dynamic
+VH-042,76,Female,Yes,3,21,3,0.36,118,Absent,7.3,22,Responder,3,Vascular-comorbid
+VH-043,68,Male,No,0,29,3,0.37,67,Present,,36,Non-responder,1,Classic CSF-dynamic
+VH-044,88,Male,Yes,2,22,3,0.31,99,Present,,32,Responder,3,Vascular-comorbid
+VH-045,67,Male,Yes,1,20,2,0.38,110,Absent,9.7,28,Responder,2,Neurodegenerative overlap
+VH-046,77,Female,Yes,1,19,4,0.35,108,Absent,11.1,5,Non-responder,0,Neurodegenerative overlap
+VH-047,71,Male,No,2,26,1,0.37,76,Present,20.8,33,Responder,2,Classic CSF-dynamic
+VH-048,86,Male,Yes,2,22,2,0.35,99,Present,6.3,15,Responder,2,Vascular-comorbid
+VH-049,83,Male,No,,30,2,0.40,55,Present,18.7,29,Responder,3,Classic CSF-dynamic
+VH-050,79,Male,No,2,28,3,0.37,92,Absent,15.2,6,Non-responder,0,Vascular-comorbid
+VH-051,71,Female,Yes,3,22,3,0.37,65,Absent,,16,Responder,1,Vascular-comorbid
+VH-052,82,Female,Yes,3,23,3,0.35,94,Absent,16.4,3,Responder,3,Vascular-comorbid
+VH-053,79,Female,No,2,23,3,0.35,85,Present,12.8,24,Responder,1,Vascular-comorbid
+VH-054,76,Female,Yes,,23,3,0.32,88,Absent,15.2,-2,Responder,2,Vascular-comorbid
+VH-055,71,Male,No,3,16,3,0.41,99,Absent,9.5,-5,Non-responder,0,Neurodegenerative overlap
+VH-056,77,Male,Yes,2,16,3,0.39,111,Absent,,21,Non-responder,0,Neurodegenerative overlap
+VH-057,80,Female,No,1,24,4,0.40,83,Present,23.8,32,Responder,3,Classic CSF-dynamic
+VH-058,73,Female,No,1,26,2,0.35,73,Present,19.2,7,Responder,2,Classic CSF-dynamic
+VH-059,77,Female,Yes,1,20,1,0.37,104,Absent,6.9,9,Non-responder,-1,Neurodegenerative overlap
+VH-060,75,Male,Yes,1,29,3,0.34,98,Absent,8.3,,Non-responder,0,Vascular-comorbid
+VH-061,69,Male,Yes,0,29,4,0.37,78,Present,19.4,42,Responder,1,Classic CSF-dynamic
+VH-062,77,Male,Yes,2,18,2,0.38,93,Absent,10.5,25,Responder,2,Vascular-comorbid
+VH-063,74,Male,Yes,2,19,2,0.36,67,Absent,,,Responder,2,Vascular-comorbid
+VH-064,64,Female,No,3,30,2,0.34,75,Present,,37,Responder,2,Classic CSF-dynamic
+VH-065,87,Female,No,1,16,3,0.35,140,Absent,10.8,10,Non-responder,1,Neurodegenerative overlap
+VH-066,76,Male,No,0,27,3,0.38,79,Present,18.6,25,Non-responder,1,Classic CSF-dynamic
+VH-067,81,Male,No,2,24,4,0.36,75,Present,14.9,23,Responder,1,Classic CSF-dynamic
+VH-068,77,Male,No,0,24,2,0.41,62,Present,11.8,36,Non-responder,0,Classic CSF-dynamic
+VH-069,80,Male,No,2,18,1,0.37,122,Absent,,,Non-responder,0,Neurodegenerative overlap
+VH-070,92,Male,Yes,1,26,2,0.38,100,Absent,10.3,13,Responder,2,Vascular-comorbid
+VH-071,81,Male,Yes,3,21,4,0.35,100,Present,11.8,,Non-responder,0,Vascular-comorbid
+VH-072,66,Female,Yes,1,25,3,0.35,71,Present,19.1,,Responder,3,Classic CSF-dynamic
+VH-073,66,Male,Yes,2,22,3,0.35,71,Absent,8.0,7,Non-responder,0,Vascular-comorbid
+VH-074,76,Female,No,0,14,2,0.35,109,Absent,13.4,10,Responder,2,Neurodegenerative overlap
+VH-075,73,Female,No,1,23,3,0.37,81,Present,16.5,38,Responder,2,Classic CSF-dynamic
+VH-076,82,Female,Yes,3,27,4,0.37,94,Absent,10.9,14,Non-responder,1,Vascular-comorbid
+VH-077,73,Female,No,0,29,2,0.40,79,Present,18.8,24,Responder,1,Classic CSF-dynamic
+VH-078,81,Female,Yes,3,21,2,0.36,92,Absent,8.1,10,Non-responder,-1,Vascular-comorbid
+VH-079,72,Female,No,2,22,2,0.36,73,Present,19.7,28,Responder,2,Classic CSF-dynamic
+VH-080,90,Female,Yes,2,21,3,0.32,100,Absent,13.7,-0,Non-responder,0,Vascular-comorbid
+VH-081,73,Female,Yes,1,17,3,0.35,118,Absent,7.0,-4,Non-responder,0,Neurodegenerative overlap
+VH-082,67,Male,No,1,24,2,0.37,80,Present,23.8,27,Responder,2,Classic CSF-dynamic
+VH-083,78,Female,No,2,16,3,0.39,113,Absent,9.5,-0,Non-responder,0,Neurodegenerative overlap
+VH-084,77,Male,Yes,2,27,3,0.37,116,Absent,11.9,,Responder,1,Vascular-comorbid
+VH-085,84,Male,No,2,30,4,0.37,67,Present,20.3,23,Responder,2,Classic CSF-dynamic
+VH-086,75,Male,No,2,23,2,0.34,57,Present,,39,Responder,2,Classic CSF-dynamic
+VH-087,77,Female,No,2,17,2,0.41,106,Absent,6.0,-3,Non-responder,1,Neurodegenerative overlap
+VH-088,72,Male,Yes,3,16,4,0.38,82,Present,13.1,23,Non-responder,0,Vascular-comorbid
+VH-089,63,Male,No,2,26,3,0.35,58,Present,20.3,37,Non-responder,1,Classic CSF-dynamic
+VH-090,82,Female,Yes,3,22,3,0.35,104,Absent,15.1,34,Responder,2,Vascular-comorbid
+VH-091,78,Male,Yes,1,16,1,0.37,117,Absent,10.5,5,Responder,2,Neurodegenerative overlap
+VH-092,76,Female,No,3,29,2,0.41,53,Present,20.4,37,Responder,1,Classic CSF-dynamic
+VH-093,85,Male,Yes,2,25,3,0.36,70,Present,11.7,25,Non-responder,0,Vascular-comorbid
+VH-094,83,Female,Yes,2,30,2,0.37,97,Absent,12.6,33,Responder,1,Vascular-comorbid
+VH-095,75,Female,Yes,1,23,3,0.38,92,Absent,6.4,16,Responder,3,Vascular-comorbid
+VH-096,80,Female,Yes,3,17,3,0.33,90,Absent,13.1,25,Responder,2,Vascular-comorbid
+VH-097,70,Female,No,1,17,2,0.33,129,Absent,8.3,4,Responder,2,Neurodegenerative overlap
+VH-098,71,Male,Yes,1,23,3,0.32,107,Absent,15.8,9,Responder,2,Vascular-comorbid
+VH-099,81,Male,Yes,2,21,4,0.32,94,Absent,16.1,12,Non-responder,-1,Vascular-comorbid
+VH-100,68,Male,Yes,0,28,2,0.35,66,Absent,21.2,38,Non-responder,1,Classic CSF-dynamic
+VH-101,78,Female,No,1,19,2,0.32,120,Present,9.5,-1,Non-responder,0,Neurodegenerative overlap
+VH-102,78,Male,Yes,0,22,2,0.38,104,Absent,6.3,1,Non-responder,1,Neurodegenerative overlap
+VH-103,83,Male,Yes,3,24,3,0.38,103,Absent,12.7,-5,Non-responder,0,Vascular-comorbid
+VH-104,72,Male,Yes,0,24,4,0.35,58,Present,20.4,35,Responder,1,Classic CSF-dynamic
+VH-105,71,Male,No,0,21,3,0.39,65,Present,14.3,24,Responder,2,Classic CSF-dynamic
+VH-106,74,Male,No,2,16,2,0.38,109,Present,7.6,-8,Responder,2,Neurodegenerative overlap
+VH-107,82,Male,Yes,3,23,2,0.33,75,Absent,7.8,14,Responder,3,Vascular-comorbid
+VH-108,71,Male,No,0,25,2,0.36,69,Present,,37,Responder,3,Classic CSF-dynamic
+VH-109,83,Female,Yes,2,23,3,0.35,110,Absent,13.5,15,Responder,3,Vascular-comorbid
+VH-110,87,Male,Yes,,19,2,0.31,96,Absent,,-2,Non-responder,0,Vascular-comorbid
+VH-111,73,Male,Yes,3,18,3,0.34,105,Absent,11.6,17,Responder,3,Vascular-comorbid
+VH-112,72,Female,No,0,18,3,0.35,112,Present,14.4,-5,Responder,2,Neurodegenerative overlap
+VH-113,84,Male,Yes,1,25,4,0.33,100,Absent,16.1,14,Responder,2,Vascular-comorbid
+VH-114,71,Male,No,1,26,2,0.34,75,Present,18.0,43,Responder,3,Classic CSF-dynamic
+VH-115,72,Male,Yes,3,21,3,0.37,95,Absent,,1,Responder,2,Vascular-comorbid
+VH-116,81,Female,No,1,28,2,0.38,64,Present,21.8,38,Responder,1,Classic CSF-dynamic
+VH-117,78,Female,Yes,3,23,4,0.32,75,Absent,8.6,2,Responder,1,Vascular-comorbid
+VH-118,63,Female,No,1,24,2,0.39,71,Present,19.7,45,Responder,2,Classic CSF-dynamic
+VH-119,85,Male,Yes,1,25,4,0.37,90,Absent,,4,Responder,2,Vascular-comorbid
+VH-120,82,Male,Yes,3,25,3,0.35,79,Present,,17,Responder,3,Vascular-comorbid
+VH-121,65,Female,No,0,26,2,0.38,71,Present,17.3,35,Responder,1,Classic CSF-dynamic
+VH-122,55,Male,No,1,24,2,0.37,88,Present,22.1,22,Responder,3,Classic CSF-dynamic
+VH-123,68,Female,Yes,2,13,4,0.39,121,Absent,7.4,-2,Responder,2,Neurodegenerative overlap
+VH-124,80,Male,Yes,3,22,3,0.40,84,Absent,9.3,15,Responder,1,Vascular-comorbid
+VH-125,82,Female,Yes,3,22,3,0.34,84,Present,13.0,22,Non-responder,1,Vascular-comorbid
+VH-126,72,Female,No,1,24,3,0.36,66,Absent,20.0,45,Responder,2,Classic CSF-dynamic
+VH-127,69,Male,No,1,27,2,0.35,55,Present,21.1,32,Responder,1,Classic CSF-dynamic
+VH-128,77,Female,Yes,1,28,3,0.33,66,Present,19.4,21,Non-responder,0,Classic CSF-dynamic
+VH-129,69,Male,No,0,26,3,0.35,85,Present,22.6,41,Responder,2,Classic CSF-dynamic
+VH-130,85,Male,Yes,1,26,3,0.33,91,Absent,13.3,14,Responder,2,Vascular-comorbid
+VH-131,76,Male,No,0,25,4,0.35,60,Present,18.5,33,Non-responder,1,Classic CSF-dynamic
+VH-132,75,Male,Yes,1,20,3,0.35,85,Absent,11.7,6,Responder,2,Vascular-comorbid
+VH-133,78,Female,Yes,2,22,3,0.37,115,Absent,,12,Non-responder,0,Vascular-comorbid
+VH-134,67,Female,No,2,27,3,0.36,73,Absent,17.8,26,Responder,1,Classic CSF-dynamic
+VH-135,67,Male,No,0,26,3,0.33,76,Absent,20.8,31,Responder,1,Classic CSF-dynamic
+VH-136,62,Female,No,1,24,3,0.38,46,Present,20.2,,Responder,1,Classic CSF-dynamic
+VH-137,83,Male,Yes,2,22,2,0.35,79,Absent,11.6,7,Responder,2,Vascular-comorbid
+VH-138,69,Female,No,0,23,2,0.41,56,Present,15.8,21,Responder,1,Classic CSF-dynamic
+VH-139,81,Male,No,3,22,2,0.37,89,Absent,,9,Non-responder,-1,Vascular-comorbid
+VH-140,70,Male,No,0,29,4,0.40,73,Present,21.7,34,Responder,2,Classic CSF-dynamic
+VH-141,83,Male,Yes,2,24,2,0.38,91,Absent,10.3,32,Responder,2,Vascular-comorbid
+VH-142,78,Male,No,1,12,2,0.38,108,Absent,10.7,0,Non-responder,0,Neurodegenerative overlap
+VH-143,76,Male,Yes,0,24,2,0.40,59,Present,16.9,30,Responder,2,Classic CSF-dynamic
+VH-144,86,Male,Yes,3,22,2,0.34,92,Absent,14.3,19,Responder,3,Vascular-comorbid
+VH-145,90,Female,Yes,3,26,2,0.37,94,Absent,14.8,24,Non-responder,-1,Vascular-comorbid
+VH-146,75,Female,No,1,17,3,0.35,135,Absent,,-9,Responder,1,Neurodegenerative overlap
+VH-147,80,Male,Yes,3,24,2,0.36,84,Absent,14.6,16,Responder,1,Vascular-comorbid
+VH-148,75,Male,Yes,1,26,3,0.35,76,Absent,9.1,10,Responder,1,Vascular-comorbid
+VH-149,69,Female,No,0,30,3,0.33,77,Present,18.7,26,Responder,2,Classic CSF-dynamic
+VH-150,82,Male,No,1,17,1,0.35,99,Absent,11.0,-8,Non-responder,-1,Neurodegenerative overlap
+VH-151,69,Female,Yes,2,25,3,0.34,78,Absent,,17,Non-responder,0,Vascular-comorbid
+VH-152,76,Male,No,0,29,3,0.38,67,Present,22.6,38,Responder,2,Classic CSF-dynamic
+VH-153,79,Male,No,0,28,3,0.36,45,Present,19.1,36,Responder,2,Classic CSF-dynamic
+VH-154,74,Male,Yes,1,16,3,0.35,92,Present,6.3,-4,Non-responder,1,Neurodegenerative overlap
+VH-155,83,Male,Yes,1,27,2,0.34,85,Absent,10.8,12,Responder,2,Vascular-comorbid
+VH-156,72,Male,Yes,0,22,3,0.35,112,Absent,12.7,-12,Non-responder,1,Neurodegenerative overlap
+VH-157,81,Female,Yes,1,24,2,0.40,115,Absent,13.9,12,Non-responder,-1,Vascular-comorbid
+VH-158,81,Female,Yes,2,29,3,0.35,106,Present,13.1,3,Non-responder,0,Vascular-comorbid
+VH-159,73,Male,Yes,3,20,4,0.31,109,Present,15.0,18,Responder,3,Vascular-comorbid
+VH-160,75,Male,Yes,3,24,3,0.35,92,Present,9.2,26,Responder,1,Vascular-comorbid
+VH-161,79,Female,Yes,2,26,3,0.37,114,Absent,10.7,16,Responder,2,Vascular-comorbid
+VH-162,79,Female,Yes,1,22,4,0.30,76,Absent,14.4,12,Responder,1,Vascular-comorbid
+VH-163,77,Female,Yes,2,25,2,0.30,110,Present,,,Responder,2,Vascular-comorbid
+VH-164,74,Male,Yes,1,25,3,0.32,93,Absent,17.5,38,Non-responder,0,Vascular-comorbid
+VH-165,83,Female,Yes,3,27,2,0.36,94,Absent,,8,Non-responder,0,Vascular-comorbid
+VH-166,74,Female,No,0,28,3,0.39,74,Present,17.9,34,Responder,2,Classic CSF-dynamic
+VH-167,70,Female,Yes,1,16,2,0.38,111,Absent,9.6,7,Non-responder,0,Neurodegenerative overlap
+VH-168,78,Male,No,1,28,0,0.37,57,Present,23.7,32,Responder,3,Classic CSF-dynamic
+VH-169,71,Male,Yes,2,21,3,0.40,115,Absent,,14,Non-responder,0,Vascular-comorbid
+VH-170,90,Male,Yes,3,27,4,0.35,94,Absent,,7,Non-responder,0,Vascular-comorbid
+VH-171,67,Female,No,1,23,1,0.45,58,Present,19.3,35,Responder,1,Classic CSF-dynamic
+VH-172,72,Male,Yes,2,21,3,0.34,84,Absent,12.2,23,Responder,3,Vascular-comorbid
+VH-173,65,Female,No,1,22,2,0.41,60,Present,16.1,24,Non-responder,0,Classic CSF-dynamic
+VH-174,77,Male,No,1,29,3,0.39,84,Absent,21.9,29,Responder,1,Classic CSF-dynamic
+VH-175,76,Male,Yes,3,23,2,0.39,103,Absent,,18,Responder,2,Vascular-comorbid
+VH-176,71,Male,Yes,1,26,3,0.36,85,Present,14.3,,Non-responder,0,Classic CSF-dynamic
+VH-177,74,Female,Yes,1,25,3,0.37,50,Present,26.7,24,Responder,1,Classic CSF-dynamic
+VH-178,69,Female,No,1,27,1,0.38,64,Present,16.1,36,Responder,3,Classic CSF-dynamic
+VH-179,80,Female,No,1,26,2,0.37,97,Present,23.9,26,Responder,1,Classic CSF-dynamic
+VH-180,78,Male,Yes,1,16,2,0.38,104,Absent,8.3,-3,Responder,2,Neurodegenerative overlap
+VH-181,70,Male,No,1,26,3,0.37,85,Present,20.3,22,Non-responder,1,Classic CSF-dynamic
+VH-182,69,Female,No,0,29,3,0.38,65,Present,17.2,27,Non-responder,1,Classic CSF-dynamic
+VH-183,85,Male,Yes,2,21,2,0.31,83,Absent,,30,Non-responder,0,Vascular-comorbid
+VH-184,92,Female,No,0,19,3,0.37,108,Absent,11.2,3,Non-responder,-1,Neurodegenerative overlap
+VH-185,88,Male,Yes,2,25,3,0.37,75,Absent,12.4,4,Responder,2,Vascular-comorbid
+VH-186,70,Male,No,1,29,3,0.37,67,Present,23.1,46,Responder,1,Classic CSF-dynamic
+VH-187,81,Male,Yes,2,21,2,0.30,99,Absent,12.7,3,Non-responder,1,Vascular-comorbid
+VH-188,75,Male,No,1,21,2,0.35,119,Present,10.0,-5,Non-responder,0,Neurodegenerative overlap
+VH-189,83,Male,Yes,2,25,4,0.32,80,Absent,13.0,18,Responder,3,Vascular-comorbid
+VH-190,77,Female,No,0,19,3,0.36,92,Present,,2,Non-responder,2,Neurodegenerative overlap
+VH-191,69,Male,Yes,2,20,4,0.38,100,Absent,,22,Non-responder,1,Vascular-comorbid
+VH-192,74,Male,No,1,28,4,0.40,60,Present,14.0,25,Responder,2,Classic CSF-dynamic
+VH-193,81,Male,Yes,1,23,2,0.39,96,Absent,6.6,25,Responder,2,Vascular-comorbid
+VH-194,84,Male,No,3,26,2,0.31,86,Absent,11.9,-3,Non-responder,-1,Vascular-comorbid
+VH-195,82,Male,No,3,23,3,0.36,109,Present,,13,Responder,3,Vascular-comorbid
+VH-196,64,Female,No,2,27,4,0.40,91,Present,18.3,38,Responder,1,Classic CSF-dynamic
+VH-197,83,Male,Yes,2,19,3,0.33,99,Absent,12.6,19,Responder,2,Vascular-comorbid
+VH-198,80,Female,Yes,3,26,4,0.35,93,Absent,,19,Responder,2,Vascular-comorbid
+VH-199,83,Male,Yes,3,24,4,0.35,88,Absent,13.2,7,Responder,2,Vascular-comorbid
+VH-200,76,Female,Yes,3,23,3,0.37,112,Present,8.9,14,Responder,1,Vascular-comorbid

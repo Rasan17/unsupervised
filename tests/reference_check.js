@@ -151,5 +151,11 @@ out.lcaCont = { logLik: LP.logLik, bic: LP.bic, shares: LP.model.pi.slice().sort
     // Unordered centres for comparison (weighted k-means orders its groups by size)
     out.som = { init, W: S0.W, wts, wkCentres: WK.centres };
 }
+// 10. Describe-only variables: Benjamini-Hochberg q-values, Cramer's V, epsilon squared
+{
+    const ps = [0.001, 0.04, 0.03, 0.2, 0.0005, 0.5, null, 0.049];
+    const chi = out.tests.chi, sexLevels = new Set(out.tests.sexv).size, grpLevels = new Set(out.tests.grp).size;
+    out.effects = { ps, q: CE.benjaminiHochberg(ps), v: CE.cramersV(chi.statistic, out.tests.sexv.length, sexLevels, grpLevels), eps: CE.epsilonSquared(out.tests.kw.statistic, out.tests.agev.length) };
+}
 fs.writeFileSync(path.join(__dirname, 'reference_values.json'), JSON.stringify(out));
 console.log('Engine values written to tests/reference_values.json; now run: python3 tests/reference_check.py');

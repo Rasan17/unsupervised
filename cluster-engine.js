@@ -498,7 +498,10 @@
         const rng = createPRNG(seed), k = Math.max(...labels) + 1;
         const clusters = Array.from({ length: k }, (_, c) => labels.map((l, i) => (l === c ? i : -1)).filter(i => i >= 0));
         const byGroup = groups ? [...groups.reduce((m, g, i) => { const key = String(g); if (!m.has(key)) m.set(key, []); m.get(key).push(i); return m; }, new Map()).values()] : null;
-        const jac = Array.from({ length: k }, () => []), aris = [];
+        const jac = Array.from({ length: k }, () => []), sizes = Array.from({ length: k }, () => []), aris = [];
+        // Patient-level stability: in how many resamples containing the patient it falls in the resample cluster that
+        // best matches its own cluster (largest Jaccard)
+        const seen = new Float64Array(n), same = new Float64Array(n);
         let failed = 0;
         for (let b = 0; b < B; b++) {
             const idx = byGroup ? [].concat(...Array.from({ length: byGroup.length }, () => byGroup[Math.floor(rng() * byGroup.length)])) : Array.from({ length: n }, () => Math.floor(rng() * n));
@@ -513,15 +516,29 @@
                 const inC = C.filter(i => lab.has(i));
                 if (!inC.length) return;
                 const setC = new Set(inC);
-                let best = 0;
-                bc.forEach(S => { let inter = 0; S.forEach(i => { if (setC.has(i)) inter++; }); const uni = setC.size + S.size - inter; if (uni) best = Math.max(best, inter / uni); });
+                let best = 0, bestS = null;
+                bc.forEach(S => { let inter = 0; S.forEach(i => { if (setC.has(i)) inter++; }); const uni = setC.size + S.size - inter; if (uni && inter / uni > best) { best = inter / uni; bestS = S; } });
                 jac[c].push(best);
+                sizes[c].push(bestS ? bestS.size / lab.size : 0);
+                inC.forEach(i => { seen[i]++; if (bestS && bestS.has(i)) same[i]++; });
             });
             const shared = [...lab.keys()];
             aris.push(adjustedRand(shared.map(i => labels[i]), shared.map(i => lab.get(i))));
         }
         const mean = a => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
-        return { perCluster: jac.map((a, c) => ({ cluster: c, size: clusters[c].length, meanJaccard: mean(a), dissolved: a.filter(v => v < 0.5).length / (a.length || 1) })), meanAdjustedRand: mean(aris), resamples: B - failed, failed };
+        const sd = a => { if (a.length < 2) return null; const m = mean(a); return Math.sqrt(a.reduce((x, y) => x + (y - m) ** 2, 0) / (a.length - 1)); };
+        const quant = (a, f) => { if (!a.length) return null; const t = a.slice().sort((x, y) => x - y), h = (t.length - 1) * f, l = Math.floor(h); return t[l] + (t[Math.ceil(h)] - t[l]) * (h - l); };
+        return {
+            perCluster: jac.map((a, c) => {
+                const m = mean(a), s = sd(a), se = s !== null ? s / Math.sqrt(a.length) : null;
+                // ciMean: Monte Carlo 95% interval of the mean Jaccard (how precisely the B resamples estimate it);
+                // range95: the middle 95% of the Jaccard values of single resamples; shareRange: share of the resampled
+                // patients in the matching cluster (compare with size / n)
+                return { cluster: c, size: clusters[c].length, meanJaccard: m, sdJaccard: s, ciMean: se !== null ? [m - 1.96 * se, m + 1.96 * se] : null,
+                    range95: [quant(a, 0.025), quant(a, 0.975)], shareRange: [quant(sizes[c], 0.025), quant(sizes[c], 0.975)], dissolved: a.filter(v => v < 0.5).length / (a.length || 1) };
+            }),
+            patientStability: Array.from(same, (v, i) => (seen[i] ? v / seen[i] : null)),
+            meanAdjustedRand: mean(aris), resamples: B - failed, failed };
     }
 
     // ------------------------------------------------------------------------------------------- is there structure?
@@ -939,8 +956,20 @@
         return (a, b) => { let s = 0, w = 0; for (let j = 0; j < p; j++) { const x = val[j][a], y = val[j][b], wj = weights ? weights[j] : 1; if (x === null || y === null || !(wj > 0)) continue; w += wj; if (vars[j].type === 'nominal') s += x === y ? 0 : wj; else if (range[j] > 0) s += (wj * Math.abs(x - y)) / range[j]; } return w ? s / w : 1; };
     }
 
+    /** Benjamini-Hochberg adjusted p-values (q-values, false discovery rate), in the input order; nulls kept */
+    function benjaminiHochberg(ps) {
+        const idx = ps.map((p, i) => [p, i]).filter(([p]) => p !== null && Number.isFinite(p)).sort((a, b) => a[0] - b[0]), m = idx.length, q = ps.map(() => null);
+        let run = 1;
+        for (let r = m - 1; r >= 0; r--) { run = Math.min(run, (idx[r][0] * m) / (r + 1)); q[idx[r][1]] = Math.min(1, run); }
+        return q;
+    }
+    /** Cramer's V from a chi-square statistic (n observations, r categories, c groups) */
+    const cramersV = (x2, n, r, c) => (n > 0 && Math.min(r, c) > 1 ? Math.sqrt(x2 / (n * (Math.min(r, c) - 1))) : null);
+    /** Epsilon squared for the Kruskal-Wallis H (Tomczak & Tomczak 2014): H / (n - 1) */
+    const epsilonSquared = (H, n) => (n > 1 ? H / (n - 1) : null);
+
     const ClusterEngine = { createPRNG, standardize, euclideanMatrix, gowerMatrix, lloyd, kmeansPlusPlus, kmeans, pam, hierarchical, cutTree, gmm, gmmFromParams, mStep,
         silhouette, calinskiHarabasz, daviesBouldin, withinSS, adjustedRand, symmetricEigen, pca, gapStatistic, bootstrapStability, nullClusterTest, copulaNullTest, normInv, normCdf, chiSquareTest, kruskalWallis, gammaQ, relabelBySize,
-        codeValue, gowerDistances, gowerBalancedWeights, gowerPairFn, lca, lcaPosterior, classificationTree, predictTree, treePath, treeRules, cohenKappa };
+        benjaminiHochberg, cramersV, epsilonSquared, codeValue, gowerDistances, gowerBalancedWeights, gowerPairFn, lca, lcaPosterior, classificationTree, predictTree, treePath, treeRules, cohenKappa };
     root.ClusterEngine = ClusterEngine;
 })(typeof window !== 'undefined' ? window : globalThis);

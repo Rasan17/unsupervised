@@ -2,6 +2,8 @@
 and R's cluster package (tests/reference_check.R). Usage: node tests/reference_check.js && python3 tests/reference_check.py"""
 import json, os, subprocess, shutil, sys
 import numpy as np
+skipped = []
+def skip(msg): skipped.append(msg); print(msg)
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from sklearn.metrics import silhouette_score, silhouette_samples, calinski_harabasz_score, davies_bouldin_score, adjusted_rand_score
@@ -125,7 +127,7 @@ try:
         tu = [trustworthiness(Dm, umap.UMAP(metric='precomputed', random_state=s).fit_transform(Dm), n_neighbors=5, metric='precomputed') for s in range(3)]
     chk('UMAP map at least as trustworthy as umap-learn (within 0.01 of its mean over 3 seeds)', max(0.0, np.mean(tu) - 0.01 - em['trustUmap']), 0.0, 0)
 except ImportError:
-    print('umap-learn not installed: UMAP checks skipped')
+    skip('umap-learn not installed: UMAP checks skipped')
 # Unusual patients
 from sklearn.covariance import MinCovDet
 from sklearn.neighbors import LocalOutlierFactor
@@ -183,6 +185,15 @@ chk('Self-organising map with no neighbourhood equals k-means from the same star
 kmW = KMeans(3, init=np.array(sm['init']), n_init=1, algorithm='lloyd', tol=0, max_iter=1000).fit(X, sample_weight=np.array(sm['wts'], float))
 srt = lambda C: np.array(sorted(np.array(C).tolist()))
 chk('Weighted k-means for the map units: centres (vs scikit-learn with sample weights)', srt(sm['wkCentres']), srt(kmW.cluster_centers_), 1e-9)
+# Describe-only variables: false discovery rate, effect sizes
+from scipy.stats import false_discovery_control, kruskal
+from scipy.stats.contingency import association, crosstab
+ef = o['effects']; tt = o['tests']
+pv = [p for p in ef['ps'] if p is not None]; qref = list(false_discovery_control(pv, method='bh'))
+chk('Benjamini-Hochberg q-values (vs SciPy false_discovery_control)', [q for q in ef['q'] if q is not None], qref, 1e-12)
+chk("Cramer's V (vs SciPy contingency.association)", ef['v'], association(crosstab(tt['sexv'], tt['grp'])[1], method='cramer'), 1e-12)
+Hk = kruskal(*[np.array(tt['agev'])[np.array(tt['grp']) == g] for g in sorted(set(tt['grp']))]).statistic
+chk('Epsilon squared for Kruskal-Wallis: H / (n - 1) (vs SciPy H)', ef['eps'], Hk / (len(tt['agev']) - 1), 1e-10)
 # R: Gower (daisy), PAM
 rs = shutil.which('Rscript')
 if rs:
@@ -203,12 +214,12 @@ if rs:
         chk('Latent class analysis: number of parameters and BIC (vs R poLCA)', [o['lcaItems']['nParams'], o['lcaItems']['bic']], [R['lca_items_npar'][0], R['lca_items_bic'][0]], 1e-5)
         chk('Latent class analysis: class shares (vs R poLCA)', o['lcaItems']['shares'], R['lca_items_shares'], 1e-5)
     else:
-        print('R package poLCA not installed: latent class check skipped')
+        skip('R package poLCA not installed: latent class check skipped')
     if 'lca_cont_loglik' in R:
         chk('Latent profile analysis (numbers): log-likelihood and BIC (vs R mclust, model VVI)', [o['lcaCont']['logLik'], o['lcaCont']['bic']], [R['lca_cont_loglik'][0], R['lca_cont_bic'][0]], 1e-5)
         chk('Latent profile analysis: class shares (vs R mclust)', o['lcaCont']['shares'], R['lca_cont_shares'], 1e-6)
     else:
-        print('R package mclust not installed: latent profile check skipped')
+        skip('R package mclust not installed: latent profile check skipped')
     if 'famd_eig' in R:
         fm = o['famd']; d5 = len(R['famd_eig'])
         chk('FAMD (mixed data): eigenvalues (vs R FactoMineR)', fm['eig'][:d5], R['famd_eig'], 1e-10)
@@ -220,10 +231,11 @@ if rs:
         chk('FAMD with categories only = MCA (eigenvalues x number of variables) (vs FactoMineR MCA)', np.array(fm['eigCat'][:nm]) / 3, R['mca_eig'], 1e-10)
         chk('FAMD with numbers only = PCA: eigenvalues and coordinates (vs FactoMineR PCA)', np.r_[fm['eigNum'], np.abs(np.array(fm['scoresNum'])).ravel()], np.r_[R['pca_eig'], R['pca_ind']], 1e-9)
     else:
-        print('R package FactoMineR not installed: FAMD checks skipped')
+        skip('R package FactoMineR not installed: FAMD checks skipped')
 else:
-    print('Rscript not found: Gower and PAM checks against R skipped')
+    skip('Rscript not found: Gower and PAM checks against R skipped')
 w = max(len(r[1]) for r in res)
 for st, nm, d, t in res: print(f'{st}  {nm:<{w}}  max|diff|={d:.2e}  (tol {t:.0e})')
 print(f"\n{sum(1 for r in res if r[0] == 'PASS')}/{len(res)} checks passed")
-sys.exit(0 if all(r[0] == 'PASS' for r in res) else 1)
+if skipped and os.environ.get('REQUIRE_ALL'): print(f'{len(skipped)} group(s) of checks skipped, but REQUIRE_ALL is set')
+sys.exit(0 if all(r[0] == 'PASS' for r in res) and not (skipped and os.environ.get('REQUIRE_ALL')) else 1)

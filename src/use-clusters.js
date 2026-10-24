@@ -242,16 +242,20 @@
             <div class="row"><label for="rule-depth">Most conditions per rule</label><select id="rule-depth">${[1, 2, 3, 4].map(d => `<option value="${d}"${d === U.depth ? ' selected' : ''}>${d}</option>`).join('')}</select></div>
             ${depthNote() ? `<p class="small note">${esc(depthNote())}</p>` : ''}
             <div class="rules">${rulesHtml}</div>
-            <p class="lead small">The rules give the same class as the full clustering for <strong>${pct(U.cv.agree)}</strong> of patients not used to derive them (10-fold cross-validation; Cohen's kappa ${U.cv.kappa.toFixed(2)}; ${cvWord(U.cv.agree)}). On the patients used to derive them: ${pct(U.apparent)}.${U.cv.agree < 0.8 ? ' The rules are only an approximation of the clusters: for an individual patient, use the calculator below, which also applies the full clustering.' : ''}</p>
+            <p class="lead small">The rules give the same class as the full clustering for <strong>${pct(U.cv.agree)}</strong> of patients not used to derive them (10-fold cross-validation; Cohen's kappa ${U.cv.kappa.toFixed(2)}; ${cvWord(U.cv.agree)}). On the patients used to derive them: ${pct(U.apparent)}. <span class="muted">This is agreement with the unsupervised cluster assignments, not clinical accuracy: it does not show that the classes are clinically correct or that the rules predict outcomes.</span>${U.cv.agree < 0.8 ? ' The rules are only an approximation of the clusters: for an individual patient, use the calculator below, which also applies the full clustering.' : ''}</p>
             <div class="grid2"><div><div class="table-wrap">${confTable}</div><p class="muted small">Cross-validated: rows are the clusters, columns the class given by the rules.</p></div>
                 <div><div class="table-wrap"><table><thead><tr><th>Conditions per rule</th><th>Agreement (cross-validated)</th><th>Kappa</th></tr></thead><tbody>${depthRows}</tbody></table></div><p class="muted small">The suggested depth is the simplest within 2 percentage points of the best agreement: longer rules are harder to apply and to replicate.</p></div></div>
             <h3>3. Classify a new patient</h3>
-            <p class="muted small">Enter the values of the clustering variables (leave any that are not available). The patient is classified by the rules and by the full clustering (${U.ref ? (U.ref.kind === 'neural' ? 'its unit on the self-organising map' : U.ref.kind === 'model' ? 'probabilities from the latent class model' : U.ref.kind === 'medoid' ? 'nearest representative patient by Gower dissimilarity' : 'nearest cluster centre on the standardised variables') : 'not available for these data'}). Nothing is stored or sent.</p>
+            <p class="muted small">Enter the values of the clustering variables (leave any that are not available). The patient is classified by the rules and by the full clustering (${U.ref ? (U.ref.kind === 'neural' ? 'its unit on the self-organising map' : U.ref.kind === 'model' ? 'probabilities from the latent class model' : U.ref.kind === 'medoid' ? 'nearest representative patient by Gower dissimilarity' : 'nearest cluster centre on the standardised variables') : 'not available for these data'}). Nothing is stored or sent. The class is an approximation to the original clustering, most of all with the short rules; it is not a diagnosis.</p>
             <div class="newpatient">${form}<div class="row"><button id="np-go" class="btn primary" type="button">Classify this patient</button><button id="np-clear" class="btn" type="button">Clear</button></div></div>
             <div id="np-out" aria-live="polite"></div>
             <h3>4. Do the classes differ in outcomes?</h3>
             ${P.describe.length ? ctx.profileTable({ only: 'describe', names: c => classLabel(c) }) : '<p class="muted">No variables were kept as "describe only". To see whether the classes matter clinically, keep outcomes (for example shunt response) as "Describe clusters only" in step 2.</p>'}
-            <h3>5. Before clinical use</h3>
+            <h3>5. Test the classification on a new cohort</h3>
+            <p class="small">External validation: load another dataset (for example another hospital or a later period) with the same clustering variables (same column names). Every record is classified by the bedside rules and by the full ${U.ref ? (U.ref.kind === 'model' ? 'latent class model' : U.ref.kind === 'neural' ? 'self-organising map' : 'clustering') : 'clustering'} <strong>without retraining</strong>, and outcomes are compared between the classes if the file contains the describe-only variables. The file is read in this browser only.</p>
+            <div class="row"><label class="btn small file-btn">Choose the new cohort (.CSV)<input id="val-file" type="file" accept=".csv,text/csv" class="visually-hidden"></label></div>
+            <div id="val-out"></div>
+            <h3>6. Before clinical use</h3>
             <ol class="small">
                 <li><strong>Replicate</strong> in an independent cohort: repeat the clustering there and check that similar classes appear, and apply these rules to see how many patients they classify the same way.</li>
                 <li><strong>Show that the classes matter</strong>: pre-specify the outcomes (for example shunt response at 12 months) and test whether the classes differ in them, in the new cohort.</li>
@@ -265,6 +269,7 @@
         $('np-go').addEventListener('click', classifyNew);
         $('np-clear').addEventListener('click', () => { P.specs.forEach((_, j) => { $(`np-${j}`).value = ''; }); $('np-out').innerHTML = ''; });
         $('sheet-btn').addEventListener('click', downloadSheet);
+        $('val-file').addEventListener('change', e => { const f = e.target.files[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => validate(String(rd.result), f.name); rd.readAsText(f); });
     }
     function classifyNew() {
         const { P } = ctx;
@@ -325,6 +330,67 @@
         return { names: ctx.S.result.labels.map(l => classLabel(l)), rules: T.map(x => classLabel(CE.predictTree(U.tree, x))) };
     }
 
+
+    // ---------------------------------------------------------------------------------- external validation
+    function validate(text, name) {
+        const { P, S } = ctx, DE = root.DataEngine, out = $('val-out'), k = S.result.k;
+        let parsed;
+        try { parsed = DE.parseCSV(text); } catch (e) { out.innerHTML = `<p class="status bad">The file could not be read: ${esc(e.message)}</p>`; return; }
+        const missingCols = P.specs.map(sp => sp.col).filter(c => !parsed.headers.includes(c));
+        if (missingCols.length) { out.innerHTML = `<p class="status bad">The new file lacks clustering variable(s): ${esc(missingCols.join(', '))}. Use the same column names as the original data.</p>`; return; }
+        const rows = parsed.rows, n = rows.length;
+        const ranges = P.specs.map(sp => { if (sp.type !== 'continuous') return null; const xs = P.rows.map(r => Number(r[sp.col])).filter(Number.isFinite); return [Math.min(...xs), Math.max(...xs)]; });
+        const known = P.specs.map(sp => (sp.type === 'continuous' ? null : new Set(sp.levels)));
+        const res = rows.map(r => {
+            const x = P.specs.map(sp => { const v = r[sp.col]; if (DE.isMissing(v)) return null; if (sp.type === 'continuous') { const y = Number(String(v).trim()); return Number.isFinite(y) ? y : null; } return String(v).trim(); });
+            const outRange = x.some((v, j) => v !== null && ranges[j] && (v < ranges[j][0] || v > ranges[j][1]));
+            const unknown = x.some((v, j) => v !== null && known[j] && !known[j].has(v));
+            const recorded = x.filter(v => v !== null).length;
+            const rule = recorded ? CE.predictTree(U.tree, x) : null, full = recorded ? assignFull(x) : null;
+            return { x, rule, model: full ? full.order[0] : null, outRange, unknown, sparse: recorded < 0.5 * x.length };
+        });
+        const cls = r => (r.model !== null ? r.model : r.rule);
+        const both = res.filter(r => r.rule !== null && r.model !== null), agree = both.filter(r => r.rule === r.model).length;
+        const origShare = c => S.result.labels.filter(l => l === c).length / S.result.labels.length;
+        const share = c => res.filter(r => cls(r) === c).length / Math.max(1, n);
+        // Outcomes by class (describe-only variables present in the new file)
+        const outcomes = P.describe.filter(h => parsed.headers.includes(h)).map(h => {
+            const t = S.vars[h].type, vals = rows.map(r => r[h]), ok = vals.map((v, i) => (!DE.isMissing(v) && cls(res[i]) !== null ? i : -1)).filter(i => i >= 0);
+            if (ok.length < 10) return null;
+            const groups = ok.map(i => cls(res[i]));
+            if (t !== 'nominal' && ok.every(i => Number.isFinite(Number(vals[i])))) {
+                // Numbers: mean; grades: median [interquartile range]; Kruskal-Wallis test
+                const kw = CE.kruskalWallis(ok.map(i => Number(vals[i])), groups);
+                const cellOf = c => { const xs = ok.filter(i => cls(res[i]) === c).map(i => Number(vals[i])).sort((a, b) => a - b); if (!xs.length) return '–'; if (t === 'continuous') return `mean ${num(xs.reduce((a, b) => a + b, 0) / xs.length)}`; const q = f => { const h2 = (xs.length - 1) * f, l = Math.floor(h2); return xs[l] + (xs[Math.ceil(h2)] - xs[l]) * (h2 - l); }; return `median ${num(q(0.5))} [${num(q(0.25))}–${num(q(0.75))}]`; };
+                return { h, cells: Array.from({ length: k }, (_, c) => cellOf(c)), p: kw.p };
+            }
+            // Categories: yes/no -> share of the second category; several -> each class's most common category
+            const sv = ok.map(i => String(vals[i]).trim()), lv = [...new Set(sv)].sort();
+            const ch = CE.chiSquareTest(sv, groups), pc = c => {
+                const idx = ok.map((i, q) => (cls(res[i]) === c ? q : -1)).filter(q => q >= 0); if (!idx.length) return '–';
+                const top = lv.length === 2 ? lv[1] : lv.map(l => [l, idx.filter(q => sv[q] === l).length]).sort((a, b) => b[1] - a[1])[0][0];
+                return `${Math.round(100 * idx.filter(q => sv[q] === top).length / idx.length)}% "${top}"`;
+            };
+            return { h, cells: Array.from({ length: k }, (_, c) => pc(c)), p: ch.p };
+        }).filter(Boolean);
+        const qs = CE.benjaminiHochberg(outcomes.map(o => o.p)), pf = v => (v === null || v === undefined ? '–' : v < 0.001 ? '< 0.001' : v.toFixed(3));
+        const flagged = { outRange: res.filter(r => r.outRange).length, unknown: res.filter(r => r.unknown).length, sparse: res.filter(r => r.sparse).length, none: res.filter(r => r.rule === null).length };
+        out.innerHTML = `<p><strong>${esc(name)}</strong>: ${n.toLocaleString('en-GB')} records classified without retraining.</p>
+            <div class="table-wrap"><table><thead><tr><th>Class</th><th>Share in the new cohort</th><th>Share in the original data</th></tr></thead><tbody>${Array.from({ length: k }, (_, c) => `<tr><td><i class="sw s${c % 8}"></i>${esc(classLabel(c))}</td><td>${pct(share(c))}</td><td>${pct(origShare(c))}</td></tr>`).join('')}</tbody></table></div>
+            <p class="small">The bedside rules and the full ${U.ref && U.ref.kind === 'model' ? 'model' : 'clustering'} give the same class for <strong>${both.length ? pct(agree / both.length) : '–'}</strong> of the new records. Records with a value outside the range of the original data: ${flagged.outRange}; with a category not seen in the original data: ${flagged.unknown}; with more than half the clustering variables missing: ${flagged.sparse}; not classifiable (nothing recorded): ${flagged.none}. These classifications are the least certain.</p>
+            ${outcomes.length ? `<h4>Outcomes by class in the new cohort</h4><div class="table-wrap"><table><thead><tr><th>Variable</th>${Array.from({ length: k }, (_, c) => `<th>${esc(LETTERS[c])}</th>`).join('')}<th>p · q</th></tr></thead><tbody>${outcomes.map((o, i) => `<tr><td>${esc(o.h)}</td>${o.cells.map(c => `<td>${esc(c)}</td>`).join('')}<td>${pf(o.p)}${outcomes.length > 1 ? ` · ${pf(qs[i])}` : ''}</td></tr>`).join('')}</tbody></table></div><p class="muted small">Classes from the full ${U.ref && U.ref.kind === 'model' ? 'model' : 'clustering'} (or the rules where it cannot be applied). Outcomes that differ between the classes in an independent cohort, as specified in advance, are the strongest evidence that the classification is clinically meaningful.</p>` : '<p class="muted small">The new file has none of the describe-only variables, so outcomes cannot be compared.</p>'}
+            <p class="muted small">Re-running the clustering on the new cohort (load it in step 1) shows whether similar classes appear there of their own accord; this check shows how the existing classification behaves on new patients.</p>
+            <div class="row"><button id="val-csv" class="btn small" type="button">Download the classified records (.CSV)</button></div>`;
+        $('val-csv').addEventListener('click', () => {
+            if (!confirm('The file will contain the new cohort\'s records (every column) with their class. Save it only where your data-governance rules allow. Continue?')) return;
+            const head = [...parsed.headers, 'Class (full model)', 'Class (bedside rules)', 'Outside original range', 'Unseen category'];
+            const cell = v => { let s2 = String(v ?? ''); if (/^[=+\-@\t\r]/.test(s2) && !Number.isFinite(Number(s2))) s2 = `'${s2}`; return /[",\r\n]/.test(s2) ? `"${s2.replace(/"/g, '""')}"` : s2; };
+            const lines = [head.map(cell).join(','), ...rows.map((r, i) => [...parsed.headers.map(h => r[h]), res[i].model !== null ? classLabel(res[i].model) : '', res[i].rule !== null ? classLabel(res[i].rule) : '', res[i].outRange ? 'yes' : '', res[i].unknown ? 'yes' : ''].map(cell).join(','))];
+            const url = URL.createObjectURL(new Blob([lines.join('\r\n')], { type: 'text/csv' })), a = document.createElement('a');
+            a.href = url; a.download = `classified_${String(name).replace(/\.[^.]+$/, '').replace(/[^\w-]+/g, '_')}.csv`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+        });
+        U.validation = { file: name, records: n, agreement: both.length ? agree / both.length : null, shares: Array.from({ length: k }, (_, c) => share(c)), flagged, outcomes: outcomes.map((o, i) => ({ variable: o.h, p: o.p, q: qs[i] })) };
+    }
     // ---------------------------------------------------------------------------------- step 8: the decision tree
     // The same tree as the bedside rules, drawn as a diagram. Colours are passed as attributes (not CSS), so the
     // downloaded file looks the same outside the page.
@@ -402,7 +468,7 @@
             ${depthNote() ? `<p class="small note">${esc(depthNote())}</p>` : ''}
             <div class="tree-wrap">${treeSvg(pagePalette())}</div>
             ${CH.legend(Array.from({ length: k }, (_, c) => classLabel(c)))}
-            <p class="lead small">${leaves} end points. The tree gives the same class as the full clustering for <strong>${pct(U.cv.agree)}</strong> of patients not used to build it (10-fold cross-validation; Cohen's kappa ${U.cv.kappa.toFixed(2)}). The bar in each box shows how that box's patients divide between the classes (colours as in the legend).</p>
+            <p class="lead small">${leaves} end points. The tree gives the same class as the full clustering for <strong>${pct(U.cv.agree)}</strong> of patients not used to build it (10-fold cross-validation; Cohen's kappa ${U.cv.kappa.toFixed(2)}): agreement with the cluster assignments, not clinical accuracy or prediction of outcomes. The bar in each box shows how that box's patients divide between the classes (colours as in the legend).</p>
             <p class="muted small">The tree is a classification tree (CART, Gini impurity) fitted to the clusters, with at least ${minLeafFor(S.result.labels.length)} patients in each end point; the depth suggested is the simplest within 2 percentage points of the best cross-validated agreement. Class names and the depth are shared with step 7. Like the clusters themselves, the tree needs validation in another cohort before clinical use.</p>`;
         $('tree-depth').addEventListener('change', e => { U.depth = Number(e.target.value); fitRules(); draw(); drawTree(); });
         $('tree-merge').addEventListener('change', e => { U.merge = e.target.checked; fitRules(); draw(); drawTree(); });
@@ -413,5 +479,13 @@
     }
     // The diagram in light colours on white, as a stand-alone SVG file (used by the image download)
     const treeSvgLight = () => (U.tree && ctx ? '<?xml version="1.0" encoding="UTF-8"?>\n' + treeSvg(LIGHT).replace('<svg class="tree" ', '<svg ') : null);
-    root.UMEUse = { render, renderTree, exportColumns, treeSvgLight, _state: U };
+    // The classification for the analysis record (no patient data)
+    function summary() {
+        if (!U.tree || !ctx) return null;
+        return { classes: U.names.map((nm, c) => ({ class: LETTERS[c], name: nm || `Class ${LETTERS[c]}`, description: (U.feats[c] ? U.feats[c].top.map(t => t.long) : []) })),
+            rules: CE.treeRules(U.tree).map(r => ({ conditions: ruleText(r, U.vars), class: classLabel(r.leaf.predict), patients: r.leaf.n, purity: r.leaf.counts[r.leaf.predict] / r.leaf.n })),
+            maxConditions: U.depth, conditionsUsed: U.treeDepth, mergedEndPoints: U.merge !== false, minPatientsPerRule: minLeafFor(ctx.S.result.labels.length),
+            crossValidatedAgreement: U.cv.agree, kappa: U.cv.kappa, apparentAgreement: U.apparent, note: 'Agreement with the cluster assignments, not clinical accuracy.', externalValidation: U.validation || null };
+    }
+    root.UMEUse = { summary, render, renderTree, exportColumns, treeSvgLight, _state: U };
 })(typeof window !== 'undefined' ? window : globalThis);

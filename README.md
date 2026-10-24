@@ -106,14 +106,90 @@ referral patterns (`tools/make_referral_demo.py`).
   and can show apparent groups in data without sub-groups (as on the one-population demo). t-SNE maps at most
   2000 patients and UMAP 5000 (a random sample beyond that).
 
+## Uncertainty, sensitivity and reporting
+
+- **Uncertainty of stability:** for each cluster, the mean bootstrap Jaccard with a 95% interval of that mean,
+  the range of its share of patients across resamples, and how often it dissolved; candidates whose interval
+  includes 0.75 are labelled "borderline". Each patient's assignment stability (share of resamples, among those
+  that include the patient, in which they stay in their cluster) is summarised and included in the download. The
+  0.75 and 0.5 limits are conventions (Hennig 2007), stated as such.
+- **Multiple testing and effect sizes:** comparisons of describe-only variables between clusters give p, the
+  Benjamini–Hochberg q (false discovery rate) and an effect size (Cramér's V for categories, epsilon squared for
+  numbers and grades). These comparisons are labelled exploratory unless specified in advance.
+- **Choice of the test of "no real sub-groups":** the Gaussian test is used only when no clustering variable is
+  clearly skewed; otherwise the copula test (simulations below). A stable solution with a non-significant
+  copula test is reported as "mixed" (the copula test is conservative), and every verdict warns that a curved
+  single population (a continuum) can also pass both tests.
+- **Warnings before the analysis:** empty or constant columns, mostly missing columns, dates, likely codes for
+  "not recorded" (-9, 99, 999, -999 and similar, outside the range of the other values), strongly related
+  clustering variables (rank correlation, Cramér's V or correlation ratio of 0.8 or more: one construct counted
+  twice) and fewer than 10 patients per coded variable.
+- **Sensitivity analysis** (step 6, on request): the chosen number of clusters is refitted leaving out each
+  clustering variable in turn, with each other suitable method, each other way of handling missing values and the
+  other Gower weighting; each alternative is compared with the main solution (adjusted Rand, share of patients in
+  the same cluster after matching clusters), and each patient's robustness to these choices is reported and
+  downloadable.
+- **Purpose and question:** step 4 records the purpose (exploratory, confirmatory, data quality, dimension
+  reduction, groundwork for a prediction model) and the clinical question; confirmatory and groundwork purposes
+  add the corresponding cautions.
+- **Analysis record:** step 6 downloads a report (.txt) and a machine-readable record (.json): software version,
+  purpose and question, data (file name, records, exclusions after the data checks), variables and their roles,
+  warnings, every setting and seed, all candidates compared, the rule that suggested the number of clusters, the
+  chosen solution with its stability and test, the sensitivity analysis and the classification (rules, agreement,
+  and any external application).
+- **A new cohort** (step 7, section 5): a second file is classified by the bedside rules and the full model without
+  retraining; the page reports the class shares against the original data, agreement between rules and model,
+  records outside the original range or with unseen categories, and outcomes by class with p and q, and the
+  classified records can be downloaded. `demo_inph_validation.csv` (200 simulated patients from the same three
+  sub-types, in other proportions) demonstrates it.
+- **Wording:** the agreement of the bedside rules is "agreement with the unsupervised cluster assignments, not
+  clinical accuracy"; a new patient's class is an approximation, not a diagnosis.
+
+## Privacy
+
+The page has a strict content security policy (scripts only from its own files; no inline scripts, no `eval`).
+It makes no network requests other than loading its own files and, when a demo button is used, the demo CSV
+from the same site; a loaded file is read in the browser with `FileReader` and never uploaded. Nothing is stored
+in the browser (no cookies, local or session storage, IndexedDB or caches); the data are gone when the page is
+closed. Downloads (CSV, report, images) are created in the page. The browser tests check this on every change:
+during a full analysis with an uploaded file and a second cohort, every request is a GET of the app's own files,
+and all browser storage is empty.
+
+## Performance
+
+Measured on an Apple M2 Max laptop in Chrome, 8,000 simulated referrals unless stated:
+data checks about 10 s; self-organising map and comparison of 2 to 10 clusters about 3.5 s; describing the chosen
+clusters (100 bootstrap resamples, test of no real sub-groups) 2.5 to 13 s depending on the method; latent class
+analysis about 50 s; maps: UMAP about 5 s, autoencoder about 10 s, t-SNE about 51 s (on the 2,000-record sample).
+For 360 patients every step takes a few seconds; the sensitivity analysis refits the clustering once per alternative (16 for the iNPH demo). Above
+3,000 records, silhouettes and maps use a random sample of 2,000, and PAM and Ward are not offered.
+
+## Validation status and limitations
+
+- Verified: every computational method against an established implementation (85 reference checks) and the
+  behaviour of the decisions in simulations (30 checks), with the interface tested end to end in a browser.
+- Not yet done: application to real cohorts and independent review by a statistician. A protocol for the first
+  is in [`docs/validation_protocol.md`](docs/validation_protocol.md). Clusters found in one dataset are
+  hypotheses until they are replicated in another.
+- Known limitations: both tests of "no real sub-groups" can be passed by a curved single population (a
+  continuum); the copula test for mixed data is conservative (in simulations it detects well-separated groups,
+  3 SD apart, in 30 of 30 datasets but groups 2.2 SD apart in 20 of 30); the stability and silhouette limits are
+  conventions. In a simulation of 20% missing values (8 datasets of 240 patients, three groups), the
+  multiple-imputation consensus recovered the groups about as well as simple filling when values were missing at
+  random (adjusted Rand 0.68 vs 0.69) and better when missingness depended on the value itself (0.51 vs 0.40);
+  neither matched complete data (0.85), so heavy missingness weakens any clustering.
+
 ## Verification
 
 ```bash
-node tests/reference_check.js && python3 tests/reference_check.py   # 82 checks against scikit-learn, SciPy, NumPy, umap-learn and R (poLCA, mclust, cluster, FactoMineR) (cluster::daisy, cluster::pam)
-node tests/behaviour_check.js                                       # simulations: true k found, 1 cluster when there are none, test calibration, stability
-node tests/ui_check.js                                              # browser (Playwright + Chrome): both demo cohorts end to end (incl. MICE and step 6), layout, no page errors
+node tests/reference_check.js && python3 tests/reference_check.py   # 85 checks against scikit-learn, SciPy, NumPy, umap-learn and R (cluster, poLCA, mclust, FactoMineR)
+node tests/behaviour_check.js                                       # 30 simulations: true k found, 1 cluster when there are none, calibration and power of the tests, stability
+node tests/ui_check.js                                              # browser (Playwright + Chrome): every demo end to end, the audit features, privacy, layout, no page errors
 npx eslint@9.39.5 -c eslint.config.mjs src cluster-engine.js embed-engine.js anomaly-engine.js nn-engine.js  # undefined names and real mistakes
 ```
+
+GitHub Actions runs all four on every push, including the Python and R reference checks (with `REQUIRE_ALL=1`,
+so a missing package fails the run instead of skipping its checks).
 
 ## Author
 

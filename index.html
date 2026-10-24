@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>Unsupervised Medical Explorer</title>
-<link rel="stylesheet" href="style.css?v=37">
+<link rel="stylesheet" href="style.css?v=39">
 <link rel="icon" href="data:,">
 </head>
 <body>
@@ -47,6 +47,7 @@
     <h2>Choose the variables</h2>
     <p>Variables <strong>used to find clusters</strong> define what "similar patients" means: choose those measured before any treatment and relevant to the question. Keep outcomes as <strong>describe clusters only</strong>: they then show whether the clusters differ in outcome without having shaped them.</p>
     <p id="var-summary" class="lead"></p>
+    <div id="var-warnings"></div>
     <div id="var-table" class="table-wrap"></div>
     <div class="row"><button id="to-check" class="btn primary" type="button">Next: check the data</button><button id="to-step3" class="btn" type="button">Skip the checks: go to the approach</button></div>
   </section>
@@ -65,6 +66,16 @@
   <section class="step" data-step="4" hidden>
     <h2>Choose the approach</h2>
     <div class="form">
+      <label for="purpose">Purpose of this analysis</label>
+      <select id="purpose">
+        <option value="exploratory" selected>Exploratory: looking for possible sub-groups or patterns</option>
+        <option value="confirmatory">Confirmatory: testing sub-groups and outcomes specified in advance</option>
+        <option value="quality">Data quality: looking for errors and unusual records</option>
+        <option value="reduction">Dimension reduction: summarising many variables</option>
+        <option value="groundwork">Groundwork for a future prediction model</option>
+      </select>
+      <label for="question">Clinical question (recorded in the analysis record)</label>
+      <input id="question" type="text" maxlength="300" placeholder="e.g. Are there distinct referral patterns to the neurosurgical service?">
       <label for="method">Method</label>
       <div id="method-advice" class="advice"></div>
       <select id="method">
@@ -127,17 +138,17 @@
   <p>Conceived, designed and directed by Dr G Narenthiran · implemented with AI pair programming (Anthropic Claude Code) · © 2026 Dr G Narenthiran. All rights reserved.</p>
   <p>For research and education only; not a medical device. Clusters found in one dataset are hypotheses: replicate them in another cohort before any clinical use.</p>
 </footer>
-<script src="data-engine.js?v=37"></script>
-<script src="cluster-engine.js?v=37"></script>
-<script src="embed-engine.js?v=37"></script>
-<script src="anomaly-engine.js?v=37"></script>
-<script src="nn-engine.js?v=37"></script>
-<script src="src/charts.js?v=37"></script>
-<script src="src/maps.js?v=37"></script>
-<script src="src/som-explorer.js?v=37"></script>
-<script src="src/checks.js?v=37"></script>
-<script src="src/use-clusters.js?v=37"></script>
-<script src="src/export.js?v=37"></script>
-<script src="src/app.js?v=37"></script>
+<script src="data-engine.js?v=39"></script>
+<script src="cluster-engine.js?v=39"></script>
+<script src="embed-engine.js?v=39"></script>
+<script src="anomaly-engine.js?v=39"></script>
+<script src="nn-engine.js?v=39"></script>
+<script src="src/charts.js?v=39"></script>
+<script src="src/maps.js?v=39"></script>
+<script src="src/som-explorer.js?v=39"></script>
+<script src="src/checks.js?v=39"></script>
+<script src="src/use-clusters.js?v=39"></script>
+<script src="src/export.js?v=39"></script>
+<script src="src/app.js?v=39"></script>
 </body>
 </html>

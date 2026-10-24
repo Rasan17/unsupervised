@@ -14,3 +14,21 @@ jobs:
       - run: node tests/ui_check.js
         env:
           CI: 'true'
+  reference:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install numpy scipy scikit-learn umap-learn
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+      - run: Rscript -e "install.packages(c('cluster', 'poLCA', 'mclust', 'FactoMineR'))"
+      - run: node tests/reference_check.js && python3 tests/reference_check.py
+        env:
+          REQUIRE_ALL: "1"
