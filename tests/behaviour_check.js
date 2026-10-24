@@ -5,7 +5,8 @@
 const fs = require('fs'), path = require('path'), vm = require('vm');
 global.window = globalThis;
 vm.runInThisContext(fs.readFileSync(path.join(__dirname, '..', 'cluster-engine.js'), 'utf8'));
-const CE = globalThis.ClusterEngine;
+vm.runInThisContext(fs.readFileSync(path.join(__dirname, '..', 'embed-engine.js'), 'utf8'));
+const CE = globalThis.ClusterEngine, EE = globalThis.EmbedEngine;
 let passed = 0, failed = 0;
 function check(name, fn) {
     const t0 = Date.now();
@@ -141,6 +142,19 @@ check('Latent class analysis: membership probabilities sum to 1, a new patient i
     const same = d.rows.every((x, i) => { const q = CE.lcaPosterior(m.model, x); return q.every((v, c) => Math.abs(v - m.posterior[i][c]) < 1e-9); });
     assert(sums && same && CE.adjustedRand(m.labels, m2.labels) === 1, `sums ${sums}, new-patient ${same}`);
     return 'all hold';
+});
+check('Maps: t-SNE and UMAP keep separated clusters apart (k-means on the map recovers them, adjusted Rand >= 0.9) and are faithful (trustworthiness >= 0.9)', () => {
+    const { X, truth } = sim(41, 300, 3, 4, 6), E = CE.euclideanMatrix(X);
+    const T = EE.tsne(EE.squared(E)), U = EE.umap(E, { seed: 2 });
+    const ari = Y => CE.adjustedRand(CE.kmeans(Y, 3, { seed: 1 }).labels, truth), r = [ari(T.Y), ari(U.Y)], t = [EE.trustworthiness(E, T.Y, 10), EE.trustworthiness(E, U.Y, 10)];
+    assert(r.every(v => v >= 0.9) && t.every(v => v >= 0.9), `ARI ${r.join(', ')}, trust ${t.join(', ')}`);
+    return `ARI t-SNE ${r[0].toFixed(2)}, UMAP ${r[1].toFixed(2)}; trustworthiness ${t[0].toFixed(3)}, ${t[1].toFixed(3)}`;
+});
+check('Maps are reproducible: same seed, same map', () => {
+    const { X } = sim(42, 120, 2, 3), E = CE.euclideanMatrix(X);
+    const a = EE.umap(E, { seed: 5 }).Y, b = EE.umap(E, { seed: 5 }).Y, c = EE.tsne(EE.squared(E)).Y, d = EE.tsne(EE.squared(E)).Y;
+    assert(a.every((r, i) => r[0] === b[i][0] && r[1] === b[i][1]) && c.every((r, i) => r[0] === d[i][0] && r[1] === d[i][1]), 'maps differ');
+    return 'identical';
 });
 console.log(`\n${passed}/${passed + failed} behaviour checks passed`);
 process.exit(failed ? 1 : 0);

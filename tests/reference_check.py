@@ -89,6 +89,43 @@ for key, pred in o['tree']['predictions'].items():
     sk = DecisionTreeClassifier(max_depth=d, min_samples_leaf=leaf, random_state=0).fit(X, yt).predict(X)
     chk(f'Classification tree, depth {d}, at least {leaf} per leaf: same predictions as scikit-learn', float(np.mean(np.array(pred) != sk)), 0.0, 0)
 chk("Cohen's kappa (vs scikit-learn)", o['tree']['kappa'], cohen_kappa_score(yt, o['kmeans']['labels']), 1e-12)
+# Maps
+import warnings
+from scipy.spatial.distance import pdist, squareform
+from sklearn.manifold import TSNE, trustworthiness
+from sklearn.manifold._t_sne import _joint_probabilities, _kl_divergence
+em = o['embed']; n = X.shape[0]; Dm = squareform(pdist(X))
+sc = PCA(2).fit_transform(X)
+chk('Classical scaling of Euclidean distances equals PCA scores (up to sign)', np.abs(em['mds']), np.abs(sc), 1e-8)
+Pref = _joint_probabilities(Dm ** 2, 30, 0)
+chk('t-SNE joint probabilities from the perplexity (vs scikit-learn)', em['Pc'], Pref, 1e-7)
+kl, grad = _kl_divergence(np.array(em['Yr']).ravel(), np.array(em['Pc']), 1, n, 2)
+chk('t-SNE divergence (Kullback-Leibler) of a given map (vs scikit-learn)', em['kl'], kl, 1e-10)
+chk('t-SNE gradient of a given map (vs scikit-learn)', np.array(em['grad']).ravel(), grad, 1e-10)
+with warnings.catch_warnings():
+    warnings.simplefilter('ignore')
+    ts = TSNE(2, perplexity=30, init=np.array(em['init']), method='exact', metric='precomputed', learning_rate='auto', max_iter=1000, random_state=0).fit(Dm.copy())  # squares the given distances itself, in place
+from sklearn.manifold._t_sne import _gradient_descent
+p20, _, _ = _gradient_descent(_kl_divergence, np.array(em['init']).ravel(), it=0, max_iter=20, n_iter_check=50, n_iter_without_progress=250, momentum=0.5, learning_rate=50.0, min_gain=0.01, min_grad_norm=1e-7, kwargs=dict(compute_error=True), args=[np.array(em['Pc']) * 12, 1, n, 2])
+chk('t-SNE descent, first 20 iterations from the same start: identical coordinates (vs scikit-learn)', np.array(em['tsne20']).ravel(), p20, 1e-9 * np.abs(p20).max())
+# Beyond that, rounding differences grow (t-SNE's early phase is chaotic), so the finished maps are compared by quality
+tr_sk = trustworthiness(Dm, ts.embedding_, n_neighbors=5, metric='precomputed')
+chk('t-SNE finished map: divergence no worse than scikit-learn (+5%) and trustworthiness within 0.01', max(0.0, em['tsneKL'] - 1.05 * ts.kl_divergence_) + max(0.0, tr_sk - 0.01 - em['trustTsne']), 0.0, 0)
+chk('Trustworthiness (vs scikit-learn)', [em['trustTsne'], em['trustUmap'], em['trustMds10']], [trustworthiness(Dm, np.array(em['tsneY']), n_neighbors=5, metric='precomputed'), trustworthiness(Dm, np.array(em['umapY']), n_neighbors=5, metric='precomputed'), trustworthiness(Dm, np.array(em['mds']), n_neighbors=10, metric='precomputed')], 1e-12)
+try:
+    import umap
+    from umap.umap_ import fuzzy_simplicial_set, find_ab_params
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        g, sig, rho = fuzzy_simplicial_set(Dm, 15, np.random.RandomState(0), 'precomputed')
+        chk('UMAP neighbour scales (sigma, rho) (vs umap-learn)', np.r_[em['sigmas'], em['rhos']], np.r_[sig, rho], 1e-5)
+        chk('UMAP fuzzy neighbour graph weights (vs umap-learn)', np.array(em['graph']), g.toarray().ravel(), 1e-5)
+        a, b = find_ab_params(1.0, 0.1)
+        chk('UMAP curve parameters a, b for min_dist 0.1 (vs umap-learn)', [em['ab']['a'], em['ab']['b']], [a, b], 1e-4)
+        tu = [trustworthiness(Dm, umap.UMAP(metric='precomputed', random_state=s).fit_transform(Dm), n_neighbors=5, metric='precomputed') for s in range(3)]
+    chk('UMAP map at least as trustworthy as umap-learn (within 0.01 of its mean over 3 seeds)', max(0.0, np.mean(tu) - 0.01 - em['trustUmap']), 0.0, 0)
+except ImportError:
+    print('umap-learn not installed: UMAP checks skipped')
 # R: Gower (daisy), PAM
 rs = shutil.which('Rscript')
 if rs:

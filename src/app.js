@@ -335,7 +335,7 @@
             <p class="muted small">${opts.only === 'describe' ? 'P-values: Kruskal–Wallis test (numbers, grades) or chi-square test (categories); with several variables, some small p-values occur by chance. Differences in outcome support, but do not prove, that the classes are clinically meaningful.</p>' : ''}${opts.only === 'describe' ? '<p hidden>' : '<p class="muted small">'}Variables used to form the clusters differ between clusters by construction, so no p-values are shown for them. For variables used only to describe the clusters (shaded), p-values come from the Kruskal–Wallis test (numbers, grades) or the chi-square test (categories); with several variables, some small p-values occur by chance.</p>`;
     }
     function renderClusters() {
-        const { P } = S.explore, { k, labels, stab, test, sil, pca, posterior } = S.result;
+        const { P } = S.explore, { k, labels, stab, test, sil, posterior } = S.result;
         const certainty = posterior ? Array.from({ length: k }, (_, c) => { const idx = labels.map((l, i) => (l === c ? i : -1)).filter(i => i >= 0); return idx.reduce((a, i) => a + posterior[i][c], 0) / Math.max(1, idx.length); }) : null;
         const sizes = new Array(k).fill(0); labels.forEach(l => { sizes[l]++; });
         const stabWord = v => (v >= 0.75 ? 'stable' : v >= 0.6 ? 'indicates a pattern' : v >= 0.5 ? 'weak' : 'not reproducible');
@@ -345,7 +345,6 @@
         if (test) evidence.push(test.pValue <= 0.05 ? `more separation than ${test.kind === 'gaussian' ? 'a single Gaussian population with the same covariance' : 'a single population with the same variable distributions and correlations'} gives by chance (p ${pf(test.pValue)})` : `no more separation than ${test.kind === 'gaussian' ? 'a single Gaussian population' : 'a single population with the same distributions and correlations'} gives by chance (p = ${pf(test.pValue)})`);
         evidence.push(weakest >= 0.75 ? 'every cluster reproduces in bootstrap resamples' : weakest >= 0.5 ? 'at least one cluster reproduces only weakly in bootstrap resamples' : 'at least one cluster does not reproduce in bootstrap resamples');
         const verdict = (!test || test.pValue <= 0.05) && weakest >= 0.75 ? 'good' : (test && test.pValue > 0.05) || weakest < 0.5 ? 'bad' : 'mixed';
-        const map = pca ? CH.scatter({ points: pca.scores.map((s, i) => ({ x: s[0], y: s[1], group: labels[i], tip: `Cluster ${labels[i] + 1}` })), xLabel: `Principal component 1 (${(100 * pca.varianceRatio[0]).toFixed(0)}% of variance)`, yLabel: `Component 2 (${(100 * pca.varianceRatio[1]).toFixed(0)}%)`, aria: 'Patients on the first two principal components, coloured by cluster' }) + CH.legend(sizes.map((s, c) => `Cluster ${c + 1}`)) : '<p class="muted">The map needs complete numerical data (choose to fill or leave out missing values).</p>';
         $('clusters-out').innerHTML = `
             <div class="verdict ${verdict}"><strong>${k} clusters (${esc(METHOD[P.method].short)}).</strong> Evidence: ${esc(evidence.join('; '))}.
                 ${verdict === 'good' ? 'These look like real sub-groups in these data; they still need replication in another cohort before clinical interpretation.' : verdict === 'bad' ? 'These clusters may be artefacts of the method: clustering algorithms always return clusters, even in data without sub-groups. Do not interpret them as patient sub-types.' : 'The evidence is mixed: treat the clusters as exploratory.'}</div>
@@ -356,7 +355,7 @@
                     <p class="muted small">Stability: ${stab.resamples} bootstrap resamples${P.groups ? ` (whole patients by "${esc(P.patientCol)}")` : ''}; mean Jaccard 0.75 or more: stable; 0.6–0.75: indicates a pattern; below 0.5: not reproducible (Hennig 2007). Average agreement with the full-data clustering: adjusted Rand ${f3(stab.meanAdjustedRand)}.${P.mice ? ` The resamples cycle through the ${P.mice.m} imputed datasets. Agreement of each imputed dataset's clustering with the consensus: adjusted Rand ${f3(S.explore.res.find(r => r.k === k).agreement)}.` : ''}</p>
                     ${test ? `<p class="muted small">Test of "no real sub-groups": the separation of the clustering (R² = ${f3(test.observed)}) against ${test.B} reference datasets from ${test.kind === 'gaussian' ? 'a single Gaussian population with exactly the data\'s covariance (exact for Gaussian data)' : 'a single population with each variable\'s own distribution and the observed correlations (a Gaussian copula; conservative: a small p is strong evidence, a large p does not prove there are no sub-groups)'}: reference mean ${f3(test.nullMean)}, 95th centile ${f3(test.nullQuantile95)}.${test.pooled ? ` With multiple imputation the test was run on each of the ${test.pooled.m} imputed datasets and the median p-value is reported (range ${pf(test.pooled.min)} to ${pf(test.pooled.max)}); the figures above are from the median dataset.` : ''}</p>` : '<p class="muted small">The test of "no real sub-groups" needs complete data (choose to fill or leave out missing values).</p>'}
                 </div>
-                <div><h3>Map of the patients</h3>${map}<p class="muted small">Principal components of the standardised variables${P.mice ? ' (averaged over the imputed datasets)' : ''}. The map shows only part of the variation; clusters can overlap on it and still be distinct in other directions.</p></div>
+                <div><h3>Map of the patients</h3><div id="map-panel"></div></div>
             </div>
             <h3>How well each patient fits (silhouette)</h3>
             <div class="sil">${CH.silhouettePlot({ values: sil.values, labels, aria: 'Silhouette width of each patient by cluster' })}</div>
@@ -366,6 +365,7 @@
             <div class="row"><button id="to-use" class="btn primary" type="button">Next: use the clusters</button><button id="export-btn" class="btn" type="button">Download patients with their cluster (.CSV)</button></div>`;
         $('export-btn').addEventListener('click', exportCsv);
         $('to-use').addEventListener('click', () => goTo(6));
+        window.UMEMaps.render({ S, P });
     }
     function exportCsv() {
         if (!confirm('The file will contain your patients\' data (every column of the loaded file) with the cluster of each patient. Save it only where your data-governance rules allow. Continue?')) return;

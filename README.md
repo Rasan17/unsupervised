@@ -9,11 +9,11 @@ data never leave the computer.
 verified. The phenotype-discovery interface (`index.html`) works end to end: load a CSV (or a demo cohort), choose
 the variables to cluster on and those only to describe, choose a method, compare 2 to 10 clusters (silhouette,
 stability, gap statistic or BIC), then describe the chosen clusters with a verdict on whether they are more than
-chance, a silhouette plot, a PCA map and a profile table. Step 6, "Use the clusters", turns them into a
+chance, a silhouette plot, a map of the patients (PCA, t-SNE or UMAP) and a profile table. Step 6, "Use the clusters", turns them into a
 classification for clinicians: draft names and descriptions of each class (editable), short bedside rules from a
 classification tree with cross-validated agreement with the clusters, a calculator for a new patient (by the rules
 and by the full clustering), outcomes by class, what is needed before clinical use, and a downloadable
-classification sheet. Next: t-SNE/UMAP maps, anomaly detection, autoencoders.
+classification sheet. Next: anomaly detection (unusual patients and data errors), then autoencoders.
 
 After changing a script or `style.css`, raise its `?v=` number in `index.html` so browsers do not keep the old copy.
 
@@ -54,11 +54,18 @@ well clustering recovers it) and a cohort of one population, where the app shoul
   smallest whose average silhouette is within 0.02 of the best. Low entropy is flagged for latent classes. The other stable choices are
   listed, because average silhouette tends to favour 2 clusters.
 - **PCA** with variance explained.
+- **Maps of the patients** (`embed-engine.js`), from the same dissimilarities as the clustering (so mixed data and
+  missing values work): classical scaling, t-SNE (exact method, as scikit-learn: perplexity 30, early
+  exaggeration, adaptive gains) and UMAP (as umap-learn: fuzzy neighbour graph, curve parameters fitted for
+  min_dist, SGD with negative sampling), with trustworthiness to show how faithful each map is. Patients can be
+  coloured by cluster or by any variable. Each map carries a caution: t-SNE and UMAP distort sizes and distances
+  and can show apparent groups in data without sub-groups (as on the one-population demo). t-SNE maps at most
+  2000 patients and UMAP 5000 (a random sample beyond that).
 
 ## Verification
 
 ```bash
-node tests/reference_check.js && python3 tests/reference_check.py   # 50 checks against scikit-learn, SciPy and R (poLCA, mclust and cluster) (cluster::daisy, cluster::pam)
+node tests/reference_check.js && python3 tests/reference_check.py   # 61 checks against scikit-learn, SciPy, umap-learn and R (poLCA, mclust, cluster) (cluster::daisy, cluster::pam)
 node tests/behaviour_check.js                                       # simulations: true k found, 1 cluster when there are none, test calibration, stability
 node tests/ui_check.js                                              # browser (Playwright + Chrome): both demo cohorts end to end (incl. MICE and step 6), layout, no page errors
 npx eslint@9.39.5 -c eslint.config.mjs src cluster-engine.js         # undefined names and real mistakes

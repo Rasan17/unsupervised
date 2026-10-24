@@ -7,7 +7,8 @@ const fs = require('fs'), path = require('path'), vm = require('vm');
 const dir = path.join(__dirname, '..');
 global.window = globalThis;
 vm.runInThisContext(fs.readFileSync(path.join(dir, 'cluster-engine.js'), 'utf8'));
-const CE = globalThis.ClusterEngine;
+vm.runInThisContext(fs.readFileSync(path.join(dir, 'embed-engine.js'), 'utf8'));
+const CE = globalThis.ClusterEngine, EE = globalThis.EmbedEngine;
 const rng = CE.createPRNG(12345);
 const g = () => { const u = rng() || 1e-12, v = rng(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
 const out = {};
@@ -88,5 +89,19 @@ const LC = CE.lca(items, itemVars, 3, { nInit: 30, seed: 11, tol: 1e-15, maxIter
 out.lcaItems = { logLik: LC.logLik, bic: LC.bic, nParams: LC.nParams, shares: LC.model.pi.slice().sort((a, b) => a - b) };
 const LP = CE.lca(X, [0, 1, 2].map(() => ({ type: 'continuous' })), 3, { nInit: 20, seed: 5, reg: 0, tol: 1e-15, maxIter: 100000 });
 out.lcaCont = { logLik: LP.logLik, bic: LP.bic, shares: LP.model.pi.slice().sort((a, b) => a - b) };
+// 5. Maps: classical scaling, t-SNE (vs scikit-learn, exact method), UMAP graph and curve (vs umap-learn), trustworthiness
+{
+    const n = X.length, DE2 = EE.squared(E), Y0 = EE.classicalMDS(E, 2);
+    const sd0 = Math.sqrt(Y0.reduce((a, r) => a + r[0] * r[0], 0) / n), init = Y0.map(r => r.map(v => v / sd0 * 1e-4));
+    const P = EE.tsneP(DE2, 30), Pc = []; for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) Pc.push(P[i * n + j]);
+    const rY = CE.createPRNG(77), Yr = Array.from({ length: n }, () => [rY() * 4 - 2, rY() * 4 - 2]);
+    const KG = EE.tsneKL(P, Yr, n, 1);
+    const T = EE.tsne(DE2, { perplexity: 30, init });
+    const T20 = EE.createTSNE(DE2, { perplexity: 30, init, maxIter: 20 }); T20.step(20);
+    const G = EE.umapGraph(E, 15), dense = Array.from({ length: n * n }, () => 0); G.rows.forEach((r, e) => { dense[r * n + G.cols[e]] = G.vals[e]; });
+    const U = EE.umap(E, { seed: 3 });
+    out.embed = { mds: Y0, init, Pc, Yr, kl: KG.kl, grad: KG.grad, tsneY: T.Y, tsneKL: T.kl, tsne20: T20.Y, sigmas: Array.from(G.sigmas), rhos: Array.from(G.rhos), graph: dense, ab: EE.findAB(1, 0.1),
+        trustTsne: EE.trustworthiness(E, T.Y, 5), trustUmap: EE.trustworthiness(E, U.Y, 5), umapY: U.Y, trustMds10: EE.trustworthiness(E, Y0, 10) };
+}
 fs.writeFileSync(path.join(__dirname, 'reference_values.json'), JSON.stringify(out));
 console.log('Engine values written to tests/reference_values.json; now run: python3 tests/reference_check.py');

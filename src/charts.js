@@ -3,7 +3,7 @@
 (function (root) {
     'use strict';
     const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-    const fmt = v => (Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2));
+    const fmt = v => (Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2)).replace(/^-(0(\.0+)?)$/, '$1');
     function niceTicks(lo, hi, n = 5) {
         if (!(hi > lo)) { hi = lo + 1; }
         const step = Math.pow(10, Math.floor(Math.log10((hi - lo) / n))), err = (hi - lo) / n / step;
@@ -38,13 +38,23 @@
         });
         return g + '</svg>';
     }
-    /** Scatter map: points [{x, y, group, tip}] coloured by group */
-    function scatter({ points, xLabel, yLabel, aria, W = 440, H = 340 }) {
+    /** Scatter map: points [{x, y, group, tip}] coloured by group, or by colour (a hex value, for a colour scale);
+     *  group null and no colour: drawn grey (value not recorded). noAxes: for t-SNE / UMAP, whose axes have no units. */
+    function scatter({ points, xLabel, yLabel, aria, W = 440, H = 340, noAxes = false }) {
         if (!points.length) return '';
         const f = frame(W, H, { l: 46, r: 14, t: 12, b: 40 }, points.map(p => p.x), points.map(p => p.y), xLabel, yLabel, aria);
-        let g = f.g;
-        points.forEach(p => { g += `<circle class="pt s${p.group % 8}" cx="${f.sx(p.x).toFixed(1)}" cy="${f.sy(p.y).toFixed(1)}" r="3"><title>${esc(p.tip)}</title></circle>`; });
+        let g = noAxes ? f.g.replace(/<text class="tick"[^>]*>[^<]*<\/text>/g, '') : f.g;
+        const hex = /^#[0-9a-f]{6}$/i;
+        points.forEach(p => {
+            const cls = p.color && hex.test(p.color) ? 'pt' : p.group === null || p.group === undefined ? 'pt na' : `pt s${p.group % 8}`;
+            g += `<circle class="${cls}"${p.color && hex.test(p.color) ? ` fill="${p.color}"` : ''} cx="${f.sx(p.x).toFixed(1)}" cy="${f.sy(p.y).toFixed(1)}" r="3"><title>${esc(p.tip)}</title></circle>`;
+        });
         return g + '</svg>';
+    }
+    /** Colour-scale legend (low to high) for numbers */
+    function scaleLegend(colours, lo, hi, label) {
+        const w = 18, bars = colours.map((c, i) => `<rect x="${i * w}" y="0" width="${w}" height="10" fill="${/^#[0-9a-f]{6}$/i.test(c) ? c : '#888888'}"/>`).join('');
+        return `<div class="legend"><span>${esc(label)}: ${esc(lo)}</span><svg class="scale" viewBox="0 0 ${colours.length * w} 10" width="${colours.length * w}" height="10" aria-hidden="true">${bars}</svg><span>${esc(hi)}</span><span><i class="sw na"></i>not recorded</span></div>`;
     }
     /** Silhouette plot: one horizontal bar per patient, sorted within each cluster */
     function silhouettePlot({ values, labels, aria, W = 440 }) {
@@ -59,5 +69,5 @@
         return g.replace(`viewBox="0 0 ${W} ${H}"`, `viewBox="0 0 ${W} ${y + 42}"`) + '</svg>';
     }
     function legend(names) { return `<div class="legend">${names.map((n, i) => `<span><i class="sw s${i % 8}"></i>${esc(n)}</span>`).join('')}</div>`; }
-    root.UMECharts = { lineChart, scatter, silhouettePlot, legend, esc };
+    root.UMECharts = { lineChart, scatter, silhouettePlot, legend, scaleLegend, esc };
 })(typeof window !== 'undefined' ? window : globalThis);

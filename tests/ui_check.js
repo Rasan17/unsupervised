@@ -49,8 +49,15 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         await p.waitForSelector('.verdict', { timeout: 300000 });
         const verdict = (await p.locator('.verdict').innerText()).replace(/\s+/g, ' ');
         check(expectReal ? !/Do not interpret/.test(verdict) : /Do not interpret/.test(verdict), `${name}: verdict (${verdict.slice(0, 90)}...)`);
-        if (missing === 'gower') check((await p.locator('#clusters-out svg').count()) >= 1 && /The map needs complete numerical data/.test(await p.locator('#clusters-out').innerText()), `${name}: silhouette plot drawn; map explained as needing complete data`);
-        else check((await p.locator('#clusters-out svg').count()) >= 2, `${name}: silhouette plot and map drawn`);
+        check((await p.locator('#clusters-out svg').count()) >= 2, `${name}: silhouette plot and map drawn`);
+        // Maps: t-SNE and UMAP made on request, faithful (trustworthiness), coloured by a variable
+        if (method !== 'lca') {
+            for (const m of ['tsne', 'umap']) { await p.click(`[data-map="${m}"]`); await p.waitForSelector(`[data-map="${m}"].primary`, { timeout: 300000 }); }
+            const mapText = await p.locator('#map-panel').innerText(), tr = Number((mapText.match(/Trustworthiness ([0-9.]+)/) || [])[1]);
+            check(/UMAP keeps close neighbours together/.test(mapText) && tr > 0.85, `${name}: t-SNE and UMAP maps made, with trustworthiness (${tr}) and a caution`);
+            await p.selectOption('#map-colour', 'Callosal_Angle_Deg');
+            check((await p.locator('#map-panel circle[fill]').count()) > 100 && /Callosal_Angle_Deg:/.test(await p.locator('#map-panel .legend').innerText()), `${name}: map coloured by a measured variable, with a colour scale`);
+        } else check(/Classical scaling/.test(await p.locator('#map-panel').innerText()), `${name}: with values left missing, the map uses classical scaling of the dissimilarities`);
         // Step 6: classification (names, rules with cross-validated agreement, new-patient calculator)
         await p.click('#to-use');
         await p.waitForSelector('#np-go', { timeout: 300000 });
