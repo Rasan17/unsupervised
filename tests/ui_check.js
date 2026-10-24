@@ -175,6 +175,13 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         const j = await p.evaluate(() => window.UMEApp.state.explore.P.specs.findIndex(sp => sp.col === 'Urgency'));
         await p.selectOption(`#np-${j}`, 'Two-week wait'); await p.click('#np-go');
         check(/By the self-organising map:/.test(await p.locator('#np-out').innerText()), `${name}: a new referral is classified by the map`);
+        // Decision tree: when more questions are allowed than the tree needs, it says why; unmerged it shows them
+        await p.click('#to-tree'); await p.waitForSelector('#tree-out svg.tree'); await p.selectOption('#tree-depth', '4');
+        const merged = await p.$$eval('#tree-out svg.tree rect[stroke-width="2.5"]', r => r.length), usedDepth = await p.evaluate(() => window.UMEUse._state.treeDepth);
+        const noteOk = usedDepth >= 4 || /The tree uses only/.test(await p.locator('#tree-out').innerText());
+        await p.uncheck('#tree-merge');
+        const unmerged = await p.$$eval('#tree-out svg.tree rect[stroke-width="2.5"]', r => r.length);
+        check(noteOk && unmerged >= merged, `${name}: decision tree explains when it needs fewer questions than allowed, and unmerged shows all end points (${merged} merged, ${unmerged} unmerged)`);
         check(errs.length === 0, `${name}: no page errors${errs.length ? ': ' + errs.join(' | ') : ''}`);
         await p.close();
     }

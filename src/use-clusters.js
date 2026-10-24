@@ -104,6 +104,11 @@
         });
         return [...per.entries()].map(([j, c]) => fmtCond(vars[j], c));
     }
+    // Why the tree may use fewer questions than allowed
+    function depthNote() {
+        if (U.treeDepth >= U.depth) return '';
+        return `The tree uses ${U.treeDepth === 1 ? 'only 1 question' : `only ${U.treeDepth} questions`} on its longest path, although ${U.depth} are allowed: ${U.merge !== false ? 'further questions would lead to the same class on both sides for every patient, so those end points were merged (untick "Merge end points that give the same class" in step 8 to see them), or' : ''} no further split leaves at least ${minLeafFor(ctx.S.result.labels.length)} patients on each side and improves the separation of the classes.`;
+    }
     function fitRules() {
         const { P } = ctx, labels = ctx.S.result.labels, T = tableOf(P), vars = varsOf(P);
         if (!U.depthTable) U.depthTable = [1, 2, 3, 4].map(d => ({ d, ...crossValidate(T, vars, labels, d, P.seed) }));
@@ -111,7 +116,8 @@
             const best = Math.max(...U.depthTable.map(r => r.agree));
             U.depth = U.depthTable.find(r => r.agree >= best - 0.02).d;
         }
-        U.tree = CE.classificationTree(T, vars, labels, { maxDepth: U.depth, minLeaf: minLeafFor(labels.length) });
+        U.tree = CE.classificationTree(T, vars, labels, { maxDepth: U.depth, minLeaf: minLeafFor(labels.length), merge: U.merge !== false });
+        U.treeDepth = (function depthOf(node) { return node.left ? 1 + Math.max(depthOf(node.left), depthOf(node.right)) : 0; })(U.tree.root);
         U.cv = U.depthTable.find(r => r.d === U.depth);
         U.apparent = T.filter((x, i) => CE.predictTree(U.tree, x) === labels[i]).length / labels.length;
         U.vars = vars;
@@ -186,7 +192,7 @@
     function render(c) {
         ctx = c;
         const { S, P } = ctx, { k, labels } = S.result;
-        if (!U.key || U.key !== S.result) { Object.assign(U, { key: S.result, names: [], depth: null, depthTable: null }); }
+        if (!U.key || U.key !== S.result) { Object.assign(U, { key: S.result, names: [], depth: null, depthTable: null, merge: true }); }
         const feats = features(P, labels, k);
         if (!U.names.length) U.names = feats.map(f => f.top.slice(0, 2).map(t => t.short).join(', ').replace(/^./, ch => ch.toUpperCase()));
         U.feats = feats;
@@ -234,6 +240,7 @@
             <h3>2. Bedside rules</h3>
             <p class="muted small">Short rules that place a patient in a class from a few variables (a classification tree fitted to the clusters; each rule covers at least ${minLeafFor(n)} patients). If a value is not recorded, the rules follow the branch most patients took.</p>
             <div class="row"><label for="rule-depth">Most conditions per rule</label><select id="rule-depth">${[1, 2, 3, 4].map(d => `<option value="${d}"${d === U.depth ? ' selected' : ''}>${d}</option>`).join('')}</select></div>
+            ${depthNote() ? `<p class="small note">${esc(depthNote())}</p>` : ''}
             <div class="rules">${rulesHtml}</div>
             <p class="lead small">The rules give the same class as the full clustering for <strong>${pct(U.cv.agree)}</strong> of patients not used to derive them (10-fold cross-validation; Cohen's kappa ${U.cv.kappa.toFixed(2)}; ${cvWord(U.cv.agree)}). On the patients used to derive them: ${pct(U.apparent)}.${U.cv.agree < 0.8 ? ' The rules are only an approximation of the clusters: for an individual patient, use the calculator below, which also applies the full clustering.' : ''}</p>
             <div class="grid2"><div><div class="table-wrap">${confTable}</div><p class="muted small">Cross-validated: rows are the clusters, columns the class given by the rules.</p></div>
@@ -390,12 +397,15 @@
         el.innerHTML = `
             ${trustworthy ? '' : '<div class="verdict bad">Caution: the clusters chosen did not pass the checks (stability and the test of no real sub-groups). The tree is shown to illustrate how it would work, not for use.</div>'}
             <p>Start at the top and answer each question for the patient: <strong>yes</strong> goes down to the left, <strong>no</strong> to the right, until you reach a coloured box, which gives the class. If a value is not recorded, follow the branch shown in the box ("not recorded: yes" or "no"), the one most patients took.</p>
-            <div class="row"><label for="tree-depth">Most questions on a path</label><select id="tree-depth">${[1, 2, 3, 4].map(d => `<option value="${d}"${d === U.depth ? ' selected' : ''}>${d}</option>`).join('')}</select></div>
+            <div class="row"><label for="tree-depth">Most questions on a path</label><select id="tree-depth">${[1, 2, 3, 4].map(d => `<option value="${d}"${d === U.depth ? ' selected' : ''}>${d}</option>`).join('')}</select>
+                <label class="small"><input id="tree-merge" type="checkbox"${U.merge !== false ? ' checked' : ''}> Merge end points that give the same class</label></div>
+            ${depthNote() ? `<p class="small note">${esc(depthNote())}</p>` : ''}
             <div class="tree-wrap">${treeSvg(pagePalette())}</div>
             ${CH.legend(Array.from({ length: k }, (_, c) => classLabel(c)))}
             <p class="lead small">${leaves} end points. The tree gives the same class as the full clustering for <strong>${pct(U.cv.agree)}</strong> of patients not used to build it (10-fold cross-validation; Cohen's kappa ${U.cv.kappa.toFixed(2)}). The bar in each box shows how that box's patients divide between the classes (colours as in the legend).</p>
             <p class="muted small">The tree is a classification tree (CART, Gini impurity) fitted to the clusters, with at least ${minLeafFor(S.result.labels.length)} patients in each end point; the depth suggested is the simplest within 2 percentage points of the best cross-validated agreement. Class names and the depth are shared with step 7. Like the clusters themselves, the tree needs validation in another cohort before clinical use.</p>`;
         $('tree-depth').addEventListener('change', e => { U.depth = Number(e.target.value); fitRules(); draw(); drawTree(); });
+        $('tree-merge').addEventListener('change', e => { U.merge = e.target.checked; fitRules(); draw(); drawTree(); });
     }
     function renderTree(c) {
         if (!U.key || U.key !== c.S.result || !U.tree) render(c); else ctx = c;

@@ -832,12 +832,13 @@
      * Classification tree (CART, Gini impurity) that predicts the cluster from the clustering variables, to give
      * short rules clinicians can apply. Numbers and grades split at a threshold (midpoint between neighbouring
      * observed values, as scikit-learn; grades at a grade); categories split one category against the rest.
+     * (merge = false keeps them, to show sub-groups classified with different confidence.)
      * Missing values: a split is chosen on the patients with that value recorded (improvement weighted by the
      * recorded fraction, as C4.5), and patients without it follow the larger branch. Sibling leaves that predict
      * the same cluster are merged afterwards (predictions unchanged, rules shorter).
      * rows: patients x variables (raw values); vars: [{ name, type: 'continuous'|'ordinal'|'nominal', levels }].
      */
-    function classificationTree(rows, vars, labels, { maxDepth = 3, minLeaf = 5 } = {}) {
+    function classificationTree(rows, vars, labels, { maxDepth = 3, minLeaf = 5, merge = true } = {}) {
         const k = Math.max(...labels) + 1, val = vars.map((v, j) => rows.map(r => codeValue(r[j], v)));
         const counts = idx => { const c = new Array(k).fill(0); idx.forEach(i => { c[labels[i]]++; }); return c; };
         const gini = c => { const n = c.reduce((a, b) => a + b, 0); return n ? 1 - c.reduce((a, x) => a + (x / n) ** 2, 0) : 0; };
@@ -887,7 +888,7 @@
             node.left = grow(missLeft ? L.concat(miss) : L, depth + 1);
             node.right = grow(missLeft ? R : R.concat(miss), depth + 1);
             // Merge siblings that are leaves with the same prediction
-            if (!node.left.left && !node.right.left && node.left.predict === node.right.predict) return { n: node.n, counts: c, predict: node.left.predict };
+            if (merge && !node.left.left && !node.right.left && node.left.predict === node.right.predict) return { n: node.n, counts: c, predict: node.left.predict };
             return node;
         }
         const all = rows.map((_, i) => i);

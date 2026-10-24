@@ -95,3 +95,4 @@ td.diag { font-weight: 700; }
 .tree-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; padding: 10px; } .tree-wrap svg.tree { display: block; margin: 0 auto; max-width: none; }
 .export-bar { display: flex; justify-content: flex-end; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin: 2px 0 4px; }
 .export-bar .btn.small { padding: 2px 8px; font-size: 12px; }
+.note { border-left: 3px solid var(--accent); padding: 4px 10px; background: var(--soft); border-radius: 4px; }
