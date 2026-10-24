@@ -119,11 +119,13 @@ referral patterns (`tools/make_referral_demo.py`).
 - **Choice of the test of "no real sub-groups":** the Gaussian test is used only when no clustering variable is
   clearly skewed; otherwise the copula test (simulations below). A stable solution with a non-significant
   copula test is reported as "mixed" (the copula test is conservative), and every verdict warns that a curved
-  single population (a continuum) can also pass both tests.
+  single population (a continuum) can also pass both tests. The copula test reports how closely its reference
+  data reproduce the observed correlations (largest difference; a caution above 0.05).
 - **Warnings before the analysis:** empty or constant columns, mostly missing columns, dates, likely codes for
   "not recorded" (-9, 99, 999, -999 and similar, outside the range of the other values), strongly related
   clustering variables (rank correlation, Cramér's V or correlation ratio of 0.8 or more: one construct counted
-  twice) and fewer than 10 patients per coded variable.
+  twice) and fewer than 10 patients per coded variable. Flags from the data checks that are known to be genuine (for
+  example negative values of a change score) can be marked so for a whole variable; the analysis record notes it.
 - **Sensitivity analysis** (step 6, on request): the chosen number of clusters is refitted leaving out each
   clustering variable in turn, with each other suitable method, each other way of handling missing values and the
   other Gower weighting; each alternative is compared with the main solution (adjusted Rand, share of patients in
@@ -167,7 +169,7 @@ For 360 patients every step takes a few seconds; the sensitivity analysis refits
 ## Validation status and limitations
 
 - Verified: every computational method against an established implementation (85 reference checks) and the
-  behaviour of the decisions in simulations (30 checks), with the interface tested end to end in a browser.
+  behaviour of the decisions in simulations (31 checks, including a pinned regression check of the multiple imputation), with the interface tested end to end in a browser.
 - Not yet done: application to real cohorts and independent review by a statistician. A protocol for the first
   is in [`docs/validation_protocol.md`](docs/validation_protocol.md). Clusters found in one dataset are
   hypotheses until they are replicated in another.
@@ -183,7 +185,7 @@ For 360 patients every step takes a few seconds; the sensitivity analysis refits
 
 ```bash
 node tests/reference_check.js && python3 tests/reference_check.py   # 85 checks against scikit-learn, SciPy, NumPy, umap-learn and R (cluster, poLCA, mclust, FactoMineR)
-node tests/behaviour_check.js                                       # 30 simulations: true k found, 1 cluster when there are none, calibration and power of the tests, stability
+node tests/behaviour_check.js                                       # 31 simulations: true k found, 1 cluster when there are none, calibration and power of the tests, stability
 node tests/ui_check.js                                              # browser (Playwright + Chrome): every demo end to end, the audit features, privacy, layout, no page errors
 npx eslint@9.39.5 -c eslint.config.mjs src cluster-engine.js embed-engine.js anomaly-engine.js nn-engine.js  # undefined names and real mistakes
 ```

@@ -272,7 +272,8 @@
                 active[a] = false; size[b] = ni + nj; remaining--;
             } else chain.push(b);
         }
-        // SciPy numbering: sort merges by height and relabel the merged clusters n, n+1, ...
+        // SciPy numbering: sort merges by height and relabel the merged clusters n, n+1, ... The sort is stable, so
+        // merges at exactly the same height keep the order in which they were made (SciPy does not specify ties)
         merges.sort((x, y) => x.h - y.h);
         const parent = Array.from({ length: n }, (_, i) => i), label = Array.from({ length: n }, (_, i) => i), sz = new Array(n).fill(1);
         const find = x => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
@@ -648,13 +649,18 @@
             if (worst < 0.005) break;
         }
         if (!L) throw new Error('The correlation of the variables could not be modelled.');
+        // How closely the reference data reproduce the observed correlations (largest difference); the projection and
+        // the limits of each variable's distribution can make some correlations unattainable
+        const fitRef = pearson(Array.from({ length: m }, () => mapRow(drawLatent(L, crng))));
+        let fitError = 0;
+        for (let a = 0; a < p; a++) for (let b = 0; b < a; b++) fitError = Math.max(fitError, Math.abs(target[a][b] - fitRef[a][b]));
         const nulls = [];
         for (let b = 0; b < B; b++) {
             const Y = Array.from({ length: n }, () => mapRow(drawLatent(L, rng)));
             nulls.push(stat(groups.length ? Y.map(fromReduced) : Y));
         }
         const ge = nulls.filter(v => v >= obs).length;
-        return { observed: obs, nullMean: nulls.reduce((a, b) => a + b, 0) / B, nullQuantile95: nulls.slice().sort((a, b) => a - b)[Math.floor(0.95 * (B - 1))], pValue: (1 + ge) / (1 + B), B, p: X0[0].length, reference: 'copula' };
+        return { observed: obs, nullMean: nulls.reduce((a, b) => a + b, 0) / B, nullQuantile95: nulls.slice().sort((a, b) => a - b)[Math.floor(0.95 * (B - 1))], pValue: (1 + ge) / (1 + B), B, p: X0[0].length, reference: 'copula', fitError };
     }
 
     // ------------------------------------------------------------------------------------------- describing clusters

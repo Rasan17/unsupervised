@@ -4,11 +4,12 @@
 'use strict';
 const fs = require('fs'), path = require('path'), vm = require('vm');
 global.window = globalThis;
+vm.runInThisContext(fs.readFileSync(path.join(__dirname, '..', 'data-engine.js'), 'utf8'));
 vm.runInThisContext(fs.readFileSync(path.join(__dirname, '..', 'cluster-engine.js'), 'utf8'));
 vm.runInThisContext(fs.readFileSync(path.join(__dirname, '..', 'embed-engine.js'), 'utf8'));
 vm.runInThisContext(fs.readFileSync(path.join(__dirname, '..', 'anomaly-engine.js'), 'utf8'));
 vm.runInThisContext(fs.readFileSync(path.join(__dirname, '..', 'nn-engine.js'), 'utf8'));
-const CE = globalThis.ClusterEngine, EE = globalThis.EmbedEngine, AE = globalThis.AnomalyEngine, NN = globalThis.NNEngine;
+const DE = globalThis.DataEngine, CE = globalThis.ClusterEngine, EE = globalThis.EmbedEngine, AE = globalThis.AnomalyEngine, NN = globalThis.NNEngine;
 let passed = 0, failed = 0;
 function check(name, fn) {
     const t0 = Date.now();
@@ -319,6 +320,23 @@ check('Self-organising map with grouped units recovers simulated referral-like p
     const km = CE.adjustedRand(CE.kmeans(coded.X, 3, { seed: 1, nInit: 10 }).labels, truth);
     assert(a >= 0.55 && a >= km - 0.03 && same, `ARI ${a} (k-means ${km}), reproducible ${same}`);
     return `adjusted Rand ${a.toFixed(3)} (k-means ${km.toFixed(3)}; ${m.rows} x ${m.cols} map); identical map when trained again`;
+});
+check('Multiple imputation (MICE) is reproducible and unchanged by refactoring: observed values kept, imputations drawn from observed values, output pinned', () => {
+    // A regression lock: the imputations of this fixed dataset are pinned by a checksum, so a change to the
+    // arithmetic or its order (for example in the flat design matrices) fails here even if other checks pass
+    const r = CE.createPRNG(31), gz = () => { const u = r() || 1e-12, v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+    const rows = Array.from({ length: 80 }, () => { const a = gz(), b = 0.6 * a + 0.8 * gz(); return { a: (50 + 10 * a).toFixed(1), b: (20 + 5 * b).toFixed(1), g: ['mild', 'moderate', 'severe'][Math.min(2, Math.floor(r() * 3))], s: r() < 0.5 + 0.2 * Math.sign(a) ? 'Yes' : 'No' }; });
+    rows.forEach((o, i) => { if (i % 5 === 1) o.a = ''; if (i % 7 === 2) o.b = ''; if (i % 9 === 3) o.g = ''; if (i % 11 === 4) o.s = ''; });
+    const cfg = { a: { role: 'feature', type: 'continuous' }, b: { role: 'feature', type: 'continuous' }, g: { role: 'feature', type: 'nominal' }, s: { role: 'feature', type: 'nominal' } };
+    const run = () => DE.miceImpute(rows, cfg, { m: 3, iterations: 5, seed: 7 }).datasets;
+    const d1 = run(), d2 = run(), cols = Object.keys(cfg);
+    const kept = d1.every(d => d.every((o, i) => cols.every(c => rows[i][c] === '' || String(o[c]) === rows[i][c])));
+    const donors = cols.every(c => { const obs = new Set(rows.map(o => o[c]).filter(v => v !== '').map(String)); return d1.every(d => d.every((o, i) => rows[i][c] !== '' || obs.has(String(o[c])) || obs.has(Number(o[c]).toFixed(1)))); });
+    const text = JSON.stringify(d1.map(d => d.map(o => cols.map(c => o[c]))));
+    let h = 2166136261; for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+    const PINNED = '36bd8107';
+    assert(kept && donors && text === JSON.stringify(d2.map(d => d.map(o => cols.map(c => o[c])))) && h.toString(16) === PINNED, `kept ${kept}, donors ${donors}, checksum ${h.toString(16)}`);
+    return `3 imputed datasets identical when run again; checksum ${h.toString(16)}`;
 });
 console.log(`\n${passed}/${passed + failed} behaviour checks passed`);
 process.exit(failed ? 1 : 0);

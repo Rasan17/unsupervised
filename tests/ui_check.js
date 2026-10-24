@@ -155,6 +155,8 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         const co = await p.locator('#clusters-out').innerText();
         check(/Confirmatory purpose/.test(co) && /The 0.75 limit is a convention/.test(co) && /Patients: \d+% stay in their cluster in at least 90%/.test(co) && /\d+–\d+%/.test(co), `${name}: step 6 shows the purpose, interval and share range of each cluster's stability, and patient-level stability`);
         check(/Benjamini–Hochberg/.test(co) && /Cramér's V/.test(co), `${name}: the cluster profile gives q-values (false discovery rate) and effect sizes`);
+        const fitE = Number((co.match(/reproduce the observed correlations to within ([\d.]+)/) || [])[1]);
+        check(fitE >= 0 && fitE <= 0.05, `${name}: the copula test reports how closely its reference reproduces the observed correlations (${fitE})`);
         await p.click('#sens-btn'); await p.waitForSelector('#sens-out table', { timeout: 600000 });
         const so = await p.locator('#sens-out').innerText(), nAlt = await p.$$eval('#sens-out tbody tr', r => r.length);
         check(/Without Callosal_Angle_Deg/.test(so) && /Method:/.test(so) && /Patients: \d+% stay in the same cluster under every alternative/.test(so) && nAlt >= 6, `${name}: the sensitivity analysis compares ${nAlt} alternative specifications, at patient level`);
@@ -190,6 +192,12 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         const hit = planted.filter(id => found.includes(id) || (id === 'PH-115' && found.includes('PH-999')));
         check(hit.length >= planted.length - 0, `${name}: every planted problem is listed (${hit.length} of ${planted.length})`);
         check(/combination of .* is unusual/.test(await p.locator('#check-out').innerText()), `${name}: the patient with an unusual combination of plausible values is explained as such`);
+        await p.click('#check-out details summary');
+        const nErr = await p.$$eval('#check-out table', ts => ts[0].querySelectorAll('tbody tr').length);
+        await p.locator('[data-genuine]', { hasText: 'negative values in Callosal_Angle_Deg' }).click();
+        check(await p.$$eval('#check-out table', ts => ts[0].querySelectorAll('tbody tr').length) === nErr - 1 && /Marked as genuine: negative values in Callosal_Angle_Deg \(1\)/.test(await p.locator('#check-out').innerText()), `${name}: a flag can be marked as genuine for a whole variable and is no longer listed`);
+        await p.click('#genuine-undo');
+        check(await p.$$eval('#check-out table', ts => ts[0].querySelectorAll('tbody tr').length) === nErr, `${name}: marked flags can be listed again`);
         await p.click('[data-bulk="strong"][data-on="1"]');
         const nStrong = await p.$$eval('#check-out table', ts => ts[1].querySelectorAll('tbody tr').length);
         check(new RegExp(`${nStrong} patient\\(s\\) will be left out`).test(await p.locator('#check-summary').innerText()), `${name}: "Exclude all" excludes every unusual patient (${nStrong})`);
@@ -268,7 +276,8 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         // Regression: the test of "no real sub-groups" with categories of several levels (missing values filled)
         await p.click('.tab[data-step="4"]'); await p.selectOption('#missing', 'fill'); await p.click('#explore-btn'); await p.waitForSelector('#describe-btn', { timeout: 600000 });
         await p.selectOption('#k-choice', '5'); await p.click('#describe-btn'); await p.waitForSelector('#to-use', { timeout: 600000 });
-        check(/more separation than a single population/.test(await p.locator('#clusters-out .verdict').innerText()) && !/stopped/.test(await p.locator('#clusters-status').innerText()), `${name}: the test of no real sub-groups runs with categories of several levels and detects the patterns`);
+        const fitR = ((await p.locator('#clusters-out').innerText()).match(/reproduce the observed correlations to within ([\d.]+)/) || [])[1];
+        check(/more separation than a single population/.test(await p.locator('#clusters-out .verdict').innerText()) && !/stopped/.test(await p.locator('#clusters-status').innerText()) && fitR !== undefined, `${name}: the test of no real sub-groups runs with categories of several levels and detects the patterns (correlations reproduced to within ${fitR})`);
         await p.click('#to-use'); await p.waitForSelector('#np-go');
         const j = await p.evaluate(() => window.UMEApp.state.explore.P.specs.findIndex(sp => sp.col === 'Urgency'));
         await p.selectOption(`#np-${j}`, 'Two-week wait'); await p.click('#np-go');

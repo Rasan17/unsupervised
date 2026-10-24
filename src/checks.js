@@ -129,6 +129,12 @@
         return { issues, unusual, methods: active, notes: methods.filter(m => m.skipped), nMethods: active.length, allScores };
     }
 
+    const MARKABLE = { negative: 'negative values', extreme: 'extreme values', decimal: 'possible decimal-point errors', rare: 'one-off categories', variant: 'possible spelling variants', code: 'possible "not recorded" codes' };
+    // Flags marked as genuine (for the analysis record)
+    function markedGenuine() {
+        if (!C || !C.results || !C.S.markedGenuine) return [];
+        return [...C.S.markedGenuine].map(k => { const [column, kind] = k.split('\u0001'); return { column, flag: MARKABLE[kind] || kind, values: C.results.issues.filter(x => x.column === column && x.kind === kind).length }; });
+    }
     function render(ctx) {
         C = { ...ctx, results: C && C.S === ctx.S ? C.results : null };
         draw();
@@ -136,8 +142,14 @@
     function draw() {
         const el = $('check-out'), { S } = C;
         if (!C.results) { el.innerHTML = ''; summary(); return; }
-        const { issues, unusual, methods, nMethods, notes = [] } = C.results;
+        const { unusual, methods, nMethods, notes = [] } = C.results;
         const ex = S.excluded;
+        // Flags the user has marked as genuine for a whole variable (for example negative values of a change score)
+        S.markedGenuine = S.markedGenuine || new Set();
+        const gKey = x => `${x.column}\u0001${x.kind}`, issues = C.results.issues.filter(x => !S.markedGenuine.has(gKey(x)));
+        const flagGroups = keys => [...keys.reduce((m, x) => m.set(gKey(x), [x, (m.get(gKey(x)) || [x, 0])[1] + 1]), new Map()).values()];
+        const genuineBtns = flagGroups(issues.filter(x => MARKABLE[x.kind])).map(([x, c]) => `<button type="button" class="btn small" data-genuine="${esc(gKey(x))}">Genuine: ${esc(MARKABLE[x.kind])} in ${esc(x.column)} (${c})</button>`).join('');
+        const marked = flagGroups(C.results.issues.filter(x => S.markedGenuine.has(gKey(x))));
         const box = i => `<input type="checkbox" class="excl" data-row="${i}" aria-label="Exclude ${esc(label(S, i))}"${ex.has(i) ? ' checked' : ''}>`;
         // "Exclude all" / "Include all" for the patients of one table
         const groups = { errors: [...new Set(issues.map(x => x.row))] };
@@ -161,12 +173,16 @@
         el.innerHTML = `
             <h3>Possible data errors (${issues.length})</h3>
             ${issues.length ? `${bulk('errors', `${groups.errors.length} patient(s) with possible errors`)}<div class="table-wrap"><table><thead><tr><th>Exclude</th><th>Patient</th><th>Variable</th><th>Value</th><th>Possible problem</th></tr></thead><tbody>${errRows}</tbody></table></div>
-                <p class="muted small">Best corrected in the source file and loaded again; excluding the patient is the alternative. Values that cannot be read as numbers are treated as missing in the analysis.</p>` : '<p>None found.</p>'}
+                <p class="muted small">Best corrected in the source file and loaded again; excluding the patient is the alternative. Values that cannot be read as numbers are treated as missing in the analysis.</p>
+                ${genuineBtns ? `<details class="small"><summary>Values known to be genuine? Mark them for a whole variable</summary><p class="muted small">For example a change score that can be negative. Marked flags are no longer listed, and the analysis record notes them.</p><div class="row bulk" role="group" aria-label="Mark flags as genuine values">${genuineBtns}</div></details>` : ''}` : '<p>None found.</p>'}
+            ${marked.length ? `<p class="small">Marked as genuine: ${marked.map(([x, c]) => `${esc(MARKABLE[x.kind] || x.kind)} in ${esc(x.column)} (${c})`).join('; ')}. <button type="button" class="btn small" id="genuine-undo">List them again</button></p>` : ''}
             <h3>Unusual patients (${strong.length}${nMethods >= 2 ? ' flagged by at least 2 of the ' + nMethods + ' methods' : ''})</h3>
             ${strong.length ? `${bulk('strong', `${strong.length} unusual patient(s)`)}<div class="table-wrap"><table><thead>${uHead}</thead><tbody>${strong.map(uRow).join('')}</tbody></table></div>` : '<p>None.</p>'}
             ${weak.length ? `<details><summary>${weak.length} patient(s) flagged by one method only</summary>${bulk('weak', `${weak.length} patient(s) flagged by one method`)}<div class="table-wrap"><table><thead>${uHead}</thead><tbody>${weak.map(uRow).join('')}</tbody></table></div></details>` : ''}
             <div class="grid2"><div>${map}</div><div class="muted small">${[...methods, ...notes].map(m => `<p><strong>${esc(m.name)}</strong>: ${esc(m.note)}.</p>`).join('')}
                 <p>Unusual is not the same as wrong: check flagged patients against the records. Exclude only clear errors or patients outside the population of interest; rare but genuine patients may matter clinically. Report any exclusions.</p></div></div>`;
+        el.querySelectorAll('[data-genuine]').forEach(b => b.addEventListener('click', () => { S.markedGenuine.add(b.dataset.genuine); draw(); }));
+        const undo = $('genuine-undo'); if (undo) undo.addEventListener('click', () => { S.markedGenuine.clear(); draw(); });
         el.querySelectorAll('[data-bulk]').forEach(b => b.addEventListener('click', () => {
             const on = b.dataset.on === '1';
             groups[b.dataset.bulk].forEach(i => { if (on) S.excluded.add(i); else S.excluded.delete(i); el.querySelectorAll(`input.excl[data-row="${i}"]`).forEach(o => { o.checked = on; }); });
@@ -191,9 +207,9 @@
     // Why a patient was listed (for the analysis record): data-error messages and the reason for being unusual
     function reasonsFor(i) {
         if (!C || !C.results) return [];
-        const out = C.results.issues.filter(x => x.row === i).map(x => `${x.column}: ${x.message}`);
+        const out = C.results.issues.filter(x => x.row === i && !(C.S.markedGenuine && C.S.markedGenuine.has(`${x.column}\u0001${x.kind}`))).map(x => `${x.column}: ${x.message}`);
         const u = C.results.unusual.find(x => x.i === i); if (u) out.push(`unusual (${u.count} method(s)): ${u.why}`);
         return out;
     }
-    root.UMEChecks = { reasonsFor, render, start, run: S => { C = C || { S, onChange: () => {} }; C.S = S; return run(S); }, label };
+    root.UMEChecks = { reasonsFor, markedGenuine, render, start, run: S => { C = C || { S, onChange: () => {} }; C.S = S; return run(S); }, label };
 })(typeof window !== 'undefined' ? window : globalThis);
