@@ -69,6 +69,13 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
             await p.selectOption('#map-colour', 'Callosal_Angle_Deg');
             check((await p.locator('#map-panel circle[fill]').count()) > 100 && /Callosal_Angle_Deg:/.test(await p.locator('#map-panel .legend').innerText()), `${name}: map coloured by a measured variable, with a colour scale`);
         } else check(/FAMD/.test(await p.locator('#map-panel').innerText()), `${name}: for mixed data the base map is FAMD`);
+        // The axes of the PCA / FAMD map: three main variables per axis, with their contribution (as in the dimensions table)
+        await p.click(`[data-map="${(await p.locator('#map-panel [data-map="pca"]').count()) ? 'pca' : 'famd'}"]`).catch(() => {});
+        const ax = await p.evaluate(() => { const t = document.querySelector('#map-panel table.axis-factors'); if (!t) return null; const M = window.UMEMaps._state(), F = M.famd, P = window.UMEApp.state.explore.P;
+            const want = [0, 1].map(s2 => P.specs.map((sp, j) => [sp.col.replace(/_/g, ' '), F.contrib[j][s2]]).sort((a2, b2) => b2[1] - a2[1]).slice(0, 3).map(([n2, c2]) => `${n2} ${c2.toFixed(0)}%`));
+            const got = [...t.querySelectorAll('tbody tr')].map(tr => [...tr.querySelectorAll('td')].slice(1).map(td => td.firstChild.textContent + td.childNodes[1].textContent.trim().replace(/^/, ' ').replace(/^ /, ' ')));
+            return { rows: got.length, ok: want.every((w, r) => w.every((x, c) => (got[r][c] || '').replace(/\s+/g, ' ').trim() === x)) }; });
+        check(ax && ax.rows === 2 && ax.ok, `${name}: the map lists the three main variables of each axis with their contribution, matching the dimensions table`);
         const dimsText = await p.locator('#dims-panel').innerText();
         check(/FAMD \(factor analysis of mixed data\)/.test(dimsText) && /Dimension 1 \(\d+% of the variation\): mainly/.test(dimsText) && /separates the clusters/.test(dimsText), `${name}: dimensions panel describes what drives dimension 1 and how it separates the clusters`);
         // Step 6: classification (names, rules with cross-validated agreement, new-patient calculator)

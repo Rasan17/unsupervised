@@ -158,6 +158,7 @@
                 ${M.ctx.S.result.neural && M.ctx.S.result.neural.unitLabels ? '<p class="muted small">Select patients here: click a point, drag a rectangle, or hold Option (Alt) and drag (with either mouse button) for a freehand outline. Hold Shift to add, Cmd (Ctrl on Windows) to remove. Deselect: click an empty area, press Escape, or "Clear selection". The self-organising map below shows where they are.</p>' : ''}
                 ${HL ? `<p class="small note">Highlighted: the ${HL.size.toLocaleString('en-GB')} record(s) selected ${root.UMESom && root.UMESom._state() && root.UMESom._state().rec ? 'here' : 'on the self-organising map below'}${hlShown < HL.size ? ` (${hlShown.toLocaleString('en-GB')} of them are on this map, which shows a sample)` : ''}. <button type="button" class="btn small" id="map-clear">Clear selection</button></p>` : ''}
                 ${map.history ? `<details><summary class="small">Training curve</summary>${CH.lineChart({ series: [{ name: 'Training patients', cls: 0, points: map.history.map(h => ({ x: h.epoch, y: h.train })) }, { name: 'Held-back patients', cls: 1, points: map.history.map(h => ({ x: h.epoch, y: h.val })) }], xLabel: 'Epoch', yLabel: 'Reconstruction error', aria: 'Training curve of the autoencoder', H: 220 })}${CH.legend(['Training patients', 'Held-back patients'])}<p class="muted small">If the error on held-back patients rises while the training error keeps falling, the network is learning the noise of these patients (overfitting); the weights from the lowest held-back error are used.</p></details>` : ''}
+                ${M.kind === 'pca' || M.kind === 'famd' ? axisFactors() : '<p class="muted small">The axes of this map have no fixed meaning (it keeps neighbours, not directions); for what drives the differences between patients, see the PCA / FAMD map or "Dimensions of the data".</p>'}
                 <p class="muted small"><strong>${NAMES[M.kind]}</strong>${map.extra ? ` (${esc(map.extra)})` : ''}. ${esc(NOTES[M.kind])}</p>
                 <p class="muted small">Trustworthiness ${tr.toFixed(3)}: how well the map keeps each patient's ${map.k} nearest neighbours (1 = perfectly; above 0.9 good).${map.idx.length < n ? ` Map of a random sample of ${map.idx.length} of the ${n} patients.` : ''}</p>`;
         }
@@ -249,6 +250,24 @@
         };
         svg.addEventListener('pointerup', finish);
         svg.addEventListener('pointercancel', () => { if (drag) { drag.shape.remove(); drag = null; } });
+    }
+    // The three variables that contribute most to each axis of the PCA / FAMD map, with their contribution and direction
+    function axisFactors() {
+        const F = M.famd, P = M.ctx.P;
+        if (!F || F.nDim < 2) return '';
+        const rows = [0, 1].map(s => {
+            const top = P.specs.map((sp, j) => ({ sp, j, c: F.contrib[j][s] })).sort((a, b) => b.c - a.c).slice(0, 3);
+            const dirWord = s === 0 ? ['→ right', '← left'] : ['↑ up', '↓ down'];
+            const cells = top.map(({ sp, j, c }) => {
+                let dir;
+                if (F.corr[j]) dir = `higher ${F.corr[j][s] >= 0 ? dirWord[0] : dirWord[1]}`;
+                else { const cm = F.catMeans[j].slice().sort((a, b) => b.coord[s] - a.coord[s]); dir = `"${cm[0].level}" ${dirWord[0]}`; }
+                return `<td><strong>${esc(pretty(sp.col))}</strong> ${c.toFixed(0)}%<div class="muted">${esc(dir)}</div></td>`;
+            }).join('');
+            return `<tr><td>Dimension ${s + 1} <span class="muted">(${s === 0 ? 'horizontal' : 'vertical'})</span><div class="muted">${(100 * F.ratio[s]).toFixed(0)}% of the variation</div></td>${cells}</tr>`;
+        }).join('');
+        return `<h4>What the axes mean</h4><div class="table-wrap"><table class="axis-factors"><thead><tr><th>Axis</th><th>1st variable</th><th>2nd</th><th>3rd</th></tr></thead><tbody>${rows}</tbody></table></div>
+            <p class="muted small">Percentages: each variable's contribution to that dimension (contributions of all variables add up to 100%). Direction: where patients with higher values of a number, or in that category, lie on the map. The full table is under "Dimensions of the data".</p>`;
     }
     function highlight(set) { HL = set && set.size ? set : null; if (M) draw(); }
     root.UMEMaps = { highlight, render, renderDimensions: () => drawDimensions(), _state: () => M };

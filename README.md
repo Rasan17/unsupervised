@@ -95,7 +95,9 @@ referral patterns (`tools/make_referral_demo.py`).
 - **Dimensions of the data:** FAMD (factor analysis of mixed data, as R's FactoMineR; PCA for numbers only, MCA
   for categories only): variance explained by each dimension (scree chart), the contribution and correlation of
   each variable, a plain-language description of the first three dimensions, and how strongly each dimension
-  separates the clusters (correlation ratio). FAMD is also the base map for mixed data.
+  separates the clusters (correlation ratio). FAMD is also the base map for mixed data; under the PCA / FAMD map,
+  "What the axes mean" lists the three variables contributing most to each axis, with their contribution (%) and
+  direction.
 - **Maps of the patients** (`embed-engine.js`), from the same dissimilarities as the clustering (so mixed data and
   missing values work): classical scaling, t-SNE (exact method, as scikit-learn: perplexity 30, early
   exaggeration, adaptive gains) and UMAP (as umap-learn: fuzzy neighbour graph, curve parameters fitted for
