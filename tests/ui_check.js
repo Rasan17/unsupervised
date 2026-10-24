@@ -179,6 +179,11 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         await p.click('[data-selc="0"]');
         const c1 = await p.evaluate(() => { const V = window.UMESom._state(), m = V.nn.map; return V.P.rows.map((_, i) => i).filter(i => V.sel.has(m.bmu[i])).every(i => V.labels[i] === 0); });
         check(c1 && /cluster 1 100%/.test(await p.locator('#som-table p').first().innerText()), `${name}: the cluster button selects that cluster's units and records`);
+        // Conversely: clicking a patient on the map of the patients selects its unit on the self-organising map
+        await p.click('#som-clear');
+        await p.locator('#map-panel circle[data-row="123"]').dispatchEvent('click');
+        const pick = await p.evaluate(() => { const V = window.UMESom._state(); return { sel: [...V.sel], unit: V.nn.map.bmu[123], hits: V.nn.map.hits[V.nn.map.bmu[123]] }; });
+        check(pick.sel.length === 1 && pick.sel[0] === pick.unit && (await p.locator(`#som-svg rect.picked[data-unit="${pick.unit}"]`).count()) === 1 && (await p.$$eval('#map-panel circle.hl', c => c.length)) === pick.hits && /Selected from the map of the patients/.test(await p.locator('#som-view').innerText()), `${name}: clicking a patient on the map selects and outlines its unit on the self-organising map (${pick.hits} records)`);
         await p.click('#som-clear');
         check(/No units selected/.test(await p.locator('#som-table').innerText()) && (await p.$$eval('#map-panel circle.hl, #map-panel circle.dim', c => c.length)) === 0, `${name}: clearing the selection empties the table and removes the highlight`);
         // Regression: the test of "no real sub-groups" with categories of several levels (missing values filled)

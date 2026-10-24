@@ -15,11 +15,12 @@
         let g = `<svg class="chart som" id="som-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Self-organising map of the records coloured by cluster">`;
         m.pos.forEach(([r, c], u) => {
             const hits = m.hits[u], op = hits ? (0.25 + 0.75 * Math.sqrt(hits / maxHits)).toFixed(2) : 1;
-            const cls = `${hits ? `bar s${V.nn.unitLabels[u] % 8}` : 'pt na'}${V.sel.has(u) ? ' sel' : any ? ' dim' : ''}`;
+            const cls = `${hits ? `bar s${V.nn.unitLabels[u] % 8}` : 'pt na'}${V.sel.has(u) ? ' sel' : any ? ' dim' : ''}${V.picked && V.picked.u === u ? ' picked' : ''}`;
             g += `<rect class="${cls}" data-unit="${u}" x="${c * cell + 1}" y="${r * cell + 1}" width="${cell - 2}" height="${cell - 2}" rx="2" fill-opacity="${op}"><title>Unit ${u + 1}: ${hits} record(s)${hits ? `, cluster ${V.nn.unitLabels[u] + 1}` : ''}</title></rect>`;
         });
         return g + '<rect id="som-band" class="band" x="0" y="0" width="0" height="0" display="none"/></svg>';
     }
+    const recordLabel = i => { const id = V.S.data.headers.find(h => V.S.vars[h].role === 'ignore' && /(^|[\s_-])(id|mrn|nhs|number|record)$/i.test(h)); const v = id ? String(V.P.rows[i][id] ?? '').trim() : ''; return v || `row ${i + 1}`; };
     const selectedRecords = () => V.P.rows.map((_, i) => i).filter(i => V.sel.has(V.nn.map.bmu[i]));
     function draw() {
         const el = $('som-view'); if (!el) return;
@@ -29,6 +30,7 @@
             <div class="small"><p class="muted">Each square is a unit of the map: records with similar values fall on the same or neighbouring units. Colour: the cluster of the unit; the stronger the colour, the more records it holds (hover for the number). Units without records are grey.</p>
                 <p><strong>Select a region:</strong> drag a rectangle over the map, or click a unit. Hold Shift (or Cmd / Ctrl) to add to the selection. The records on the selected units are listed below.</p>
                 <div class="row" role="group" aria-label="Select the units of a cluster">${Array.from({ length: k }, (_, c) => `<button type="button" class="btn small" data-selc="${c}"><i class="sw s${c % 8}"></i>Cluster ${c + 1}</button>`).join('')}<button type="button" class="btn small" id="som-clear"${V.sel.size ? '' : ' disabled'}>Clear selection</button></div></div></div>
+            ${V.picked && V.sel.has(V.picked.u) ? `<p class="small note">Selected from the map of the patients: record ${esc(recordLabel(V.picked.i))} is on unit ${V.picked.u + 1} (outlined), with ${V.nn.map.hits[V.picked.u]} record(s).</p>` : ''}
             <div id="som-table"></div>`;
         wire();
         table();
@@ -58,15 +60,15 @@
                 const u = toUnit(e) ?? (() => { const c = Math.floor(start[0] / cell), r = Math.floor(start[1] / cell); return r >= 0 && r < m.rows && c >= 0 && c < m.cols ? r * m.cols + c : null; })();
                 if (u !== null) { if (add) { if (V.sel.has(u)) V.sel.delete(u); else V.sel.add(u); } else if (V.sel.size === 1 && V.sel.has(u)) V.sel.clear(); else { V.sel.clear(); V.sel.add(u); } }
             }
-            start = null; V.page = 0; draw();
+            start = null; V.page = 0; V.picked = null; draw();
         });
         svg.addEventListener('pointercancel', () => { start = null; band.setAttribute('display', 'none'); });
         document.querySelectorAll('#som-view [data-selc]').forEach(b => b.addEventListener('click', e => {
             const c = Number(b.dataset.selc), units = V.nn.unitLabels.map((l, u) => (l === c && V.nn.map.hits[u] ? u : -1)).filter(u => u >= 0);
             if (!(e.shiftKey || e.metaKey || e.ctrlKey)) V.sel.clear();
-            units.forEach(u => V.sel.add(u)); V.page = 0; draw();
+            units.forEach(u => V.sel.add(u)); V.page = 0; V.picked = null; draw();
         }));
-        $('som-clear').addEventListener('click', () => { V.sel.clear(); V.page = 0; draw(); });
+        $('som-clear').addEventListener('click', () => { V.sel.clear(); V.page = 0; V.picked = null; draw(); });
     }
     // Summary of the selection against all records, then the records themselves
     function summary(idx) {
@@ -116,10 +118,18 @@
             a.href = url; a.download = `selected_records_${String(S.data.name).replace(/\.[^.]+$/, '').replace(/[^\w-]+/g, '_')}.csv`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
         });
     }
+    // From the map of the patients: select the unit of a clicked record (toggle; add with Shift / Cmd / Ctrl)
+    function selectRecord(i, add) {
+        if (!V || !V.nn) return;
+        const u = V.nn.map.bmu[i];
+        if (add) { if (V.sel.has(u)) V.sel.delete(u); else V.sel.add(u); } else if (V.sel.size === 1 && V.sel.has(u)) V.sel.clear(); else { V.sel.clear(); V.sel.add(u); }
+        V.picked = V.sel.has(u) ? { i, u } : null; V.page = 0;
+        draw();
+    }
     function render(ctx) {
         if (!V || V.key !== ctx.S.result) V = { key: ctx.S.result, sel: new Set(), sortCol: null, sortDir: 1, page: 0 };
         Object.assign(V, { S: ctx.S, P: ctx.P, nn: ctx.S.result.neural, labels: ctx.S.result.labels, k: ctx.S.result.k });
         draw();
     }
-    root.UMESom = { render, _state: () => V };
+    root.UMESom = { render, selectRecord, _state: () => V };
 })(typeof window !== 'undefined' ? window : globalThis);

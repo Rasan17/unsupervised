@@ -106,3 +106,5 @@ button.sort { font: inherit; font-weight: 600; background: none; border: 0; padd
 button.sort:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .chart .pt.dim { fill-opacity: 0.1; }
 .chart .pt.hl { fill-opacity: 1; stroke: var(--ink); stroke-width: 0.8; }
+.chart.pickable circle { cursor: pointer; }
+.chart.som rect.picked { stroke: var(--accent); stroke-width: 3.5; }

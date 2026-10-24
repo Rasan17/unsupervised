@@ -39,7 +39,7 @@
         return g + '</svg>';
     }
     /** Scatter map: points [{x, y, group, tip}] coloured by group, or by colour (a hex value, for a colour scale);
-     *  group null and no colour: drawn grey (value not recorded). mark: 'hl' (highlighted, larger, drawn last) or 'dim'.
+     *  group null and no colour: drawn grey (value not recorded). mark: 'hl' (highlighted, larger, drawn last) or 'dim'; row: record number (data-row, for clicking).
      *  noAxes: for t-SNE / UMAP, whose axes have no units. */
     function scatter({ points, xLabel, yLabel, aria, W = 440, H = 340, noAxes = false }) {
         if (!points.length) return '';
@@ -49,7 +49,7 @@
         points.slice().sort((a, b) => (a.mark === 'hl') - (b.mark === 'hl')).forEach(p => {
             const cls = p.color && hex.test(p.color) ? 'pt' : p.group === null || p.group === undefined ? 'pt na' : `pt s${p.group % 8}`;
             const extra = p.mark === 'hl' ? ' hl' : p.mark === 'dim' ? ' dim' : '';
-            g += `<circle class="${cls}${extra}"${p.color && hex.test(p.color) ? ` fill="${p.color}"` : ''} cx="${f.sx(p.x).toFixed(1)}" cy="${f.sy(p.y).toFixed(1)}" r="${p.mark === 'hl' ? 4.5 : 3}"><title>${esc(p.tip)}</title></circle>`;
+            g += `<circle class="${cls}${extra}"${Number.isInteger(p.row) ? ` data-row="${p.row}"` : ''}${p.color && hex.test(p.color) ? ` fill="${p.color}"` : ''} cx="${f.sx(p.x).toFixed(1)}" cy="${f.sy(p.y).toFixed(1)}" r="${p.mark === 'hl' ? 4.5 : 3}"><title>${esc(p.tip)}</title></circle>`;
         });
         return g + '</svg>';
     }

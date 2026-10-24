@@ -151,7 +151,7 @@
         let body = '<p class="muted">No map is available for these data.</p>';
         if (map) {
             const c = colouring(map);
-            const svg = CH.scatter({ points: map.idx.map((i, r) => ({ x: map.Y[r][0], y: map.Y[r][1], ...c.pts(i), ...(HL ? { mark: HL.has(i) ? 'hl' : 'dim' } : {}) })), xLabel: map.xLabel, yLabel: map.yLabel, noAxes: M.kind === 'tsne' || M.kind === 'umap' || M.kind === 'ae', aria: `${NAMES[M.kind]} map of the patients` });
+            const svg = CH.scatter({ points: map.idx.map((i, r) => ({ x: map.Y[r][0], y: map.Y[r][1], ...c.pts(i), row: i, ...(HL ? { mark: HL.has(i) ? 'hl' : 'dim' } : {}) })), xLabel: map.xLabel, yLabel: map.yLabel, noAxes: M.kind === 'tsne' || M.kind === 'umap' || M.kind === 'ae', aria: `${NAMES[M.kind]} map of the patients` });
             const tr = trustOf(map);
             const hlShown = HL ? map.idx.filter(i => HL.has(i)).length : 0;
             body = `${svg}${c.legend}
@@ -165,6 +165,13 @@
                 <label for="map-colour" class="small">Colour by</label><select id="map-colour"><option value="__cluster">Cluster</option>${vars.map(v => `<option value="${esc(v)}"${M.colourBy === v ? ' selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
             <p id="map-status" class="status small" role="status"></p>
             ${body}`;
+        // With a self-organising map: clicking a patient selects its unit there (Shift / Cmd / Ctrl adds)
+        const somOn = root.UMESom && root.UMESom.selectRecord && M.ctx.S.result.neural && M.ctx.S.result.neural.unitLabels;
+        const svgEl = el.querySelector('svg.chart');
+        if (somOn && svgEl) {
+            svgEl.classList.add('pickable');
+            svgEl.addEventListener('click', e => { const t = e.target; if (t && t.dataset && t.dataset.row !== undefined) root.UMESom.selectRecord(Number(t.dataset.row), e.shiftKey || e.metaKey || e.ctrlKey); });
+        }
         el.querySelectorAll('[data-map]').forEach(b => b.addEventListener('click', () => { const k = b.dataset.map; if (M.maps[k]) { M.kind = k; draw(); } else compute(k); }));
         $('map-colour').addEventListener('change', e => { M.colourBy = e.target.value; draw(); });
     }
