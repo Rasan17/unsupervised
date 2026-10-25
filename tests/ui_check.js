@@ -371,6 +371,8 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         await p.click('#explore-btn'); await p.waitForSelector('#describe-btn', { timeout: 600000 });
         await p.selectOption('#k-choice', '5'); await p.click('#describe-btn'); await p.waitForSelector('#to-use', { timeout: 600000 });
         const fitR = ((await p.locator('#clusters-out').innerText()).match(/reproduce the observed correlations to within ([\d.]+)/) || [])[1];
+        const filledProfile = await p.evaluate(() => { const S = window.UMEApp.state, P = S.explore.P, miss = P.recorded.filter(r => window.DataEngine.isMissing(r.Distance_km)).length; return { miss, filled: P.rows.filter(r => window.DataEngine.isMissing(r.Distance_km)).length, text: document.querySelector('#clusters-out table.profile').innerText.match(/Distance_km[^\n]*/)?.[0] || '' }; });
+        check(filledProfile.miss > 0 && filledProfile.filled === 0 && new RegExp(`\\(${filledProfile.miss} missing\\)`).test(filledProfile.text), `${name}: with missing values filled for clustering, the profile describes the recorded values (${filledProfile.miss} missing shown, not the filled medians)`);
         check(/more separation than a single population/.test(await p.locator('#clusters-out .verdict').innerText()) && !/stopped/.test(await p.locator('#clusters-status').innerText()) && fitR !== undefined, `${name}: the test of no real sub-groups runs with categories of several levels and detects the patterns (correlations reproduced to within ${fitR})`);
         await p.click('#to-use'); await p.waitForSelector('#np-go');
         const j = await p.evaluate(() => window.UMEApp.state.explore.P.specs.findIndex(sp => sp.col === 'Urgency'));
