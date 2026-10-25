@@ -22,6 +22,7 @@
     };
 
     const MICE_M = 5;   // number of imputed datasets
+    const PREVIEW_ROWS = 200;   // rows shown in the data preview (step 1)
     // Large datasets: dissimilarities between every pair of patients (silhouettes, maps, PAM, Ward) need n x n
     // memory, so above SAMPLE_MAX they are computed on a random sample of SAMPLE_N patients
     const SAMPLE_MAX = 3000, SAMPLE_N = 2000;
@@ -89,14 +90,26 @@
         const miss = parsed.headers.reduce((a, h) => a + (S.data.analysis[h].missingCount || 0), 0);
         $('data-summary').innerHTML = `<p><strong>${esc(name)}</strong>: ${parsed.rows.length} patients, ${parsed.headers.length} columns, ${miss} missing value(s).</p>
             ${issues.length ? `<p class="warn">${issues.map(esc).join(' ')}</p>` : ''}
-            <div class="table-wrap"><table><thead><tr>${parsed.headers.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>
-            <tbody>${parsed.rows.slice(0, 6).map(r => `<tr>${parsed.headers.map(h => `<td>${esc(r[h] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
-        status('data-status', '');
-        enableTabs(2); renderVariables(); goTo(2);
+            <div class="table-wrap preview" tabindex="0" aria-label="Preview of the loaded data (scrolls)"><table><thead><tr>${parsed.headers.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>
+            <tbody>${parsed.rows.slice(0, PREVIEW_ROWS).map(r => `<tr>${parsed.headers.map(h => `<td>${esc(r[h] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+            <p class="muted small">${parsed.rows.length > PREVIEW_ROWS ? `The first ${PREVIEW_ROWS} of ${parsed.rows.length.toLocaleString('en-GB')} rows are shown; scroll the table to see them.` : 'All rows are shown; scroll the table to see them.'}</p>
+            <div class="row"><button id="to-vars" class="btn primary" type="button">Next: choose the variables &rarr;</button></div>`;
+        $('to-vars').addEventListener('click', () => goTo(2));
+        status('data-status', `Loaded ${name}.`, 'good');
+        // Stay on this step: the preview shows what was loaded; "Next" (or the "2 Variables" tab) continues
+        enableTabs(2); renderVariables();
     }
-    async function loadDemo(file) {
-        try { const r = await fetch(file); if (!r.ok) throw new Error(String(r.status)); loadText(await r.text(), file, true); }
+    let demoLoading = false;
+    async function loadDemo(file, btn) {
+        if (demoLoading) return;   // a second click while a file is loading is ignored
+        demoLoading = true;
+        const demos = [...document.querySelectorAll('[id^="demo-"]')];
+        demos.forEach(b => { b.disabled = true; });
+        if (btn) btn.setAttribute('aria-busy', 'true');
+        status('data-status', `Loading ${file}…`);
+        try { const r = await fetch(file, { cache: 'no-cache' }); if (!r.ok) throw new Error(`the server answered ${r.status}`); loadText(await r.text(), file, true); }
         catch (e) { status('data-status', `The demo file could not be loaded (${e.message}). If you opened the page from your disk, load the CSV file with "Choose a CSV file" instead.`, 'bad'); }
+        finally { demoLoading = false; demos.forEach(b => { b.disabled = false; }); if (btn) btn.removeAttribute('aria-busy'); }
     }
 
     // Patients included in the analysis (all, minus those left out after the data checks)
@@ -750,10 +763,10 @@
     document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => goTo(t.dataset.step)));
         $('file').addEventListener('change', e => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => loadText(String(r.result), f.name); r.readAsText(f); });
-        $('demo-phenotypes').addEventListener('click', () => loadDemo('demo_inph_phenotypes.csv'));
-        $('demo-none').addEventListener('click', () => loadDemo('demo_no_subtypes.csv'));
-        $('demo-errors').addEventListener('click', () => loadDemo('demo_inph_with_errors.csv'));
-        $('demo-referrals').addEventListener('click', () => loadDemo('demo_referrals.csv'));
+        $('demo-phenotypes').addEventListener('click', e => loadDemo('demo_inph_phenotypes.csv', e.currentTarget));
+        $('demo-none').addEventListener('click', e => loadDemo('demo_no_subtypes.csv', e.currentTarget));
+        $('demo-errors').addEventListener('click', e => loadDemo('demo_inph_with_errors.csv', e.currentTarget));
+        $('demo-referrals').addEventListener('click', e => loadDemo('demo_referrals.csv', e.currentTarget));
         $('to-step3').addEventListener('click', () => { enableTabs(4); goTo(4); });
         $('to-check').addEventListener('click', () => { enableTabs(4); goTo(3); renderChecks(); });
         $('check-btn').addEventListener('click', () => { renderChecks(); window.UMEChecks.start(); });

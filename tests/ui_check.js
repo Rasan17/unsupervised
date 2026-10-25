@@ -30,8 +30,11 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         await p.goto(url);
         const visibleSteps = () => p.$$eval('section.step', ss => ss.filter(s => s.offsetParent !== null).map(s => s.dataset.step));
         check(JSON.stringify(await visibleSteps()) === '["1"]', `${name}: only step 1 is shown at the start`);
-        await p.click(demo);
-        await p.waitForSelector('#var-table table');
+        await p.dblclick(demo);   // a double click loads the file once
+        await p.waitForSelector('#to-vars');
+        const pv = await p.evaluate(() => { const w = document.querySelector('#data-summary .table-wrap.preview'); return { rows: w.querySelectorAll('tbody tr').length, scrolls: w.scrollHeight > w.clientHeight, sticky: getComputedStyle(w.querySelector('thead th')).position }; });
+        check(JSON.stringify(await visibleSteps()) === '["1"]' && /Loaded demo_/.test(await p.locator('#data-status').innerText()) && pv.rows === 200 && pv.scrolls && pv.sticky === 'sticky', `${name}: after loading, the page stays on step 1 with a scrollable preview of 200 rows and fixed headings, and says it loaded`);
+        await p.click('#to-vars'); await p.waitForSelector('#var-table table');
         const roles = await p.evaluate(() => ['Age', 'Sex'].map(h => window.UMEApp.state.vars[h].role));
         check(roles.every(r => r === 'describe'), `${name}: age and sex start as "describe only"`);
         await p.click('#to-step3');
@@ -165,7 +168,7 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         const lines = ['ID,Visit_Date,Score,Score_Copy,Constant,Grade'];
         for (let i = 0; i < 60; i++) lines.push(`P${i},2024-0${1 + (i % 9)}-1${i % 9},${i % 7 === 0 ? -999 : 10 + (i % 13)},${i % 7 === 0 ? -999 : 20 + 2 * (i % 13)},same,${i % 3}`);
         await p.setInputFiles('#file', { name: 'problems.csv', mimeType: 'text/csv', buffer: Buffer.from(lines.join('\n')) });
-        await p.waitForSelector('#var-table table');
+        await p.click('#to-vars'); await p.waitForSelector('#var-table table');
         check(/Data: problems\.csv \(60 rows, your file\)/.test(await p.locator('#data-banner').innerText()) && /not a medical device/.test(await p.locator('section.step[data-step="1"]').innerText()), `${name}: a banner names the user's own file, and step 1 states that the tool is not a medical device`);
         await p.selectOption('#role-1', 'cluster');
         const warn = await p.locator('#var-warnings').innerText();
@@ -173,7 +176,7 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         // The phenotype demo with a confirmatory purpose, PAM / Gower, 3 clusters
         await p.click('#to-step3');
         check(/warning\(s\) about the data were shown in step 2/.test(await p.locator('#warn-reminder').innerText()), `${name}: step 4 reminds the user of the warnings before the analysis`);
-        await p.click('.tab[data-step="1"]'); await p.click('#demo-phenotypes'); await p.waitForSelector('#var-table table');
+        await p.click('.tab[data-step="1"]'); await p.click('#demo-phenotypes'); await p.click('#to-vars'); await p.waitForSelector('#var-table table');
         check(/Data: demo_inph_phenotypes\.csv \(simulated demonstration, not real patients\)/.test(await p.locator('#data-banner').innerText()), `${name}: a banner marks simulated demonstration data on every step`);
         await p.click('#to-step3');
         await p.selectOption('#purpose', 'confirmatory'); await p.fill('#question', 'Are there sub-types of iNPH?');
@@ -232,7 +235,7 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         for (const [fname, lines] of Object.entries(files)) {
             await p.goto(url);
             await p.setInputFiles('#file', { name: fname, mimeType: 'text/csv', buffer: Buffer.from(lines.join('\n')) });
-            await p.waitForSelector('#var-table table');
+            await p.click('#to-vars'); await p.waitForSelector('#var-table table');
             let outcome;
             if (await p.isDisabled('#to-step3')) outcome = `stops at step 2: ${(await p.locator('#var-summary').innerText()).match(/Choose at least two variables[^.]*\./)?.[0] || 'next step not available'} (${JSON.stringify(await p.evaluate(() => Object.fromEntries(Object.entries(window.UMEApp.state.vars).map(([h, v]) => [h, v.role]))))})`;
             else {
@@ -253,7 +256,7 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
             for (let i = 0; i < 80; i++) gl.push(`G${i};${G[i % 4]};${H[i % 3]};${(60 + i / 3).toFixed(1).replace('.', ',')};${i % 7}`);
             await p.goto(url);
             await p.setInputFiles('#file', { name: 'grades.csv', mimeType: 'text/csv', buffer: Buffer.from(gl.join('\r\n')) });
-            await p.waitForSelector('#var-table table');
+            await p.click('#to-vars'); await p.waitForSelector('#var-table table');
             const st = await p.evaluate(() => { const v = window.UMEApp.state.vars; return { sevType: v.Severity.type, ageType: v.Age.type, sevMissing: window.UMEApp.state.data.analysis.Severity.missingCount }; });
             const sevIdx = await p.evaluate(() => window.UMEApp.state.data.headers.indexOf('Severity')), lvlIdx = await p.evaluate(() => window.UMEApp.state.data.headers.indexOf('Level'));
             const sevOrder = await p.inputValue(`#order-${sevIdx}`);
@@ -265,7 +268,7 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         }
         await p.goto(url);
         await p.setInputFiles('#file', { name: 'awkward.csv', mimeType: 'text/csv', buffer: Buffer.from(files['awkward.csv'].join('\n')) });
-        await p.waitForSelector('#var-table table');
+        await p.click('#to-vars'); await p.waitForSelector('#var-table table');
         const w = await p.locator('#var-warnings').innerText();
         const roles = await p.evaluate(() => Object.fromEntries(Object.entries(window.UMEApp.state.vars).map(([h, v]) => [h, v.role])));
         check(/Rare categories.*"Rare" \(1\)/.test(w) && roles.Empty === 'ignore' && roles.Constant === 'ignore' && roles.Group === 'cluster', `${name}: the rare category is named; the empty and constant columns start as "Ignore", and the last column is not taken as an outcome`);
@@ -275,7 +278,7 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
     {
         const name = 'planted data errors', p = await browser.newPage({ viewport: { width: 1200, height: 900 } });
         const errs = []; p.on('pageerror', e => errs.push(String(e))); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
-        await p.goto(url); await p.click('#demo-errors'); await p.waitForSelector('#var-table table');
+        await p.goto(url); await p.click('#demo-errors'); await p.click('#to-vars'); await p.waitForSelector('#var-table table');
         check(await p.evaluate(() => window.UMEApp.state.vars.Rout_mmHg_min_ml.type) === 'continuous', `${name}: a number column with one decimal comma stays numerical`);
         await p.click('#to-check'); await p.check('#check-ae'); await p.click('#check-btn'); await p.waitForSelector('#check-out h3', { timeout: 300000 });
         check(/of the 4 methods/.test(await p.locator('#check-out').innerText()) && /rebuilt worst by the autoencoder/.test(await p.locator('#check-out').innerText()), `${name}: the optional autoencoder adds a fourth method with the variables it rebuilds worst`);
@@ -306,7 +309,7 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
     {
         const name = 'referral patterns (8,000 records)', p = await browser.newPage({ viewport: { width: 1200, height: 900 } });
         const errs = []; p.on('pageerror', e => errs.push(String(e))); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
-        await p.goto(url); await p.click('#demo-referrals'); await p.waitForSelector('#var-table table');
+        await p.goto(url); await p.click('#demo-referrals'); await p.click('#to-vars'); await p.waitForSelector('#var-table table');
         await p.click('#to-check'); await p.click('#check-btn'); await p.waitForSelector('#check-out h3', { timeout: 600000 });
         const rc = await p.locator('#check-out').innerText(), nU = Number((rc.match(/Unusual patients \((\d+)/) || [])[1]);
         check(/Possible data errors \(0\)/.test(rc) && nU <= 80 && /computed record by record/.test(rc), `${name}: data checks on 8,000 records: no false data errors, ${nU} unusual records (at most 1%), local density computed record by record`);
