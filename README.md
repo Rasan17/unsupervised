@@ -217,6 +217,9 @@ used because the page must also work when opened directly from disk, where brows
 
 - Verified: every computational method against an established implementation (96 reference checks) and the
   behaviour of the decisions in simulations (33 checks, including a pinned regression check of the multiple imputation), with the interface tested end to end in a browser.
+- Internal audit (25 October 2026): line-by-line review, independent recomputation, adversarial and scale testing;
+  17 findings, all corrected. Report: [`docs/audit_2026-10-25.html`](docs/audit_2026-10-25.html) (an internal audit by an AI
+  system, not an independent certification).
 - Not yet done: application to real cohorts and independent review by a statistician. A protocol for the first
   is in [`docs/validation_protocol.md`](docs/validation_protocol.md). Clusters found in one dataset are
   hypotheses until they are replicated in another.

@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<title>Explorer Statistical Audit</title>
+<style>
+/* Layout: a single reading column for an audit dossier, with full-width tables in their own scroll containers */
+:root {
+  --paper: #f7f9fa; --sheet: #ffffff; --ink: #16232e; --muted: #556673; --rule: #d5dee4; --accent: #0d5c73;
+  --major: #a3322a; --major-bg: #fbe9e7; --moderate: #8a5a00; --moderate-bg: #fbf1dc; --minor: #4b5d6b; --minor-bg: #eaeff2; --pass: #1d7048; --pass-bg: #e3f3ea;
+  --serif: "Source Serif 4", Georgia, "Times New Roman", serif; --sans: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif; --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #0f171c; --sheet: #15212a; --ink: #e2eaee; --muted: #9db0ba; --rule: #2a3b46; --accent: #5fc2db;
+  --major: #f0958c; --major-bg: #3b1c19; --moderate: #f0bd62; --moderate-bg: #392b12; --minor: #b3c3cd; --minor-bg: #20303a; --pass: #79d6a3; --pass-bg: #15301f; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --paper: #0f171c; --sheet: #15212a; --ink: #e2eaee; --muted: #9db0ba; --rule: #2a3b46; --accent: #5fc2db;
+  --major: #f0958c; --major-bg: #3b1c19; --moderate: #f0bd62; --moderate-bg: #392b12; --minor: #b3c3cd; --minor-bg: #20303a; --pass: #79d6a3; --pass-bg: #15301f; color-scheme: dark; }
+body { background: var(--paper); color: var(--ink); font-family: var(--serif); font-size: 17px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 32px 64px; }
+main { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 40px; }
+section { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+h1, h2, h3 { font-family: var(--sans); text-wrap: balance; line-height: 1.25; margin: 0; }
+h1 { font-size: 2rem; font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 1.3rem; font-weight: 600; padding-bottom: 6px; border-bottom: 1px solid var(--rule); }
+h3 { font-size: 1.02rem; font-weight: 600; }
+p, ul, ol { margin: 0; max-width: 68ch; }
+li + li { margin-top: 4px; }
+a { color: var(--accent); }
+.eyebrow { font-family: var(--sans); font-size: 0.78rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+.lede { font-size: 1.08rem; color: var(--ink); }
+.meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 10px 24px; font-family: var(--sans); font-size: 0.88rem; }
+.meta div { min-width: 0; } .meta dt { color: var(--muted); font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.06em; } .meta dd { margin: 2px 0 0; overflow-wrap: anywhere; }
+.status { font-family: var(--sans); font-size: 0.92rem; background: var(--sheet); border: 1px solid var(--rule); border-left: 4px solid var(--accent); border-radius: 6px; padding: 14px 16px; }
+.status strong { font-weight: 600; }
+.tally { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 12px; font-family: var(--sans); }
+.tally div { background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; padding: 12px 14px; }
+.tally b { display: block; font-family: var(--mono); font-size: 1.6rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+.tally span { font-size: 0.82rem; color: var(--muted); }
+.wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 6px; background: var(--sheet); }
+table { border-collapse: collapse; width: 100%; font-family: var(--sans); font-size: 0.86rem; line-height: 1.45; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--rule); }
+th { font-weight: 600; font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); background: var(--paper); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td.num, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 0.82rem; white-space: nowrap; }
+.sev { display: inline-block; font-family: var(--sans); font-size: 0.7rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.sev.major { color: var(--major); background: var(--major-bg); } .sev.moderate { color: var(--moderate); background: var(--moderate-bg); } .sev.minor { color: var(--minor); background: var(--minor-bg); } .sev.pass { color: var(--pass); background: var(--pass-bg); }
+.finding { background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; font-size: 0.97rem; }
+.finding header { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: baseline; }
+.finding header h3 { flex: 1 1 320px; }
+.finding .id { font-family: var(--mono); font-size: 0.82rem; color: var(--muted); }
+.finding dl { display: grid; grid-template-columns: 7.5em 1fr; gap: 4px 12px; margin: 0; }
+.finding dt { font-family: var(--sans); font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; padding-top: 3px; }
+.finding dd { margin: 0; min-width: 0; }
+@media (max-width: 560px) { .finding dl { grid-template-columns: 1fr; } .finding dt { padding-top: 6px; } }
+code { font-family: var(--mono); font-size: 0.85em; background: var(--paper); border: 1px solid var(--rule); border-radius: 4px; padding: 0 4px; overflow-wrap: anywhere; }
+.sign { font-family: var(--sans); font-size: 0.88rem; color: var(--muted); border-top: 1px solid var(--rule); padding-top: 16px; display: flex; flex-direction: column; gap: 8px; }
+</style>
+</head>
+<body>
+
+<main>
+  <header style="display:flex;flex-direction:column;gap:14px">
+    <div class="eyebrow">Internal statistical and software audit</div>
+    <h1>Unsupervised Medical Explorer</h1>
+    <p class="lede">Line-by-line review of the statistical engine and the interface logic, with independent recomputation against R and Python, adversarial input testing and scale testing. Every defect found has been corrected, and each correction is covered by an automated test.</p>
+    <dl class="meta">
+      <div><dt>Software</dt><dd>Unsupervised Medical Explorer, build 57</dd></div>
+      <div><dt>Source revision</dt><dd class="mono">4821a7a (Rasan17/unsupervised, main)</dd></div>
+      <div><dt>Audit date</dt><dd>25 October 2026</dd></div>
+      <div><dt>Prepared for</dt><dd>Dr G Narenthiran, for review by senior statisticians</dd></div>
+      <div><dt>Performed by</dt><dd>Claude (Anthropic AI model), at the author's request</dd></div>
+      <div><dt>Code reviewed</dt><dd>6,831 lines of JavaScript (engines and interface)</dd></div>
+    </dl>
+    <div class="status"><strong>Status of this document.</strong> This is an internal technical audit carried out by an AI system that also contributed to writing the software. It is thorough but not independent, and it is not a certification, a regulatory approval or a substitute for review by an independent statistician. It is intended to make that independent review faster and better targeted.</div>
+  </header>
+
+  <section>
+    <h2>1. Summary</h2>
+    <p>The core algorithms are correctly implemented: every one either matches an established implementation to within numerical tolerance or reaches an equal or better optimum. The defects found lay mainly in the logic around the algorithms (how data are read, how levels are ordered, which values are described, what a verdict claims) and in a few explanations shown to the user. Five were judged major, because they could change a result or how it is interpreted. All have been corrected.</p>
+    <div class="tally">
+      <div><b>5</b><span>major findings, corrected</span></div>
+      <div><b>5</b><span>moderate findings, corrected</span></div>
+      <div><b>7</b><span>minor findings, corrected</span></div>
+      <div><b>96</b><span>reference checks against R and Python, all passing (11 added)</span></div>
+      <div><b>33</b><span>simulation checks, all passing</span></div>
+      <div><b>144</b><span>browser checks, all passing</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Scope and method</h2>
+    <ul>
+      <li><strong>Mathematical review.</strong> Each routine was read against its published definition: k-means and k-means++, PAM (BUILD and SWAP), Ward and other linkages by the nearest-neighbour chain, Gaussian mixtures (EM), latent class and latent profile analysis, Gower dissimilarity with balanced weights, silhouette, Calinski–Harabasz, Davies–Bouldin, adjusted Rand index, PCA and FAMD, gap statistic, bootstrap stability, both tests of "no real sub-groups", chi-square, Kruskal–Wallis, Benjamini–Hochberg, Cramér's V, ε², the classification tree and Cohen's κ.</li>
+      <li><strong>Independent recomputation.</strong> Results were compared with scikit-learn, SciPy, NumPy, umap-learn and the R packages cluster, poLCA, mclust, FactoMineR and VarSelLCM. Components with no external comparison were given one (section 3).</li>
+      <li><strong>Logic and message review.</strong> Every verdict, suggestion, warning and explanation was traced to the quantity it reports, to check that each number shown is the number computed and that each claim is supported.</li>
+      <li><strong>Adversarial testing.</strong> 47 hostile inputs to the engines (identical patients, constant or empty columns, perfectly correlated variables, a single cluster, more clusters than distinct values, extreme magnitudes) and 13 file formats (semicolon and tab separators, Windows line endings, quoted commas and line breaks, byte-order marks, duplicate or empty headers, ragged rows).</li>
+      <li><strong>Scale testing.</strong> A simulated file of 30,000 records taken through every step, with the longest interruption of the page measured in each.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>3. Verification of the mathematics</h2>
+    <p>Tolerances are absolute unless stated. "At least as good" means the app's objective is equal to or better than the reference implementation's.</p>
+    <div class="wrap"><table>
+      <thead><tr><th>Component</th><th>Reference</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>k-means (Lloyd, k-means++)</td><td>scikit-learn</td><td>Identical labels from fixed centres; best of 10 starts reaches scikit-learn's best of 20</td></tr>
+        <tr><td>PAM on Gower and Euclidean dissimilarities</td><td>R cluster::pam</td><td>Identical medoids; objective to 1e-12</td></tr>
+        <tr><td>Gower dissimilarity, equal and balanced weights</td><td>R cluster::daisy</td><td>To 1e-12, with missing values</td></tr>
+        <tr><td>Hierarchical clustering (Ward, average, complete, single)</td><td>SciPy linkage, fcluster</td><td>Merge heights to tolerance; identical cuts</td></tr>
+        <tr><td>Gaussian mixtures (full, diagonal)</td><td>scikit-learn (same start); R mclust and VarSelLCM</td><td>Identical from the same start; from its own starts at least as good as mclust</td></tr>
+        <tr><td>Latent class analysis, categories with missing values</td><td>R poLCA</td><td>Log-likelihood to 1e-6; parameters and BIC</td></tr>
+        <tr><td>Latent profile analysis, numbers</td><td>R mclust (VVI)</td><td>Log-likelihood and BIC to 1e-5</td></tr>
+        <tr><td>Latent classes, mixed numbers and categories with missing values <span class="sev pass">new</span></td><td>R VarSelLCM</td><td>Log-likelihood to 5e-4; class shares to 2e-6</td></tr>
+        <tr><td>Bootstrap stability: mean Jaccard, patient-level stability, share ranges <span class="sev pass">new</span></td><td>Independent recomputation from the same resamples (Hennig 2007 definitions)</td><td>Exact (difference 0)</td></tr>
+        <tr><td>Gap statistic <span class="sev pass">new</span></td><td>R cluster::clusGap (d.power = 2)</td><td>log W(1) identical; log W(k) at least as low; gap within 3 Monte Carlo SE; same k by Tibshirani's rule</td></tr>
+        <tr><td>Silhouette, Calinski–Harabasz, Davies–Bouldin, adjusted Rand</td><td>scikit-learn; R cluster</td><td>To tolerance</td></tr>
+        <tr><td>PCA; FAMD, MCA</td><td>scikit-learn; R FactoMineR</td><td>Eigenvalues, coordinates and contributions to 1e-9</td></tr>
+        <tr><td>t-SNE, UMAP, trustworthiness</td><td>scikit-learn; umap-learn</td><td>Probabilities, gradients and graph weights to tolerance; maps at least as trustworthy</td></tr>
+        <tr><td>Robust distance (MCD), local outlier factor, isolation forest</td><td>scikit-learn</td><td>To tolerance; determinant at least as small</td></tr>
+        <tr><td>Chi-square, Kruskal–Wallis, incomplete gamma, chi-square quantiles</td><td>SciPy</td><td>To tolerance</td></tr>
+        <tr><td>Benjamini–Hochberg, Cramér's V, ε²</td><td>SciPy</td><td>To tolerance</td></tr>
+        <tr><td>Normal distribution and quantile functions <span class="sev pass">new</span></td><td>SciPy</td><td>1.1e-9 relative (after correction F-13); 6.8e-8 absolute</td></tr>
+        <tr><td>Classification tree; Cohen's κ</td><td>scikit-learn</td><td>Identical predictions at three depths</td></tr>
+        <tr><td>Autoencoder; self-organising map</td><td>Finite differences, NumPy, scikit-learn</td><td>Gradients, training steps and limiting cases to tolerance</td></tr>
+        <tr><td>Scoring of new patients <span class="sev pass">new</span></td><td>Internal consistency with the fitted data</td><td>Latent class probabilities to 4e-16; Gower distances exact</td></tr>
+        <tr><td>Generated R script</td><td>R (cluster, VarSelLCM, poLCA, mice, kohonen)</td><td>Adjusted Rand 1 for PAM, k-means, Ward and latent classes; 0.99 with imputation; 0.86 to 0.94 for the self-organising map</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>4. Appraisal of the test of "no real sub-groups"</h2>
+    <p>This test carries much of the weight of the verdict, so it was examined beyond implementation correctness.</p>
+    <ul>
+      <li><strong>Gaussian reference.</strong> Reference datasets are standard normal samples whitened on their own principal axes and given the data's sample mean, axes and variances. Under a single Gaussian population the observed data, whitened the same way, have the same conditional distribution given the sample mean and covariance, so the Monte Carlo p-value is exact conditionally on those statistics. Simulations agree (3.3% false positives at the 5% level).</li>
+      <li><strong>Copula reference.</strong> Used whenever a clustering variable is skewed or not numerical. It maps a latent Gaussian population onto each variable's observed distribution, with latent correlations adjusted (NORTA) until the observed Pearson correlations are reproduced; categories with several levels come from a single latent cut. No false positives in 100 simulated mixed datasets; detection 30 of 30 at a separation of 3 SD and 20 of 30 at 2.2 SD, so the test is conservative. It now reports how closely the correlations were reproduced (0.006 to 0.037 on the demonstration data).</li>
+      <li><strong>What the statistic measures.</strong> The statistic is the R² of a k-means partition into k groups, whatever method formed the clusters. The test therefore asks whether the data contain separable structure, not whether the chosen partition is optimal. The interface wording has been corrected to say so (F-6).</li>
+      <li><strong>Known limitation.</strong> Both references describe a single population without curvature. A curved or branching continuum can pass both tests; every positive verdict says so and points to the maps and dimensions for checking.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>5. Robustness and responsiveness</h2>
+    <p>Of 47 hostile engine inputs, all were handled. Five returned a non-finite value: two were defects (F-11, F-12); three are mathematically correct and are shown as "–" (an infinite Calinski–Harabasz index for a perfect fit, coincident centres in Davies–Bouldin, and an adjusted Rand index for one patient). All 13 file formats were read correctly; one exposed a defect in number recognition (F-5).</p>
+    <div class="wrap"><table>
+      <thead><tr><th>Step (30,000 records)</th><th>Duration</th><th>Longest pause before</th><th>Longest pause after</th></tr></thead>
+      <tbody>
+        <tr><td>Load the file</td><td class="num">0.6 s</td><td class="num">0.6 s</td><td class="num">0.6 s</td></tr>
+        <tr><td>Data checks</td><td class="num">55 s</td><td class="num">15.1 s</td><td class="num">3.5 s</td></tr>
+        <tr><td>Compare numbers of clusters (self-organising map)</td><td class="num">15 s</td><td class="num">12.2 s</td><td class="num">0.5 s</td></tr>
+        <tr><td>Describe 5 clusters</td><td class="num">35 s</td><td class="num">5.9 s</td><td class="num">2.2 s</td></tr>
+        <tr><td>Use the clusters (decision tree)</td><td class="num">3.8 s</td><td class="num">3.7 s</td><td class="num">3.7 s</td></tr>
+      </tbody>
+    </table></div>
+    <p>Measured in Chrome on an Apple M2 Max. Long computations are written as generators that hand control back to the browser about every 100 ms and show a progress count; a simulation check confirms the results are identical to running them straight through. The remaining pauses (robust distance 2.6 s, decision tree 3.7 s at 30,000 records; about 1 s at 8,000) are below the threshold at which browsers warn.</p>
+  </section>
+
+  <section>
+    <h2>6. Findings and corrections</h2>
+    <p>Each finding gives the defect, its effect, the correction and the automated test that now guards against its return.</p>
+
+    <h3 style="margin-top:6px">Major</h3>
+    <article class="finding">
+      <header><span class="id">F-1</span><h3>A positive verdict could claim a test that had not been run</h3><span class="sev major">Major</span></header>
+      <dl>
+        <dt>Defect</dt><dd>When the test of "no real sub-groups" could not run (missing values kept as "recorded values only"), stability alone made the verdict positive, with the text "more separated than a single population".</dd>
+        <dt>Effect</dt><dd>Overstated evidence: stable clusters can arise from a continuum.</dd>
+        <dt>Correction</dt><dd>Without the test, the verdict is at best "mixed" and explains how to run the test.</dd>
+        <dt>Test</dt><dd>Browser check on the latent-class demonstration with missing values kept.</dd>
+      </dl>
+    </article>
+    <article class="finding">
+      <header><span class="id">F-2</span><h3>Filled-in values were described as if recorded</h3><span class="sev major">Major</span></header>
+      <dl>
+        <dt>Defect</dt><dd>With "fill missing values", cluster profiles, class descriptions, the decision tree, colouring of maps by a variable and the record table used the medians and modes filled in for clustering. Missing counts showed zero.</dd>
+        <dt>Effect</dt><dd>Means pulled towards the median, spreads understated, missingness hidden; the tree learned thresholds from imputed values.</dd>
+        <dt>Correction</dt><dd>All description uses the values as recorded; the clustering itself still uses the filled data, as chosen.</dd>
+        <dt>Test</dt><dd>Browser check on the 8,000-referral demonstration with filled values: the profile reports the 271 recorded missing values.</dd>
+      </dl>
+    </article>
+    <article class="finding">
+      <header><span class="id">F-3</span><h3>Text grades were ordered alphabetically</h3><span class="sev major">Major</span></header>
+      <dl>
+        <dt>Defect</dt><dd>Grades written as words were ordered alphabetically, so "Low, Medium, High" became High &lt; Low &lt; Medium.</dd>
+        <dt>Effect</dt><dd>Wrong ordinal distances in Gower dissimilarity, wrong tree thresholds and a wrong profile order.</dd>
+        <dt>Correction</dt><dd>Clinical word order is used (none &lt; mild &lt; moderate &lt; severe, low &lt; medium &lt; high). The order is shown in step 2 and can be edited there, with a caution when it was not recognised. The data checks use the same order.</dd>
+        <dt>Test</dt><dd>Browser checks of recognised orders and of a user-corrected order.</dd>
+      </dl>
+    </article>
+    <article class="finding">
+      <header><span class="id">F-4</span><h3>"None" was treated as a missing value</h3><span class="sev major">Major</span></header>
+      <dl>
+        <dt>Defect</dt><dd>The text "None" was read as missing.</dd>
+        <dt>Effect</dt><dd>Genuine answers ("no symptoms", "no comorbidity") were dropped or imputed over; 20 of 80 grades in the test file.</dd>
+        <dt>Correction</dt><dd>"None" is a value. The generated R script follows the same rule.</dd>
+        <dt>Test</dt><dd>Browser check: zero missing values in the graded test file.</dd>
+      </dl>
+    </article>
+    <article class="finding">
+      <header><span class="id">F-5</span><h3>European decimal commas made numeric variables disappear</h3><span class="sev major">Major</span></header>
+      <dl>
+        <dt>Defect</dt><dd>In semicolon-separated files with decimal commas ("67,5"), numeric columns were read as text categories and, being nearly all distinct, set to "Ignore".</dd>
+        <dt>Effect</dt><dd>Key variables silently left out of the analysis.</dd>
+        <dt>Correction</dt><dd>Columns written consistently with decimal commas are read as numbers and the conversion is reported. In comma-separated files a comma followed by exactly three digits is left alone, since it may be a thousands separator.</dd>
+        <dt>Test</dt><dd>Browser check with a European-format file.</dd>
+      </dl>
+    </article>
+
+    <h3 style="margin-top:6px">Moderate</h3>
+    <article class="finding">
+      <header><span class="id">F-6</span><h3>The test's R² was attributed to the chosen clustering</h3><span class="sev moderate">Moderate</span></header>
+      <dl><dt>Defect</dt><dd>"The separation of the clustering (R² …)" implied the chosen PAM or latent-class partition; the statistic is always a k-means partition.</dd><dt>Correction</dt><dd>Wording states what is measured and what the test asks.</dd></dl>
+    </article>
+    <article class="finding">
+      <header><span class="id">F-7</span><h3>Silhouette interpretation bands were non-standard and inconsistent</h3><span class="sev moderate">Moderate</span></header>
+      <dl><dt>Defect</dt><dd>Step 5 and step 6 used different bands, neither matching Kaufman and Rousseeuw.</dd><dt>Correction</dt><dd>Both use above 0.70 strong, 0.51–0.70 reasonable, 0.26–0.50 weak, 0.25 or below no substantial structure.</dd></dl>
+    </article>
+    <article class="finding">
+      <header><span class="id">F-8</span><h3>The role of the gap statistic was misdescribed</h3><span class="sev moderate">Moderate</span></header>
+      <dl><dt>Defect</dt><dd>The text said the suggestion "follows Tibshirani's rule"; the rule is used only to warn when it chooses one cluster.</dd><dt>Correction</dt><dd>Description states the rule and its actual use.</dd></dl>
+    </article>
+    <article class="finding">
+      <header><span class="id">F-9</span><h3>BIC guidance misstated the conventional scale</h3><span class="sev moderate">Moderate</span></header>
+      <dl><dt>Defect</dt><dd>"Differences under about 10 are not decisive."</dd><dt>Correction</dt><dd>Raftery (1995): 10 or more very strong, 2 to 6 positive, under 2 negligible.</dd></dl>
+    </article>
+    <article class="finding">
+      <header><span class="id">F-10</span><h3>The page froze for up to 15 seconds on large files</h3><span class="sev moderate">Moderate</span></header>
+      <dl><dt>Defect</dt><dd>Local outlier factor and map training ran in single blocks; explanations of unusual records recounted each category over all records; the data-check map drew every record; the copula simulation grew without bound.</dd><dt>Correction</dt><dd>Generators with progress; counts computed once; the map shows every flagged record plus a sample; the simulation is capped at 200,000 draws (correlation standard error about 0.002). See section 5.</dd></dl>
+    </article>
+
+    <h3 style="margin-top:6px">Minor</h3>
+    <div class="wrap"><table>
+      <thead><tr><th>ID</th><th>Finding</th><th>Correction</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">F-11</td><td>Silhouette was undefined (NaN) for identical patients in different clusters.</td><td>Scored 0, as scikit-learn.</td></tr>
+        <tr><td class="mono">F-12</td><td>Gap statistic was infinite when a clustering fitted the data exactly.</td><td>log W floored at 10⁻¹² of W(1).</td></tr>
+        <tr><td class="mono">F-13</td><td>One coefficient of the inverse normal approximation was mistyped (tail error 5×10⁻⁶). The function is not used by any analysis.</td><td>Corrected to Acklam's value; now 1.1×10⁻⁹.</td></tr>
+        <tr><td class="mono">F-14</td><td>Stability between 0.6 and 0.75 was labelled differently in steps 5 and 6.</td><td>"Indicates a pattern" in both (Hennig).</td></tr>
+        <tr><td class="mono">F-15</td><td>Chi-square p-values in two tables carried no caution for small expected counts.</td><td>Flagged when an expected count is below 5.</td></tr>
+        <tr><td class="mono">F-16</td><td>The copula test's simulated sample grew with the number of records.</td><td>Capped, as in F-10.</td></tr>
+        <tr><td class="mono">F-17</td><td>Two code comments were out of date (a background worker that no longer exists; mixture starts).</td><td>Corrected.</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>7. Residual limitations and recommendations</h2>
+    <p>The following are not defects but should be considered by independent reviewers.</p>
+    <ul>
+      <li><strong>Clinical validation.</strong> The software has not been applied to real cohorts. A protocol is provided in <code>docs/validation_protocol.md</code>: pre-specified variables, outcomes and criteria; a derivation and an independent validation cohort; transportability and reproducibility checks.</li>
+      <li><strong>Independent statistical review.</strong> Suggested focus: calibration and power of the copula test under misspecified margins; the conventional thresholds (stability 0.75, silhouette bands) and the rule that suggests a number of clusters; local independence in latent class analysis when clustering variables are related; and multiple imputation followed by consensus clustering.</li>
+      <li><strong>Imputation of text grades.</strong> Multiple imputation treats grades written as words as unordered categories (predictive mean matching on indicators). This is valid but ignores their order.</li>
+      <li><strong>Conventions.</strong> The thresholds used for stability, separation and the "poorly represented" new-patient rule (95th centile of the original patients' distances) are conventions, stated as such in the interface.</li>
+      <li><strong>Shared code.</strong> The data engine is shared with a companion prediction application and contains routines this application never calls (for example SMOTE-NC and grouped train–test splitting). They were not audited here.</li>
+      <li><strong>Regulatory position.</strong> The software is presented for research and education and is not a medical device. Use for diagnosis or decisions about individual patients would require assessment under the applicable medical device regulations, for example the MHRA's guidance on software as a medical device in the United Kingdom.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>8. Reproducing this audit</h2>
+    <p>All checks run on every change through GitHub Actions; the run for revision <span class="mono">4821a7a</span> passed. To run them locally:</p>
+    <div class="wrap"><table>
+      <thead><tr><th>Command</th><th>What it checks</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">node tests/reference_check.js &amp;&amp; python3 tests/reference_check.py</td><td>96 comparisons with scikit-learn, SciPy, NumPy, umap-learn and R (set <span class="mono">REQUIRE_ALL=1</span> to fail on any skipped group)</td></tr>
+        <tr><td class="mono">node tests/behaviour_check.js</td><td>33 simulations: recovery of true structure, calibration and power of the tests, stability, reproducibility</td></tr>
+        <tr><td class="mono">node tests/ui_check.js</td><td>144 browser checks: every demonstration end to end, the corrections above, edge cases, privacy, the R script, layout</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <footer class="sign">
+    <p>Software conceived, designed and directed by Dr G Narenthiran. © 2026 Dr G Narenthiran. All rights reserved.</p>
+    <p>Audit performed by Claude (Anthropic) on 25 October 2026 at the author's request. This report describes the software at revision 4821a7a and is not an independent certification or a regulatory approval.</p>
+  </footer>
+</main>
+</body>
+</html>
