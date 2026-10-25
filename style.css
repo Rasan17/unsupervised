@@ -118,3 +118,4 @@ table.axis-factors td { vertical-align: top; } table.axis-factors td .muted { fo
 
 .data-banner { margin-top: 4px; margin-bottom: 6px; font-size: 0.8rem; color: var(--muted); }
 .evidence td.ok { color: var(--good); } .evidence td.warn { color: var(--warn); font-weight: 600; } .evidence { margin: 10px 0; }
+.grade-order-box { margin-top: 4px; } .grade-order-box input { width: 100%; max-width: 320px; } .grade-order-box .warn { color: var(--warn); }

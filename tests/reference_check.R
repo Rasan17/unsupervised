@@ -47,4 +47,15 @@ if (requireNamespace("FactoMineR", quietly = TRUE)) {
   pc <- FactoMineR::PCA(f[, c("age", "bmi")], ncp = 2, graph = FALSE)
   add("pca_eig", pc$eig[, 1]); add("pca_ind", as.vector(t(abs(pc$ind$coord))))
 }
+# Audit additions: gap statistic (Tibshirani's squared distances) and latent classes on mixed data
+gs <- cluster::clusGap(as.matrix(b), FUNcluster = function(x, k) kmeans(x, k, nstart = 10, iter.max = 100), K.max = 6, B = 200, spaceH0 = "scaledPCA", d.power = 2, verbose = FALSE)
+add("gap_logW", gs$Tab[, "logW"]); add("gap_gap", gs$Tab[, "gap"]); add("gap_se", gs$Tab[, "SE.sim"])
+add("gap_k", cluster::maxSE(gs$Tab[, "gap"], gs$Tab[, "SE.sim"], method = "Tibs2001SEmax"))
+if (requireNamespace("VarSelLCM", quietly = TRUE)) {
+  mx <- read.csv(file.path(d, "lca_mixed.csv"), na.strings = "NA", stringsAsFactors = FALSE)
+  mx$c1 <- factor(mx$c1, levels = c("a", "b", "c")); mx$c2 <- factor(mx$c2, levels = c("x", "y", "z"))
+  set.seed(1)
+  vs <- VarSelLCM::VarSelCluster(mx, gvals = 3, vbleSelec = FALSE, nbcores = 1, nbSmall = 250, iterSmall = 50, nbKeep = 50, iterKeep = 5000, tolKeep = 1e-10)
+  add("lca_mixed_loglik", vs@criteria@loglikelihood); add("lca_mixed_shares", sort(vs@param@pi))
+}
 write.csv(out, file.path(d, "r_results.csv"), row.names = FALSE)

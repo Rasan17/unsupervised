@@ -91,7 +91,7 @@
         const mix = Array.from({ length: k }, (_, c) => idx.filter(i => labels[i] === c).length);
         const miss = v => DE.isMissing(v);
         const rowsOut = cols.map(col => {
-            const t = S.vars[col].type, vals = i => P.rows[i][col];
+            const t = S.vars[col].type, vals = i => P.recorded[i][col];
             if (t === 'continuous') {
                 const mean = ix => { const xs = ix.map(vals).filter(v => !miss(v) && Number.isFinite(Number(v))).map(Number); return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : NaN; };
                 const a = mean(idx), b = mean(all), f = v => (Number.isFinite(v) ? (Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2)) : '–');
@@ -110,7 +110,7 @@
         const el = $('som-table'); if (!el) return;
         if (!V.sel.size) { el.innerHTML = '<p class="muted">No units selected: drag over the map or click a unit to see its records.</p>'; return; }
         const { S, P, labels } = V, idx = selectedRecords(), heads = [...S.data.headers, 'Cluster', 'Map unit'];
-        const value = (i, h) => (h === 'Cluster' ? labels[i] + 1 : h === 'Map unit' ? V.nn.map.bmu[i] + 1 : P.rows[i][h] ?? '');
+        const value = (i, h) => (h === 'Cluster' ? labels[i] + 1 : h === 'Map unit' ? V.nn.map.bmu[i] + 1 : P.recorded[i][h] ?? '');
         if (V.sortCol !== null) {
             const h = heads[V.sortCol], num = idx.every(i => { const v = value(i, h); return v === '' || Number.isFinite(Number(v)); });
             idx.sort((a, b) => { const x = value(a, h), y = value(b, h); const c = num ? (x === '' ? Infinity : Number(x)) - (y === '' ? Infinity : Number(y)) : String(x).localeCompare(String(y)); return V.sortDir * (c || a - b); });

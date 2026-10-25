@@ -141,7 +141,7 @@
      * Returns prototypes W, each record's unit, hits per unit, quantisation error (mean distance to the unit) and
      * topographic error (share of records whose two best units are not neighbours).
      */
-    function som(X, M, { rows = null, cols = null, epochs = 40, sigma0 = null, sigma1 = 0.2, init = null } = {}) {
+    function* somSteps(X, M, { rows = null, cols = null, epochs = 40, sigma0 = null, sigma1 = 0.2, init = null } = {}) {
         const n = X.length, p = X[0].length;
         if (!rows || !cols) {
             // Grid size: about 5 sqrt(n) units (Vesanto 2000), between 25 and 225, sides in the ratio of the first two
@@ -161,6 +161,7 @@
             const sigma = epochs > 1 ? s0 + (sigma1 - s0) * (ep / (epochs - 1)) : sigma1;
             const qe = assign();
             history.push({ epoch: ep + 1, sigma, qe });
+            yield ep + 1;
             // Sums per unit, then neighbourhood smoothing across units
             const S = Array.from({ length: U }, () => new Array(p).fill(0)), N = Array.from({ length: U }, () => new Array(p).fill(0));
             for (let i = 0; i < n; i++) { const b = bmu[i]; for (let j = 0; j < p; j++) if (M[i][j]) { S[b][j] += X[i][j]; N[b][j] += 1; } }
@@ -171,6 +172,13 @@
         let te = 0;
         for (let i = 0; i < n; i++) { let b1 = -1, b2 = -1, d1 = Infinity, d2 = Infinity; for (let u = 0; u < U; u++) { const d = mdist(X[i], M[i], W[u]); if (d < d1) { d2 = d1; b2 = b1; d1 = d; b1 = u; } else if (d < d2) { d2 = d; b2 = u; } } if (b2 >= 0 && Math.max(Math.abs(pos[b1][0] - pos[b2][0]), Math.abs(pos[b1][1] - pos[b2][1])) > 1) te++; }
         return { W, rows, cols, pos, bmu: Array.from(bmu), hits, qe, te: te / n, history, epochs };
+    }
+    // Training as a generator that yields after each epoch: som() runs it straight through; somAsync() hands control
+    // back to the page about every 100 ms (identical result)
+    function som(X, M, opts = {}) { const g = somSteps(X, M, opts); for (;;) { const r = g.next(); if (r.done) return r.value; } }
+    async function somAsync(X, M, opts = {}, onProgress = null) {
+        const g = somSteps(X, M, opts); let last = Date.now();
+        for (;;) { const r = g.next(); if (r.done) return r.value; if (Date.now() - last > 100) { if (onProgress) onProgress(r.value, opts.epochs ?? 40); await new Promise(res => setTimeout(res, 0)); last = Date.now(); } }
     }
     // Principal components of the rows of X (for the SOM grid and its start), via ClusterEngine's eigen solver
     function pcs(X) {
@@ -213,5 +221,5 @@
     }
     /** Code a new patient (raw values in the variables' order) exactly as the training data were coded */
     const codeRow = (coded, row) => { const xm = coded.coders.map(f => f(row)); return { x: xm.map(v => v[0]), m: xm.map(v => v[1]) }; };
-    root.NNEngine = { codeRow, som, somUnit, weightedKmeans, pcs, createAutoencoder, forward, encode, reconstruct, lossGrad, adamStep, createTrainer, train, errors, codeData, clone };
+    root.NNEngine = { codeRow, som, somAsync, somUnit, weightedKmeans, pcs, createAutoencoder, forward, encode, reconstruct, lossGrad, adamStep, createTrainer, train, errors, codeData, clone };
 })(typeof window !== 'undefined' ? window : globalThis);

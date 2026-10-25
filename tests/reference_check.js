@@ -157,5 +157,28 @@ out.lcaCont = { logLik: LP.logLik, bic: LP.bic, shares: LP.model.pi.slice().sort
     const chi = out.tests.chi, sexLevels = new Set(out.tests.sexv).size, grpLevels = new Set(out.tests.grp).size;
     out.effects = { ps, q: CE.benjaminiHochberg(ps), v: CE.cramersV(chi.statistic, out.tests.sexv.length, sexLevels, grpLevels), eps: CE.epsilonSquared(out.tests.kw.statistic, out.tests.agev.length) };
 }
+// 11. Audit additions: bootstrap Jaccard bookkeeping, gap statistic, latent classes on mixed data, normal distribution
+{
+    // (a) Bootstrap stability: every resample and its clustering are recorded, so that the Jaccard values and the
+    // patient-level stability can be recomputed independently (Hennig 2007 definitions)
+    const lab = CE.kmeans(X, 3, { seed: 1, nInit: 5 }).labels, rec = [];
+    const st = CE.bootstrapStability(X.length, lab, idx => { const l = CE.kmeans(idx.map(i => X[i]), 3, { seed: 2, nInit: 3 }).labels; rec.push({ idx, l }); return l; }, { B: 20, seed: 5 });
+    out.boot = { labels: lab, resamples: rec, meanJaccard: st.perCluster.map(c => c.meanJaccard), patientStability: st.patientStability, shareRange: st.perCluster.map(c => c.shareRange) };
+    // (b) Gap statistic (Tibshirani's squared distances; compared with R cluster::clusGap, d.power = 2)
+    const G = CE.gapStatistic(X, 6, { B: 200, seed: 3, nInit: 10 });
+    out.gap = { table: G.table.map(t => ({ logW: t.logW, gap: t.gap, se: t.se })), kBest: G.kBest };
+    // (c) Latent classes on mixed data with missing values (compared with R VarSelLCM)
+    const r = CE.createPRNG(77), gz = () => { const u = r() || 1e-12, v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+    const pick = probs => { let u = r(), j = 0; while (j < probs.length - 1 && u > probs[j]) { u -= probs[j]; j++; } return j; };
+    const P3 = [[0.7, 0.2, 0.1], [0.15, 0.7, 0.15], [0.1, 0.2, 0.7]], mix = [];
+    for (let i = 0; i < 300; i++) { const c = i % 3; mix.push([(2 * c + gz()).toFixed(4), (c === 1 ? 3 : 0) + 0.8 * gz(), ['a', 'b', 'c'][pick(P3[c])], ['x', 'y', 'z'][pick(P3[(c + 1) % 3])]].map((v, j) => ((i * 13 + j * 7) % 19 === 0 ? null : v))); }
+    writeCsv('lca_mixed.csv', ['n1', 'n2', 'c1', 'c2'], mix.map(row => row.map(v => (typeof v === 'number' ? v.toFixed(4) : v))));
+    const mixRows = mix.map(row => row.map((v, j) => (v === null ? null : j < 2 ? Number(v) : v)));
+    const LM = CE.lca(mixRows, [{ type: 'continuous' }, { type: 'continuous' }, { type: 'nominal', levels: ['a', 'b', 'c'] }, { type: 'nominal', levels: ['x', 'y', 'z'] }], 3, { nInit: 30, seed: 4 });
+    out.lcaMixed = { logLik: LM.logLik, nParams: LM.nParams, shares: LM.model.pi.slice().sort((a, b) => a - b) };
+    // (d) Normal distribution functions
+    const ps = [1e-10, 1e-6, 0.001, 0.01, 0.02425, 0.1, 0.3, 0.5, 0.7, 0.9, 0.97575, 0.99, 0.999, 1 - 1e-6], xs = [-8, -4, -2.5, -1, -0.3, 0, 0.3, 1, 2.5, 4, 8];
+    out.norm = { ps, inv: ps.map(CE.normInv), xs, cdf: xs.map(CE.normCdf) };
+}
 fs.writeFileSync(path.join(__dirname, 'reference_values.json'), JSON.stringify(out));
 console.log('Engine values written to tests/reference_values.json; now run: python3 tests/reference_check.py');

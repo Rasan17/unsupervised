@@ -38,7 +38,7 @@
         if (String(step) === '8' && S.result) { try { window.UMEUse.renderTree({ S, P: S.explore.P, METHOD, profileTable }); } catch (e) { $('tree-out').innerHTML = `<p class="status bad">The tree could not be drawn: ${esc(e.message)}</p>`; } }
     }
     // Exclusions from the data checks invalidate later results
-    function renderChecks() { window.UMEChecks.render({ S, onChange: () => { S.explore = null; S.result = null; enableTabs(4); } }); }
+    function renderChecks() { window.UMEChecks.render({ S, levelsOf, onChange: () => { S.explore = null; S.result = null; enableTabs(4); } }); }
     function renderUse() {
         try { window.UMEUse.render({ S, P: S.explore.P, METHOD, profileTable }); } catch (e) { $('use-out').innerHTML = `<p class="status bad">The classification could not be built: ${esc(e.message)}</p>`; }
     }
@@ -50,6 +50,19 @@
         let parsed;
         try { parsed = DE.parseCSV(text); } catch (e) { status('data-status', `The file could not be read: ${e.message}`, 'bad'); return; }
         if (!parsed.rows.length) { status('data-status', 'The file has no data rows.', 'bad'); return; }
+        // Decimal commas (European exports, "67,5"): columns written consistently that way are read as numbers. In
+        // comma-separated files a comma followed by exactly three digits may be a thousands separator ("1,000"), so
+        // such columns are converted only in semicolon- or tab-separated files
+        const decimalComma = [];
+        parsed.headers.forEach(h => {
+            const vals = parsed.rows.map(r => r[h]).filter(v => !DE.isMissing(v)).map(v => String(v).trim());
+            if (!vals.length || vals.some(v => v.includes('.'))) return;
+            const withComma = vals.filter(v => /^[-+]?\d+,\d+$/.test(v));
+            if (!withComma.length || vals.filter(v => /^[-+]?\d+(,\d+)?$/.test(v)).length < 0.95 * vals.length) return;
+            if (parsed.delimiter === ',' && withComma.every(v => /,\d{3}$/.test(v))) return;
+            parsed.rows.forEach(r => { const v = String(r[h] ?? '').trim(); if (/^[-+]?\d+,\d+$/.test(v)) r[h] = v.replace(',', '.'); });
+            decimalComma.push(h);
+        });
         S.data = { ...parsed, name, analysis: DE.analyzeColumns(parsed.headers, parsed.rows) };
         const ban = $('data-banner'); ban.hidden = false;
         ban.textContent = `Data: ${name}${demo ? ' (simulated demonstration, not real patients)' : ` (${parsed.rows.length.toLocaleString('en-GB')} rows, your file)`}`;
@@ -72,6 +85,7 @@
             S.vars[h] = { role, type };
         });
         const issues = DE.parseIssues ? DE.parseIssues(parsed) : [];
+        if (decimalComma.length) issues.push(`Decimal commas were read as decimal points in ${decimalComma.length} column(s): ${decimalComma.join(', ')}.`);
         const miss = parsed.headers.reduce((a, h) => a + (S.data.analysis[h].missingCount || 0), 0);
         $('data-summary').innerHTML = `<p><strong>${esc(name)}</strong>: ${parsed.rows.length} patients, ${parsed.headers.length} columns, ${miss} missing value(s).</p>
             ${issues.length ? `<p class="warn">${issues.map(esc).join(' ')}</p>` : ''}
@@ -89,9 +103,24 @@
     const includedRows = () => (S.excluded && S.excluded.size ? S.data.rows.filter((_, i) => !S.excluded.has(i)) : S.data.rows.slice());
 
     // ------------------------------------------------------------------------------------- step 2: variables
+    // Levels of a grade or category. Grades: numerically, by conventional clinical words (none < mild < moderate <
+    // severe, low < medium < high) or the order the user set in step 2; text otherwise sorts naturally
     function levelsOf(col) {
         const vals = [...new Set(includedRows().map(r => r[col]).filter(v => !DE.isMissing(v)).map(v => String(v).trim()))];
-        return vals.every(v => Number.isFinite(Number(v))) ? vals.sort((a, b) => Number(a) - Number(b)) : vals.sort();
+        if (vals.every(v => Number.isFinite(Number(v)))) return vals.sort((a, b) => Number(a) - Number(b));
+        if (S.vars[col] && S.vars[col].type === 'ordinal') {
+            const order = S.vars[col].order;
+            if (order && order.length) return [...order.filter(o => vals.includes(o)), ...DE.sortOrdinalLevels(vals.filter(v => !order.includes(v)))];
+            return DE.sortOrdinalLevels(vals);
+        }
+        return vals.sort();
+    }
+    // Whether a text grade's order was recognised from clinical words (or set by the user), rather than guessed
+    function orderKnown(col) {
+        const lv = levelsOf(col);
+        if (lv.every(v => Number.isFinite(Number(v))) || (S.vars[col].order && S.vars[col].order.length)) return true;
+        const words = ['none', 'absent', 'never', 'normal', 'very low', 'low', 'minimal', 'mild', 'slight', 'moderate', 'medium', 'intermediate', 'average', 'high', 'marked', 'severe', 'very high', 'very severe', 'critical', 'extreme'];
+        return lv.every(v => words.some(w => { const s = v.toLowerCase(); return s === w || s.startsWith(w + ' ') || s.endsWith(' ' + w); }));
     }
     function renderVariables() {
         const rows = S.data.headers.map((h, i) => {
@@ -104,14 +133,26 @@
                 <td><select id="type-${i}" data-col="${esc(h)}" class="vtype" aria-label="Type of ${esc(h)}">
                     <option value="continuous"${v.type === 'continuous' ? ' selected' : ''}${a.isNumeric ? '' : ' disabled'}>Number</option>
                     <option value="ordinal"${v.type === 'ordinal' ? ' selected' : ''}>Ordered grade</option>
-                    <option value="nominal"${v.type === 'nominal' ? ' selected' : ''}>Category</option></select></td></tr>`;
+                    <option value="nominal"${v.type === 'nominal' ? ' selected' : ''}>Category</option></select>${gradeOrder(h, i)}</td></tr>`;
         }).join('');
         $('var-table').innerHTML = `<table><thead><tr><th>Column</th><th>Use</th><th>Type</th></tr></thead><tbody>${rows}</tbody></table>`;
         document.querySelectorAll('.role').forEach(s => s.addEventListener('change', e => { S.vars[e.target.dataset.col].role = e.target.value; updateVarSummary(); }));
-        document.querySelectorAll('.vtype').forEach(s => s.addEventListener('change', e => { S.vars[e.target.dataset.col].type = e.target.value; updateVarSummary(); }));
+        document.querySelectorAll('.vtype').forEach(s => s.addEventListener('change', e => { S.vars[e.target.dataset.col].type = e.target.value; renderVariables(); }));
+        document.querySelectorAll('.grade-order').forEach(inp => inp.addEventListener('change', e => {
+            const col = e.target.dataset.col, want = e.target.value.split('<').map(x => x.trim()).filter(Boolean), have = levelsOf(col);
+            S.vars[col].order = want.every(w => have.includes(w)) && have.every(h2 => want.includes(h2)) ? want : null;
+            renderVariables();
+        }));
         const pc = $('patient-col');
         pc.innerHTML = '<option value="">Each row is a different patient</option>' + S.data.headers.map(h => `<option value="${esc(h)}">${esc(h)}</option>`).join('');
         updateVarSummary();
+    }
+    // The order of a text grade, editable ("Mild < Moderate < Severe"), with a caution when it could not be recognised
+    function gradeOrder(h, i) {
+        if (S.vars[h].type !== 'ordinal') return '';
+        const lv = levelsOf(h);
+        if (lv.every(v => Number.isFinite(Number(v)))) return '';
+        return `<div class="grade-order-box small"><label for="order-${i}">Order (lowest first)</label><input id="order-${i}" class="grade-order" data-col="${esc(h)}" type="text" value="${esc(lv.join(' < '))}">${orderKnown(h) ? '' : '<div class="warn">Order not recognised: check it, and correct it if needed (levels separated by &lt;).</div>'}</div>`;
     }
     function updateVarSummary() {
         const used = Object.keys(S.vars).filter(h => S.vars[h].role === 'cluster'), desc = Object.keys(S.vars).filter(h => S.vars[h].role === 'describe');
@@ -233,7 +274,9 @@
         // that use recorded values only, left out of that record's distances
         const incomplete = rows.map(r => cols.some(h => isMiss(S.data.rows[r.__row], h)));
         const incompleteKind = missing === 'fill' || missing === 'mice' ? 'imputed' : missing === 'complete' ? null : 'missing';
-        const base = { fillVal, incomplete, incompleteKind, rowIds: rows.map(r => r.__row), sampleIdx, neuralMissingNote: method === 'neural' && missingChoice === 'mice', manualExcluded: S.excluded ? S.excluded.size : 0, method, missing, gowerWeights, cols, describe: describeCols, specs, rows, excluded: nAll - rows.length, filled, seed,
+        // Rows as recorded (before any filling): used to describe patients, never the filled values
+        const recorded = rows.map(r => S.data.rows[r.__row]);
+        const base = { recorded, fillVal, incomplete, incompleteKind, rowIds: rows.map(r => r.__row), sampleIdx, neuralMissingNote: method === 'neural' && missingChoice === 'mice', manualExcluded: S.excluded ? S.excluded.size : 0, method, missing, gowerWeights, cols, describe: describeCols, specs, rows, excluded: nAll - rows.length, filled, seed,
             groups: pcol ? rows.map(r => String(r[pcol] ?? '')) : null, patientCol: pcol, allContinuous: specs.every(s => s.type === 'continuous') };
         if (missing !== 'mice') return { ...base, ...encode(rows, specs, method, isMiss, gowerWeights, sampleIdx) };
         // Multiple imputation by chained equations (predictive mean matching), from the clustering variables only:
@@ -278,7 +321,7 @@
     async function trainNeural(P) {
         const vars = P.specs.map(s => ({ name: s.col, type: s.type, levels: s.levels })), coded = NN.codeData(P.raw, vars);
         status('explore-status', `Training the self-organising map on ${P.rows.length.toLocaleString('en-GB')} records…`); await yieldUI();
-        const map = NN.som(coded.X, coded.M, {});
+        const map = await NN.somAsync(coded.X, coded.M, {}, (d, E) => status('explore-status', `Training the self-organising map on ${P.rows.length.toLocaleString('en-GB')} records: epoch ${d} of ${E}…`));
         P.neural = { map, coded, grid: `${map.rows} x ${map.cols}`, units: map.rows * map.cols, epochs: map.epochs, qe: map.qe, te: map.te };
     }
     // Clustering of a subset of the patients (indices into P.rows), for the main fit and for bootstrap resamples
@@ -501,7 +544,7 @@
     }
     function renderExplore() {
         const { res, gap, P } = S.explore, sug = suggestion(), f3 = v => (v === null || v === undefined || !Number.isFinite(v) ? '–' : v.toFixed(3));
-        const stabWord = v => (v >= 0.75 ? 'stable' : v >= 0.6 ? 'some structure' : v >= 0.5 ? 'weak' : 'not reproducible');
+        const stabWord = v => (v >= 0.75 ? 'stable' : v >= 0.6 ? 'indicates a pattern' : v >= 0.5 ? 'weak' : 'not reproducible');
         const rows = res.map(r => `<tr${r.k === sug.k ? ' class="pick"' : ''}><td>${r.k}${r.k === sug.k ? ' (suggested)' : ''}</td><td>${f3(r.silhouette)}</td><td>${f3(r.minJaccard)}${r.minCI ? ` <span class="muted">(${f3(r.minCI[0])}–${f3(r.minCI[1])})</span>` : ''} <span class="muted">${stabWord(r.minJaccard)}${r.minCI && r.minCI[0] < 0.75 && r.minCI[1] >= 0.75 ? ', borderline' : ''}</span></td>
             ${P.Z ? `<td>${f3(r.ch)}</td><td>${f3(r.db)}</td>` : ''}${gap ? `<td>${f3(gap.table[r.k - 1].gap)} ± ${f3(gap.table[r.k - 1].se)}</td>` : ''}${modelBased(P) ? `<td>${r.bic.toFixed(0)}</td>` : ''}${P.method === 'lca' ? `<td>${f3(r.entropy)}</td>` : ''}${P.mice ? `<td>${f3(r.agreement)}</td>` : ''}<td>${r.smallest}</td></tr>`).join('');
         const charts = CH.lineChart({ series: [{ name: 'Average silhouette', cls: 0, points: res.map(r => ({ x: r.k, y: r.silhouette })) }, { name: 'Stability (lowest cluster Jaccard)', cls: 1, points: res.map(r => ({ x: r.k, y: r.minJaccard })) }], xLabel: 'Number of clusters', yLabel: 'Value', aria: 'Silhouette and stability by number of clusters' })
@@ -509,12 +552,12 @@
         $('explore-out').innerHTML = `
             <p class="lead">${esc(sug.text)} ${P.manualExcluded ? `${P.manualExcluded} patient(s) were left out after the data checks. ` : ''}${P.excluded ? `${P.excluded} patient(s) with missing values were left out.` : ''}${P.filled ? ` ${P.filled} missing value(s) were filled with the median or most frequent value.` : ''}${P.mice ? ` Missing values (${P.mice.missingValues}, in ${P.mice.missingPatients} patients) were multiply imputed: ${P.mice.m} imputed datasets by chained equations with predictive mean matching, from the clustering variables only; each dataset was clustered and the results combined into a consensus.${gap ? ' The gap statistic uses the first imputed dataset.' : ''}` : ''}${P.neural ? ` Self-organising map of ${P.neural.grid} units (${(P.rows.length / P.neural.units).toFixed(0)} records per unit on average), trained for ${P.neural.epochs} epochs; topographic error ${(100 * P.neural.te).toFixed(1)}% (records whose two closest units are not neighbours on the map; low is good). Its units are grouped by k-means weighted by the records they hold.${P.neuralMissingNote ? ' (The map handles missing values itself, so the recorded values were used instead of multiple imputation.)' : ''}` : ''}${P.sampleIdx ? ` Silhouettes use a random sample of ${P.sampleIdx.length.toLocaleString('en-GB')} of the ${P.rows.length.toLocaleString('en-GB')} records.` : ''}</p>
             <div class="grid2"><div>${charts}</div><div class="muted small">
-                <p><strong>Average silhouette</strong>: how clearly patients sit in their own cluster rather than the nearest other one (above 0.5 strong, 0.25–0.5 weak, below 0.25 little structure).</p>
+                <p><strong>Average silhouette</strong>: how clearly patients sit in their own cluster rather than the nearest other one (Kaufman and Rousseeuw: above 0.70 strong, 0.51–0.70 reasonable, 0.26–0.50 weak and possibly artificial, 0.25 or below no substantial structure).</p>
                 <p><strong>Stability</strong>: the clustering is repeated on 25 bootstrap resamples; the lowest mean Jaccard similarity of any cluster to its counterpart (0.75 or more: stable; below 0.5: that cluster does not reproduce), with the 95% interval of that mean. With 25 resamples the interval is wide: "borderline" solutions (interval including 0.75) are checked with 100 resamples in the next step. The suggestion is a transparent rule of thumb, not proof that a number of clusters is correct.</p>
-                ${modelBased(P) ? '<p><strong>BIC</strong>: fit of the model penalised for its complexity; lower is better, and differences under about 10 are not decisive.</p>' : ''}
+                ${modelBased(P) ? '<p><strong>BIC</strong>: fit of the model penalised for its complexity; lower is better. A difference of 10 or more is very strong evidence for the lower value, 2 to 6 positive evidence, under 2 negligible (Raftery 1995).</p>' : ''}
                 ${P.method === 'lca' ? '<p><strong>Entropy</strong>: how clearly patients are assigned to one class (1: every patient certainly in one class; above 0.8 good; below 0.6 classes overlap a lot).</p>' : ''}
                 ${P.mice ? '<p><strong>Agreement across imputations</strong>: average adjusted Rand index between the clustering of each imputed dataset and the consensus (1: the imputed values make no difference; below about 0.65: the clusters depend on how the missing values are filled).</p>' : ''}
-                ${gap ? '<p><strong>Gap</strong>: how much more compact the clusters are than in reference data without clusters; the suggestion follows Tibshirani\'s rule.</p>' : ''}
+                ${gap ? '<p><strong>Gap</strong>: how much more compact the clusters are than in reference data without clusters (± its standard error). Tibshirani\'s rule (the smallest number whose gap is at least the next gap minus its standard error) is used only to warn when it chooses 1 cluster.</p>' : ''}
                 <p>No single number decides: choose the smallest number of clusters that is stable and clinically interpretable.</p></div></div>
             <div class="table-wrap"><table><thead><tr><th>Clusters</th><th>Average silhouette</th><th>Stability</th>${P.Z ? '<th>Calinski–Harabasz ↑</th><th>Davies–Bouldin ↓</th>' : ''}${gap ? '<th>Gap ± SE</th>' : ''}${modelBased(P) ? '<th>BIC ↓</th>' : ''}${P.method === 'lca' ? '<th>Entropy ↑</th>' : ''}${P.mice ? '<th>Agreement across imputations</th>' : ''}<th>Smallest cluster</th></tr></thead><tbody>${rows}</tbody></table></div>
             <div class="row"><label for="k-choice">Describe</label><select id="k-choice">${res.map(r => `<option value="${r.k}"${r.k === (sug.k || 2) ? ' selected' : ''}>${r.k} clusters</option>`).join('')}</select><button id="describe-btn" class="btn primary">Describe these clusters</button></div>`;
@@ -575,7 +618,7 @@
         // effect size (Cramer's V for categories, epsilon squared for numbers and grades); filled in after the loop
         const slot = t => { tests.push(t); return `@@T${tests.length - 1}@@`; };
         [...(opts.only === 'describe' ? [] : P.cols.map(c => [c, true])), ...P.describe.map(c => [c, false])].forEach(([col, used]) => {
-            const t = S.vars[col].type, vals = P.rows.map(r => r[col]), ok = vals.map(v => !DE.isMissing(v));
+            const t = S.vars[col].type, vals = P.recorded.map(r => r[col]), ok = vals.map(v => !DE.isMissing(v) && (t !== 'continuous' || Number.isFinite(Number(v))));
             const missingN = ok.filter(x => !x).length;
             if (t === 'nominal' || (t === 'ordinal' && !vals.filter((v, i) => ok[i]).every(v => Number.isFinite(Number(v))))) {
                 const levels = levelsOf(col), sv = vals.map(v => (DE.isMissing(v) ? null : String(v).trim()));
@@ -611,8 +654,8 @@
         const missRows = P.specs.map(sp => { const miss = P.rowIds.map(r => DE.isMissing(S.data.rows[r][sp.col]) || (sp.type === 'continuous' && !Number.isFinite(Number(S.data.rows[r][sp.col])))); return { col: sp.col, miss }; }).filter(m => m.miss.some(Boolean));
         const missHtml = missRows.length ? (() => {
             const pm = p => (p < 0.001 ? '< 0.001' : p.toFixed(3));
-            const ps = missRows.map(m => CE.chiSquareTest(m.miss.map(v => (v ? 'missing' : 'recorded')), labels).p), qs = CE.benjaminiHochberg(ps.map(p => (p === null ? 1 : p)));
-            const rowsH = missRows.map((m, t) => `<tr><td>${esc(m.col)}</td><td>${Math.round(100 * m.miss.filter(Boolean).length / m.miss.length)}%</td>${Array.from({ length: k }, (_, c) => { const idx = labels.map((l, i) => (l === c ? i : -1)).filter(i => i >= 0); return `<td>${Math.round(100 * idx.filter(i => m.miss[i]).length / Math.max(1, idx.length))}%</td>`; }).join('')}<td>${ps[t] === null ? '–' : `${pm(ps[t])}${missRows.length > 1 ? ` · q ${pm(qs[t])}` : ''}`}</td></tr>`).join('');
+            const tests = missRows.map(m => CE.chiSquareTest(m.miss.map(v => (v ? 'missing' : 'recorded')), labels)), ps = tests.map(t => t.p), qs = CE.benjaminiHochberg(ps.map(p => (p === null ? 1 : p)));
+            const rowsH = missRows.map((m, t) => `<tr><td>${esc(m.col)}</td><td>${Math.round(100 * m.miss.filter(Boolean).length / m.miss.length)}%</td>${Array.from({ length: k }, (_, c) => { const idx = labels.map((l, i) => (l === c ? i : -1)).filter(i => i >= 0); return `<td>${Math.round(100 * idx.filter(i => m.miss[i]).length / Math.max(1, idx.length))}%</td>`; }).join('')}<td>${ps[t] === null ? '–' : `${pm(ps[t])}${missRows.length > 1 ? ` · q ${pm(qs[t])}` : ''}${tests[t].minExpected < 5 ? ' <span class="muted">(small counts)</span>' : ''}`}</td></tr>`).join('');
             const diff = ps.some((p, t) => p !== null && qs[t] <= 0.05);
             return `<details${diff ? ' open' : ''}><summary class="small">Missing values by cluster${diff ? ' <strong>(differ between clusters)</strong>' : ''}</summary><div class="table-wrap"><table><thead><tr><th>Clustering variable</th><th>Missing</th>${Array.from({ length: k }, (_, c) => `<th>Cluster ${c + 1}</th>`).join('')}<th>p · q</th></tr></thead><tbody>${rowsH}</tbody></table></div>
                 <p class="muted small">${diff ? '<strong>Missingness differs between clusters</strong>: the clusters may partly reflect why values are missing (for example sicker patients, or tests ordered only for some), and imputation cannot correct that. ' : ''}Multiple imputation and the other options assume that values are missing at random given the recorded data; combining imputations reflects the uncertainty of the imputed values but does not remove bias when missingness depends on the missing values themselves. The sensitivity analysis shows how much the clusters change with other ways of handling missing values.</p></details>`;
@@ -629,14 +672,16 @@
         // A non-significant copula test is weak evidence (the test is conservative: in simulations it detected moderately
         // overlapping sub-groups only about two times in three), so with stable clusters the verdict is "mixed", not "bad"
         const conservativeMiss = test && test.pValue > 0.05 && test.kind === 'copula' && weakest >= 0.75;
-        const verdict = (!test || test.pValue <= 0.05) && weakest >= 0.75 ? 'good' : conservativeMiss ? 'mixed' : (test && test.pValue > 0.05) || weakest < 0.5 ? 'bad' : 'mixed';
+        // Without the test (it needs complete data) stability alone is weaker evidence: at best "mixed"
+        const untested = !test && weakest >= 0.75;
+        const verdict = test && test.pValue <= 0.05 && weakest >= 0.75 ? 'good' : conservativeMiss || untested ? 'mixed' : (test && test.pValue > 0.05) || weakest < 0.5 ? 'bad' : 'mixed';
         // Evidence summary: statistical evidence for structure, separately from clinical usefulness (which the app cannot judge)
         const sils = sil.mean, minC = stab.perCluster.reduce((m, c) => (c.size < m.size ? c : m)), weakC = stab.perCluster.reduce((m, c) => ((c.meanJaccard ?? 0) < (m.meanJaccard ?? 0) ? c : m));
         const evRow = (what, val, judge, cls = '') => `<tr><td>${what}</td><td>${val}</td><td class="${cls}">${judge}</td></tr>`;
         const lf = S.result.lcaFit;
         const evRows = [
             evRow('Stability (weakest cluster, mean Jaccard)', `${f3(weakC.meanJaccard)}${weakC.ciMean ? ` (${f3(weakC.ciMean[0])}–${f3(weakC.ciMean[1])})` : ''}`, weakest >= 0.75 ? (weakC.ciMean && weakC.ciMean[0] < 0.75 ? 'stable, borderline' : 'stable') : stabWord(weakest), weakest >= 0.75 ? 'ok' : 'warn'),
-            evRow('Separation (average silhouette)', f3(sils), sils >= 0.5 ? 'strong' : sils >= 0.25 ? 'reasonable' : 'weak: clusters overlap', sils >= 0.25 ? 'ok' : 'warn'),
+            evRow('Separation (average silhouette)', f3(sils), sils > 0.7 ? 'strong' : sils > 0.5 ? 'reasonable' : sils > 0.25 ? 'weak, possibly artificial' : 'no substantial structure', sils > 0.5 ? 'ok' : 'warn'),
             test ? evRow('Test against a single population', `p ${pf(test.pValue)} (${test.kind === 'gaussian' ? 'Gaussian' : 'copula'})`, test.pValue <= 0.05 ? 'more structure than a single population' : test.kind === 'copula' ? 'not shown (conservative test)' : 'not shown', test.pValue <= 0.05 ? 'ok' : 'warn') : evRow('Test against a single population', 'not run', 'needs complete data (fill or leave out missing values)', 'warn'),
             evRow('Smallest cluster', `${minC.size} patients (${(100 * minC.size / labels.length).toFixed(0)}%)`, minC.size < 10 || minC.size < 0.05 * labels.length ? 'small: its profile and stability are uncertain' : 'adequate', minC.size < 10 || minC.size < 0.05 * labels.length ? 'warn' : 'ok'),
             ...(lf ? [evRow('Latent class fit', `${lf.startsAtBest} of ${lf.starts} random starts reached the best solution${lf.converged ? '' : '; not converged'}`, lf.converged && lf.startsAtBest >= 2 ? 'reproducible optimum' : 'may be a chance local optimum: rerun with another seed', lf.converged && lf.startsAtBest >= 2 ? 'ok' : 'warn')] : []),
@@ -648,7 +693,7 @@
         const somOn = !!(S.result.neural && S.result.neural.unitLabels);
         $('clusters-out').innerHTML = `
             <div class="verdict ${verdict}"><strong>${k} clusters (${esc(METHOD[P.method].short)}).</strong> Evidence: ${esc(evidence.join('; '))}.
-                ${verdict === 'good' ? `These clusters are consistent with real sub-groups in these data (stable, and more separated than a single population); they still need replication in another cohort before clinical interpretation.${test ? ' Note: a single population with a curved or branching (non-linear) pattern can also give this result; check the map of the patients for gaps between the clusters' + (P.method === 'neural' ? ' (and the self-organising map for grey, empty units between them)' : '') + ', and the dimensions panel for a continuum.' : ''}` : verdict === 'bad' ? 'These clusters may be artefacts of the method: clustering algorithms always return clusters, even in data without sub-groups. Do not interpret them as patient sub-types.' : (conservativeMiss ? 'The clusters reproduce in resamples, but the (conservative) test did not find more separation than a single population: they may reflect modest structure or a continuum rather than distinct sub-groups. Treat them as exploratory.' : 'The evidence is mixed: treat the clusters as exploratory.')}</div>
+                ${verdict === 'good' ? `These clusters are consistent with real sub-groups in these data (stable, and more separated than a single population); they still need replication in another cohort before clinical interpretation.${test ? ' Note: a single population with a curved or branching (non-linear) pattern can also give this result; check the map of the patients for gaps between the clusters' + (P.method === 'neural' ? ' (and the self-organising map for grey, empty units between them)' : '') + ', and the dimensions panel for a continuum.' : ''}` : verdict === 'bad' ? 'These clusters may be artefacts of the method: clustering algorithms always return clusters, even in data without sub-groups. Do not interpret them as patient sub-types.' : (conservativeMiss ? 'The clusters reproduce in resamples, but the (conservative) test did not find more separation than a single population: they may reflect modest structure or a continuum rather than distinct sub-groups. Treat them as exploratory.' : untested ? 'The clusters reproduce in resamples, but the test against a single population could not be run (it needs complete data: in step 4, fill or leave out missing values to run it). Stable clusters can also arise from a continuum, so treat them as exploratory until the test is run.' : 'The evidence is mixed: treat the clusters as exploratory.')}</div>
             ${evidenceHtml}
             ${{ confirmatory: '<p class="small note">Confirmatory purpose: the sub-groups and the outcomes compared must have been specified before the analysis; report the q-values and effect sizes, and the sensitivity analysis.</p>', groundwork: '<p class="small note">Groundwork for a prediction model: clusters are not predictors of outcome by themselves; a prediction model needs its own development and validation.</p>' }[$('purpose').value] || ''}
             <div class="grid2">
@@ -658,7 +703,7 @@
                     ${missHtml}
                     ${impCol ? `<p class="small">${P.incompleteKind === 'imputed' ? `${impCol}: patients with at least one clustering value that was not recorded and was ${P.missing === 'mice' ? 'multiply imputed' : 'filled in'}.` : `${impCol}: patients with at least one clustering value not recorded (left out of their dissimilarities).`} A cluster with a much larger share than the others may be shaped by ${P.incompleteKind === 'imputed' ? 'the imputed values' : 'the missing values'} rather than by recorded data: treat it with caution. The maps can mark these patients.</p>` : ''}
                     <p class="muted small">Stability: ${stab.resamples} bootstrap resamples${P.groups ? ` (whole patients by "${esc(P.patientCol)}")` : ''}; mean Jaccard 0.75 or more: stable; 0.6–0.75: indicates a pattern; below 0.5: not reproducible (Hennig 2007). Average agreement with the full-data clustering: adjusted Rand ${f3(stab.meanAdjustedRand)}. The 95% interval shows how precisely the ${stab.resamples} resamples estimate the mean; "borderline" when it includes 0.75. The 0.75 limit is a convention (Hennig 2007), not proof that a cluster is real.${(() => { const ps = (stab.patientStability || []).filter(v => v !== null); if (!ps.length) return ''; const hi = ps.filter(v => v >= 0.9).length, lo = ps.filter(v => v < 0.7).length; return ` <strong>Patients:</strong> ${Math.round(100 * hi / ps.length)}% stay in their cluster in at least 90% of the resamples that include them; ${Math.round(100 * lo / ps.length)}% in fewer than 70% (assignments that depend on the sample; the download lists each patient's stability).`; })()}${P.mice ? ` The resamples cycle through the ${P.mice.m} imputed datasets. Agreement of each imputed dataset's clustering with the consensus: adjusted Rand ${f3(S.explore.res.find(r => r.k === k).agreement)}.` : ''}</p>
-                    ${test ? `<p class="muted small">Test of "no real sub-groups": the separation of the clustering (R² = ${f3(test.observed)}) against ${test.B} reference datasets from ${test.kind === 'gaussian' ? 'a single Gaussian population with exactly the data\'s covariance (exact for Gaussian data)' : `a single population with each variable's own distribution and the observed correlations (a Gaussian copula; conservative: a small p is strong evidence, a large p does not prove there are no sub-groups${test.skewedNumbers ? '; used instead of the Gaussian reference because at least one measurement is skewed, which makes the Gaussian reference give false positives' : ''})`}: reference mean ${f3(test.nullMean)}, 95th centile ${f3(test.nullQuantile95)}.${Number.isFinite(test.fitError) ? ` The reference data reproduce the observed correlations to within ${test.fitError.toFixed(3)} (largest difference)${test.fitError > 0.05 ? '<strong>: some correlations could only be approximated, so the reference is approximate and the p-value should be read with caution</strong>' : ''}.` : ''}${test.pooled ? ` With multiple imputation the test was run on each of the ${test.pooled.m} imputed datasets and the median p-value is reported (range ${pf(test.pooled.min)} to ${pf(test.pooled.max)}); the figures above are from the median dataset.` : ''}</p>` : '<p class="muted small">The test of "no real sub-groups" needs complete data (choose to fill or leave out missing values).</p>'}
+                    ${test ? `<p class="muted small">Test of "no real sub-groups": how well ${k} groups can be separated in these data (R² = ${f3(test.observed)}: the share of the variation between groups when k-means divides the same variables into ${k}; the test asks whether the data have structure, whichever method formed the clusters) against ${test.B} reference datasets from ${test.kind === 'gaussian' ? 'a single Gaussian population with exactly the data\'s covariance (exact for Gaussian data)' : `a single population with each variable's own distribution and the observed correlations (a Gaussian copula; conservative: a small p is strong evidence, a large p does not prove there are no sub-groups${test.skewedNumbers ? '; used instead of the Gaussian reference because at least one measurement is skewed, which makes the Gaussian reference give false positives' : ''})`}: reference mean ${f3(test.nullMean)}, 95th centile ${f3(test.nullQuantile95)}.${Number.isFinite(test.fitError) ? ` The reference data reproduce the observed correlations to within ${test.fitError.toFixed(3)} (largest difference)${test.fitError > 0.05 ? '<strong>: some correlations could only be approximated, so the reference is approximate and the p-value should be read with caution</strong>' : ''}.` : ''}${test.pooled ? ` With multiple imputation the test was run on each of the ${test.pooled.m} imputed datasets and the median p-value is reported (range ${pf(test.pooled.min)} to ${pf(test.pooled.max)}); the figures above are from the median dataset.` : ''}</p>` : '<p class="muted small">The test of "no real sub-groups" needs complete data (choose to fill or leave out missing values).</p>'}
                 </div>
                 ${somOn ? '' : '<div><h3>Map of the patients</h3><div id="map-panel"></div></div>'}
             </div>

@@ -338,6 +338,17 @@ check('Multiple imputation (MICE) is reproducible and unchanged by refactoring: 
     assert(kept && donors && text === JSON.stringify(d2.map(d => d.map(o => cols.map(c => o[c])))) && h.toString(16) === PINNED, `kept ${kept}, donors ${donors}, checksum ${h.toString(16)}`);
     return `3 imputed datasets identical when run again; checksum ${h.toString(16)}`;
 });
+check('New patients are scored exactly as the original patients: latent class probabilities and Gower distances', () => {
+    const r = CE.createPRNG(61), gz = () => { const u = r() || 1e-12, v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+    const rows = Array.from({ length: 120 }, (_, i) => [i % 7 === 0 ? null : 2 * (i % 3) + gz(), ['low', 'mid', 'high'][(i + (r() < 0.3 ? 1 : 0)) % 3], r() < 0.5 ? 'Yes' : 'No']);
+    const vars = [{ type: 'continuous' }, { type: 'ordinal', levels: ['low', 'mid', 'high'] }, { type: 'nominal', levels: ['No', 'Yes'] }];
+    const m = CE.lca(rows, vars, 3, { nInit: 5, seed: 2 });
+    let worstP = 0; rows.forEach((x, i) => { const q = CE.lcaPosterior(m.model, x); q.forEach((v, c) => { worstP = Math.max(worstP, Math.abs(v - m.posterior[i][c])); }); });
+    const G = CE.gowerMatrix(rows, vars, { weights: 'balanced' });
+    let worstG = 0; [0, 17, 63].forEach(i => { const d = CE.gowerDistances(rows[i], rows, vars, G.weights); d.forEach((v, j) => { if (j !== i) worstG = Math.max(worstG, Math.abs(v - G.D[i * rows.length + j])); }); });
+    assert(worstP < 1e-9 && worstG < 1e-12, `posterior ${worstP}, Gower ${worstG}`);
+    return `largest difference: probabilities ${worstP.toExponential(1)}, Gower ${worstG.toExponential(1)}`;
+});
 // Asynchronous versions (which hand control back to the page) must give exactly the same results
 const asyncSame = (async () => {
     const r = CE.createPRNG(55), gz = () => { const u = r() || 1e-12, v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };

@@ -173,6 +173,12 @@ referral patterns (`tools/make_referral_demo.py`).
   probabilities for latent classes), a patient further from every class than 95% of the original patients are
   from their own is reported as poorly represented (unclassified); a new cohort reports these records and those
   near a class boundary, and its outcome table gives effect sizes.
+- **Reading files:** columns written consistently with decimal commas (European exports, "67,5") are read as numbers
+  (in comma-separated files only when the comma cannot be a thousands separator); "None" is a value, not a missing
+  value; text grades are put in clinical order (none < mild < moderate < severe, low < medium < high), shown in step 2
+  and editable there, with a caution when the order could not be recognised.
+- **Describing patients:** profiles, class descriptions, the decision tree, maps coloured by a variable and the
+  self-organising map's record table use the values as recorded, never values filled in for the clustering.
 - **Default roles:** outcomes are recognised by name only (the shared data engine treats the last column as the
   outcome, a convention of prediction models that does not apply here); empty and constant columns start as
   "Ignore"; rare categories (fewer than 5 patients) of clustering variables are flagged.
@@ -198,6 +204,9 @@ analysis: comparing 2 to 10 classes about 2 minutes and describing the chosen cl
 For 360 patients every step takes a few seconds; the sensitivity analysis refits the clustering once per alternative (16 for the iNPH demo). Above
 3,000 records, silhouettes and maps use a random sample of 2,000, and PAM and Ward are not offered.
 
+At 30,000 records (measured): data checks about 55 s, self-organising map about 15 s, describing 5 clusters about
+35 s; the longest pause in any step is under 4 s.
+
 The page stays responsive during these computations: latent class fits, bootstrap resamples and the tests of no
 real sub-groups hand control back to the browser about every 100 ms and the status line counts the resamples
 (the longest pause measured on the referral demo is about 2 s, down from 44 s). They are written as generators,
@@ -206,8 +215,8 @@ used because the page must also work when opened directly from disk, where brows
 
 ## Validation status and limitations
 
-- Verified: every computational method against an established implementation (85 reference checks) and the
-  behaviour of the decisions in simulations (32 checks, including a pinned regression check of the multiple imputation), with the interface tested end to end in a browser.
+- Verified: every computational method against an established implementation (96 reference checks) and the
+  behaviour of the decisions in simulations (33 checks, including a pinned regression check of the multiple imputation), with the interface tested end to end in a browser.
 - Not yet done: application to real cohorts and independent review by a statistician. A protocol for the first
   is in [`docs/validation_protocol.md`](docs/validation_protocol.md). Clusters found in one dataset are
   hypotheses until they are replicated in another.
@@ -222,8 +231,8 @@ used because the page must also work when opened directly from disk, where brows
 ## Verification
 
 ```bash
-node tests/reference_check.js && python3 tests/reference_check.py   # 85 checks against scikit-learn, SciPy, NumPy, umap-learn and R (cluster, poLCA, mclust, FactoMineR)
-node tests/behaviour_check.js                                       # 32 simulations: true k found, 1 cluster when there are none, calibration and power of the tests, stability
+node tests/reference_check.js && python3 tests/reference_check.py   # 96 checks against scikit-learn, SciPy, NumPy, umap-learn and R (cluster, poLCA, mclust, FactoMineR, VarSelLCM)
+node tests/behaviour_check.js                                       # 33 simulations: true k found, 1 cluster when there are none, calibration and power of the tests, stability
 node tests/ui_check.js                                              # browser (Playwright + Chrome): every demo end to end, the audit features, edge cases, privacy, the R script, layout, no page errors
 npx eslint@9.39.5 -c eslint.config.mjs src cluster-engine.js embed-engine.js anomaly-engine.js nn-engine.js  # undefined names and real mistakes
 ```

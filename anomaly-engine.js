@@ -126,7 +126,7 @@
 
     /** Local outlier factor for large datasets: dissimilarities computed one record at a time from dist(i, j), keeping
      *  only each record's k nearest neighbours (memory n x k instead of n x n); identical results to lof(). */
-    function lofStream(n, dist, k = 20) {
+    function* lofStreamSteps(n, dist, k = 20) {
         k = Math.min(k, n - 1);
         const nb = new Array(n), nd = new Array(n), kd = new Float64Array(n);
         for (let i = 0; i < n; i++) {
@@ -141,10 +141,18 @@
                 }
             }
             nb[i] = bi; nd[i] = bd; kd[i] = bd[k - 1];
+            yield i + 1;
         }
         const lrd = new Float64Array(n);
         for (let i = 0; i < n; i++) { let s = 0; for (let q = 0; q < k; q++) s += Math.max(kd[nb[i][q]], nd[i][q]); lrd[i] = 1 / (s / k + 1e-10); }
         return Array.from({ length: n }, (_, i) => nb[i].reduce((a, j) => a + lrd[j], 0) / k / lrd[i]);
+    }
+
+    function lofStream(n, dist, k = 20) { const g = lofStreamSteps(n, dist, k); for (;;) { const r = g.next(); if (r.done) return r.value; } }
+    /** As lofStream, returning a promise: hands control back to the page about every 100 ms (onProgress(done, n)) */
+    async function lofStreamAsync(n, dist, k = 20, onProgress = null) {
+        const g = lofStreamSteps(n, dist, k); let last = Date.now();
+        for (;;) { const r = g.next(); if (r.done) return r.value; if (Date.now() - last > 100) { if (onProgress) onProgress(r.value, n); await new Promise(res => setTimeout(res, 0)); last = Date.now(); } }
     }
 
     // ------------------------------------------------------------------------------------------- robust z and data checks
@@ -249,5 +257,5 @@
     }
     function fmt(v) { return Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : Number(v.toPrecision(3)).toString(); }
 
-    root.AnomalyEngine = { missingCodes, skewedNonNegative, chi2Sf, chi2Cdf, chi2Ppf, mcd, isolationForest, avgPath, lof, lofStream, robustZ, dataChecks, median };
+    root.AnomalyEngine = { missingCodes, skewedNonNegative, chi2Sf, chi2Cdf, chi2Ppf, mcd, isolationForest, avgPath, lof, lofStream, lofStreamAsync, robustZ, dataChecks, median };
 })(typeof window !== 'undefined' ? window : globalThis);

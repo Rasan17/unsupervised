@@ -351,7 +351,8 @@
             const str = String(val).trim();
             if (str === '') return true;
             const lower = str.toLowerCase();
-            if (lower === 'na' || lower === 'nan' || lower === 'null' || lower === 'none' || lower === '?' || lower === '.' || lower === 'n/a') return true;
+            // "None" is not treated as missing: in clinical data it is often a genuine answer (no symptoms, no comorbidity)
+            if (lower === 'na' || lower === 'nan' || lower === 'null' || lower === '?' || lower === '.' || lower === 'n/a') return true;
             // Infinite numbers ("Infinity", "-inf", "1e999") cannot be used in any calculation: treated as missing
             if (/^[+-]?inf(inity)?$/.test(lower)) return true;
             const n = Number(str);

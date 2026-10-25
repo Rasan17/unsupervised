@@ -129,7 +129,7 @@
             const k = S.result.k;
             return { pts: i => ({ group: labels[i], tip: `Cluster ${labels[i] + 1}` }), legend: CH.legend(Array.from({ length: k }, (_, c) => `Cluster ${c + 1}`)) };
         }
-        const col = M.colourBy, vals = P.rows.map(r => r[col]), miss = v => v === null || v === undefined || String(v).trim() === '';
+        const col = M.colourBy, vals = P.recorded.map(r => r[col]), miss = v => v === null || v === undefined || String(v).trim() === '';
         const recorded = vals.filter(v => !miss(v)), numeric = recorded.length && recorded.every(v => Number.isFinite(Number(v))) && S.vars[col].type !== 'nominal';
         if (numeric) {
             const xs = map.idx.map(i => vals[i]).filter(v => !miss(v)).map(Number), lo = Math.min(...xs), hi = Math.max(...xs);

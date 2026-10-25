@@ -59,6 +59,7 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         await p.waitForSelector('.verdict', { timeout: 300000 });
         const verdict = (await p.locator('.verdict').innerText()).replace(/\s+/g, ' ');
         check(expectReal ? !/Do not interpret/.test(verdict) : /Do not interpret/.test(verdict), `${name}: verdict (${verdict.slice(0, 90)}...)`);
+        if (missing === 'gower') check(/test against a single population could not be run/.test(verdict), `${name}: without the test (missing values kept), the verdict says the test could not be run instead of claiming separation`);
         check((await p.locator('#clusters-out svg').count()) >= 2, `${name}: silhouette plot and map drawn`);
         {
             const ev = await p.locator('#clusters-out details.evidence').innerText();
@@ -246,6 +247,22 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
             }
             check(errs.length === 0 && outcome.length > 0, `${name}: ${fname} is handled without page errors (${outcome.slice(0, 90)})`);
         }
+        // Audit fixes: "None" is a value; text grades in clinical order, editable; European decimal commas
+        {
+            const G = ['None', 'Mild', 'Moderate', 'Severe'], H = ['Low', 'Medium', 'High'], gl = ['ID;Severity;Level;Age;Score'];
+            for (let i = 0; i < 80; i++) gl.push(`G${i};${G[i % 4]};${H[i % 3]};${(60 + i / 3).toFixed(1).replace('.', ',')};${i % 7}`);
+            await p.goto(url);
+            await p.setInputFiles('#file', { name: 'grades.csv', mimeType: 'text/csv', buffer: Buffer.from(gl.join('\r\n')) });
+            await p.waitForSelector('#var-table table');
+            const st = await p.evaluate(() => { const v = window.UMEApp.state.vars; return { sevType: v.Severity.type, ageType: v.Age.type, sevMissing: window.UMEApp.state.data.analysis.Severity.missingCount }; });
+            const sevIdx = await p.evaluate(() => window.UMEApp.state.data.headers.indexOf('Severity')), lvlIdx = await p.evaluate(() => window.UMEApp.state.data.headers.indexOf('Level'));
+            const sevOrder = await p.inputValue(`#order-${sevIdx}`);
+            await p.selectOption(`#type-${lvlIdx}`, 'ordinal');
+            const lvlOrder = await p.inputValue(`#order-${lvlIdx}`);
+            check(st.sevMissing === 0 && sevOrder === 'None < Mild < Moderate < Severe' && lvlOrder === 'Low < Medium < High' && st.ageType === 'continuous' && /Decimal commas were read as decimal points in 1 column\(s\): Age/.test(await p.locator('#data-summary').innerText()), `${name}: "None" is a value, grades are in clinical order (${sevOrder}; ${lvlOrder}), and decimal commas are read as numbers`);
+            await p.fill(`#order-${lvlIdx}`, 'High < Medium < Low'); await p.locator(`#order-${lvlIdx}`).dispatchEvent('change');
+            check(JSON.stringify(await p.evaluate(() => window.UMEApp.state.vars.Level.order)) === '["High","Medium","Low"]', `${name}: the order of a grade can be changed`);
+        }
         await p.goto(url);
         await p.setInputFiles('#file', { name: 'awkward.csv', mimeType: 'text/csv', buffer: Buffer.from(files['awkward.csv'].join('\n')) });
         await p.waitForSelector('#var-table table');
@@ -349,7 +366,9 @@ const check = (ok, msg) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); if 
         await p.click('[data-selc="0"]'); await p.click('#som-clear');
         check(/No units selected/.test(await p.locator('#som-table').innerText()) && (await p.$$eval('#map-panel circle.hl, #map-panel circle.dim', c => c.length)) === 0, `${name}: clearing the selection empties the table and removes the highlight`);
         // Regression: the test of "no real sub-groups" with categories of several levels (missing values filled)
-        await p.click('.tab[data-step="4"]'); await p.selectOption('#missing', 'fill'); await p.click('#explore-btn'); await p.waitForSelector('#describe-btn', { timeout: 600000 });
+        await p.click('.tab[data-step="4"]'); await p.selectOption('#missing', 'fill');
+        await p.evaluate(() => { document.querySelector('#explore-out').innerHTML = ''; document.querySelector('#clusters-out').innerHTML = ''; });   // wait for the new results, not the previous run's
+        await p.click('#explore-btn'); await p.waitForSelector('#describe-btn', { timeout: 600000 });
         await p.selectOption('#k-choice', '5'); await p.click('#describe-btn'); await p.waitForSelector('#to-use', { timeout: 600000 });
         const fitR = ((await p.locator('#clusters-out').innerText()).match(/reproduce the observed correlations to within ([\d.]+)/) || [])[1];
         check(/more separation than a single population/.test(await p.locator('#clusters-out .verdict').innerText()) && !/stopped/.test(await p.locator('#clusters-status').innerText()) && fitR !== undefined, `${name}: the test of no real sub-groups runs with categories of several levels and detects the patterns (correlations reproduced to within ${fitR})`);

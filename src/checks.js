@@ -22,7 +22,7 @@
     const pretty = s => String(s).replace(/_/g, ' ');
     const fmtV = v => (Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : Number(v.toPrecision(3)).toString());
 
-    function run(S) {
+    async function run(S) {
         const rows = S.data.rows, n = rows.length, id = idColumn(S);
         const used = S.data.headers.filter(h => S.vars[h].role !== 'ignore');
         const columns = [...(id ? [{ name: id, kind: 'id' }] : []), ...used.map(h => ({ name: h, kind: S.vars[h].type === 'nominal' || !rows.some(r => isNum(r[h])) ? 'category' : 'number' }))];
@@ -68,15 +68,15 @@
         // 3. Local outlier factor on balanced Gower dissimilarities (mixed data, missing values)
         if (cl.length >= 2 && n >= 25 && n > 3000) {
             // Large datasets: the same local outlier factor, with dissimilarities computed one record at a time
-            const specs = cl.map(h => ({ type: S.vars[h].type, levels: S.vars[h].type === 'continuous' ? null : [...new Set(rows.map(r => r[h]).filter(v => !DE.isMissing(v)).map(v => String(v).trim()))].sort((a, b) => (isNum(a) && isNum(b) ? a - b : a < b ? -1 : 1)) }));
+            const specs = cl.map(h => ({ type: S.vars[h].type, levels: S.vars[h].type === 'continuous' ? null : C.levelsOf(h) }));
             const raw = rows.map(mvRaw);
-            const lf = AE.lofStream(n, CE.gowerPairFn(raw, specs, CE.gowerBalancedWeights(raw, specs)), 20), lim = lofLimit(lf);
+            const lf = await AE.lofStreamAsync(n, CE.gowerPairFn(raw, specs, CE.gowerBalancedWeights(raw, specs)), 20, (d, N) => status(`Checking the data: local density, record ${d.toLocaleString('en-GB')} of ${N.toLocaleString('en-GB')}…`)), lim = lofLimit(lf);
             lf.forEach((v, i) => { flags[i].lof = { value: v, flagged: v > lim }; });
             methods.push({ key: 'lof', name: 'Local density', note: `local outlier factor (20 neighbours) on balanced Gower dissimilarities of the clustering variables, computed record by record for the ${n.toLocaleString('en-GB')} records; flagged above ${lim.toFixed(2)} (in a much sparser region than its neighbours; the limit is 1.6, raised to the robust upper fence of these scores where that is higher)` });
             C.famdRaw = { raw, specs: cl.map((h, j) => ({ name: h, type: specs[j].type, levels: specs[j].levels })) };
         }
         if (cl.length >= 2 && n >= 25 && n <= 3000) {
-            const specs = cl.map(h => ({ type: S.vars[h].type, levels: S.vars[h].type === 'continuous' ? null : [...new Set(rows.map(r => r[h]).filter(v => !DE.isMissing(v)).map(v => String(v).trim()))].sort((a, b) => (isNum(a) && isNum(b) ? a - b : a < b ? -1 : 1)) }));
+            const specs = cl.map(h => ({ type: S.vars[h].type, levels: S.vars[h].type === 'continuous' ? null : C.levelsOf(h) }));
             const raw = rows.map(mvRaw);
             try {
                 const G = CE.gowerMatrix(raw, specs, { weights: 'balanced' }), lf = AE.lof(G, 20), lim = lofLimit(lf);
@@ -88,7 +88,7 @@
         // 4. Optional: autoencoder reconstruction error (deep learning); flagged above the upper fence Q3 + 3 IQR
         let aeWorst = null;
         if (C.useAE && cl.length >= 2 && n >= 50) {
-            const vars = cl.map(h => ({ name: h, type: S.vars[h].type, levels: S.vars[h].type === 'continuous' ? null : [...new Set(rows.map(r => r[h]).filter(v => !DE.isMissing(v)).map(v => String(v).trim()))].sort((a, b) => (isNum(a) && isNum(b) ? a - b : a < b ? -1 : 1)) }));
+            const vars = cl.map(h => ({ name: h, type: S.vars[h].type, levels: S.vars[h].type === 'continuous' ? null : C.levelsOf(h) }));
             const raw = rows.map(mvRaw);
             const coded = NN.codeData(raw, vars), T = NN.train(coded.X, coded.M, { hidden: [8], latent: 2, seed: 2024 }), E = NN.errors(T.net, coded.X, coded.M);
             const e = E.map(x => x.mean), srt = e.filter(Number.isFinite).sort((a, b) => a - b), q = f => srt[Math.min(srt.length - 1, Math.floor(f * (srt.length - 1)))], fence = q(0.75) + 3 * (q(0.75) - q(0.25));
@@ -97,13 +97,16 @@
             methods.push({ key: 'ae', name: 'Autoencoder', note: `autoencoder (a small neural network, ${coded.X[0].length}-8-2-8-${coded.X[0].length}) trained to rebuild the clustering variables; flagged when a patient is rebuilt much worse than the others (error above the upper quartile plus 3 interquartile ranges)` });
         }
         // Reasons: extreme single values, rare categories, otherwise the most unusual pair of numbers
+        // Category shares and robust-distance positions, counted once (not per flagged patient)
+        const catCount = Object.fromEntries(catCols.map(h => { const m = new Map(); rows.forEach(r => { const v = String(r[h] ?? '').trim(); m.set(v, (m.get(v) || 0) + 1); }); return [h, m]; }));
+        const robustPos = robust ? new Map(robust.rows.map((r, k) => [r, k])) : null;
         const reason = i => {
             const parts = [];
             numCols.forEach(h => { const z = rz[h].z[i]; if (Math.abs(z) >= 3) parts.push(`${pretty(h)} ${numVals[h][i]} (typical ${fmtV(skewedCols.has(h) ? Math.expm1(rz[h].med) : rz[h].med)}; ${z > 0 ? 'very high' : 'very low'})`); });
-            catCols.forEach(h => { const v = rows[i][h]; if (DE.isMissing(v)) return; const share = rows.filter(r => String(r[h] ?? '').trim() === String(v).trim()).length / n; if (share < 0.03) parts.push(`${pretty(h)} "${String(v).trim()}" (only ${Math.round(share * n)} patient${Math.round(share * n) === 1 ? '' : 's'})`); });
+            catCols.forEach(h => { const v = rows[i][h]; if (DE.isMissing(v)) return; const share = (catCount[h].get(String(v).trim()) || 0) / n; if (share < 0.03) parts.push(`${pretty(h)} "${String(v).trim()}" (only ${Math.round(share * n)} patient${Math.round(share * n) === 1 ? '' : 's'})`); });
             if (parts.length) return parts.join('; ');
             if (robust && numCols.length >= 2) {
-                const k = robust.rows.indexOf(i);
+                const k = robustPos.has(i) ? robustPos.get(i) : -1;
                 if (k >= 0) {
                     let best = null;
                     for (let a = 0; a < numCols.length; a++) for (let b = a + 1; b < numCols.length; b++) {
@@ -166,8 +169,13 @@
             try {
                 const F = EE.famd(C.famdRaw.raw, C.famdRaw.specs, { nDim: 2 });
                 const flagged = new Set(strong.map(u => u.i)), errs = new Set(issues.map(x => x.row));
-                map = CH.scatter({ points: F.scores.map((s, i) => ({ x: s[0], y: s[1], group: flagged.has(i) ? 1 : errs.has(i) ? 3 : null, tip: `${label(S, i)}${flagged.has(i) ? ': unusual' : ''}${errs.has(i) ? ': possible data error' : ''}` })), xLabel: `Dimension 1 (${(100 * F.ratio[0]).toFixed(0)}%)`, yLabel: `Dimension 2 (${(100 * F.ratio[1]).toFixed(0)}%)`, aria: 'Map of the patients with unusual patients highlighted' })
-                    + '<div class="legend"><span><i class="sw s1"></i>unusual patient</span><span><i class="sw s3"></i>possible data error</span><span><i class="sw na"></i>other patients</span></div>';
+                // Large datasets: every flagged patient plus a random sample of the others (at most 3,000 points drawn)
+                const nAll = F.scores.length, keep = new Set([...flagged, ...errs]);
+                if (nAll > 3000) { const rng = CE.createPRNG(2024), rest = []; for (let i = 0; i < nAll; i++) if (!keep.has(i)) rest.push(i); for (let i = rest.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [rest[i], rest[j]] = [rest[j], rest[i]]; } rest.slice(0, Math.max(0, 3000 - keep.size)).forEach(i => keep.add(i)); }
+                const shown = nAll > 3000 ? [...keep].sort((a2, b2) => a2 - b2) : F.scores.map((_, i) => i);
+                map = CH.scatter({ points: shown.map(i => { const s = F.scores[i]; return { x: s[0], y: s[1], group: flagged.has(i) ? 1 : errs.has(i) ? 3 : null, tip: `${label(S, i)}${flagged.has(i) ? ': unusual' : ''}${errs.has(i) ? ': possible data error' : ''}` }; }), xLabel: `Dimension 1 (${(100 * F.ratio[0]).toFixed(0)}%)`, yLabel: `Dimension 2 (${(100 * F.ratio[1]).toFixed(0)}%)`, aria: 'Map of the patients with unusual patients highlighted' })
+                    + '<div class="legend"><span><i class="sw s1"></i>unusual patient</span><span><i class="sw s3"></i>possible data error</span><span><i class="sw na"></i>other patients</span></div>'
+                    + (nAll > 3000 ? `<p class="muted small">Every flagged patient is shown, with a random sample of the others (${shown.length.toLocaleString('en-GB')} of ${nAll.toLocaleString('en-GB')} points).</p>` : '');
             } catch (e) { map = ''; }
         }
         el.innerHTML = `
@@ -200,7 +208,7 @@
         C.useAE = !!($('check-ae') && $('check-ae').checked);
         status(C.useAE ? 'Checking the data (training the autoencoder)…' : 'Checking the data…');
         await new Promise(r => setTimeout(r, 0));
-        try { C.results = run(C.S); status(''); } catch (e) { status(`The checks stopped: ${e.message}`); }
+        try { C.results = await run(C.S); status(''); } catch (e) { status(`The checks stopped: ${e.message}`); }
         draw();
     }
     function status(t) { const el = $('check-status'); if (el) el.textContent = t; }

@@ -194,6 +194,34 @@ chk('Benjamini-Hochberg q-values (vs SciPy false_discovery_control)', [q for q i
 chk("Cramer's V (vs SciPy contingency.association)", ef['v'], association(crosstab(tt['sexv'], tt['grp'])[1], method='cramer'), 1e-12)
 Hk = kruskal(*[np.array(tt['agev'])[np.array(tt['grp']) == g] for g in sorted(set(tt['grp']))]).statistic
 chk('Epsilon squared for Kruskal-Wallis: H / (n - 1) (vs SciPy H)', ef['eps'], Hk / (len(tt['agev']) - 1), 1e-10)
+# Audit additions (1): bootstrap stability recomputed from the recorded resamples; normal distribution functions
+bo = o['boot']; labB = np.array(bo['labels']); kB = labB.max() + 1
+jac = [[] for _ in range(kB)]; seen = np.zeros(len(labB)); same = np.zeros(len(labB)); shares = [[] for _ in range(kB)]
+for rs_ in bo['resamples']:
+    lab = {}
+    for i, l in zip(rs_['idx'], rs_['l']):
+        if i not in lab: lab[i] = l
+    groupsB = {}
+    for i, l in lab.items(): groupsB.setdefault(l, set()).add(i)
+    for c in range(kB):
+        Cset = {i for i in lab if labB[i] == c}
+        if not Cset: continue
+        best, bestS = 0.0, None
+        for S_ in groupsB.values():
+            inter = len(Cset & S_); uni = len(Cset | S_)
+            if uni and inter / uni > best: best, bestS = inter / uni, S_
+        jac[c].append(best); shares[c].append(len(bestS) / len(lab) if bestS else 0)
+        for i in Cset:
+            seen[i] += 1
+            if bestS and i in bestS: same[i] += 1
+chk('Bootstrap stability: mean Jaccard of each cluster recomputed from the same resamples (Hennig 2007)', bo['meanJaccard'], [np.mean(j) for j in jac], 1e-12)
+chk('Bootstrap stability: patient-level stability (share of resamples in the matching cluster)', [v if v is not None else -1 for v in bo['patientStability']], [same[i] / seen[i] if seen[i] else -1 for i in range(len(labB))], 1e-12)
+chk('Bootstrap stability: 2.5-97.5% range of each cluster\'s share (as numpy.percentile)', np.array(bo['shareRange']).ravel(), np.ravel([[np.percentile(sh, 2.5), np.percentile(sh, 97.5)] for sh in shares]), 1e-12)
+from scipy.stats import norm as _norm
+nm = o['norm']
+_pp = _norm.ppf(nm['ps'])
+chk('Inverse normal distribution function (vs SciPy norm.ppf; Acklam, relative error below 1.2e-9)', (np.array(nm['inv']) - _pp) / np.maximum(np.abs(_pp), 1.0), np.zeros(len(_pp)), 2e-9)
+chk('Normal distribution function (vs SciPy norm.cdf; Abramowitz-Stegun 7.1.26, absolute error below 1.5e-7)', nm['cdf'], _norm.cdf(nm['xs']), 1.5e-7)
 # R: Gower (daisy), PAM
 rs = shutil.which('Rscript')
 if rs:
@@ -220,6 +248,21 @@ if rs:
         chk('Latent profile analysis: class shares (vs R mclust)', o['lcaCont']['shares'], R['lca_cont_shares'], 1e-6)
     else:
         skip('R package mclust not installed: latent profile check skipped')
+    gp = o['gap']
+    # clusGap's W is half of Tibshirani's W(k) = within-cluster sum of squares (it sums each pair once, then halves); the
+    # constant log 2 cancels in the gap
+    lwA, lwR = np.array([t['logW'] for t in gp['table']]), np.array(R['gap_logW']) + np.log(2)
+    chk('Gap statistic: log W(1) equals clusGap (plus log 2: Tibshirani\'s definition)', lwA[0], lwR[0], 1e-9)
+    chk('Gap statistic: log W(k), k = 2-6, at least as low as clusGap with R kmeans (10 starts)', max(0.0, float(np.max(lwA[1:] - lwR[1:]))), 0.0, 1e-9)
+    gd = np.array([t['gap'] for t in gp['table']]) - np.array(R['gap_gap']); gse = np.sqrt(np.array([t['se'] for t in gp['table']]) ** 2 + np.array(R['gap_se']) ** 2)
+    chk('Gap statistic: gap(k) within 3 Monte Carlo standard errors of clusGap (200 reference datasets each)', max(0.0, float(np.max(np.abs(gd) - 3 * gse))), 0.0, 0)
+    chk("Gap statistic: number of clusters by Tibshirani's 1-SE rule (vs clusGap maxSE Tibs2001SEmax)", [gp['kBest']], R['gap_k'], 0)
+    if 'lca_mixed_loglik' in R:
+        lm = o['lcaMixed']
+        chk('Latent classes on mixed data with missing values (normal numbers, categories): log-likelihood (vs R VarSelLCM)', lm['logLik'], R['lca_mixed_loglik'][0], 1e-3)
+        chk('Latent classes on mixed data: class shares (vs R VarSelLCM)', lm['shares'], R['lca_mixed_shares'], 1e-3)
+    else:
+        skip('R package VarSelLCM not installed: mixed latent class check skipped')
     if 'famd_eig' in R:
         fm = o['famd']; d5 = len(R['famd_eig'])
         chk('FAMD (mixed data): eigenvalues (vs R FactoMineR)', fm['eig'][:d5], R['famd_eig'], 1e-10)

@@ -4,7 +4,7 @@
 // agreement (adjusted Rand index), stability (bootstrap Jaccard, Hennig's clusterboot), a test of "no real
 // clusters", and principal component analysis. Every routine is deterministic given its seed and is checked
 // against scikit-learn, SciPy or R's cluster package in tests/reference_check.*.
-// Loaded as a plain script in the page and in the background worker (window.ClusterEngine) and in Node tests.
+// Loaded as a plain script in the page (window.ClusterEngine) and in Node tests.
 (function (root) {
     'use strict';
 
@@ -354,8 +354,8 @@
         return { ...prm, resp: fin.R, logLik: fin.ll, meanLogLik: fin.ll / n, iterations: iter, converged, labels: fin.R.map(r => r.indexOf(Math.max(...r))) };
     }
     /**
-     * Gaussian mixture model ('full' or 'diag' covariance), started from k-means (as scikit-learn), best of nInit
-     * starts. BIC = -2 log-likelihood + parameters x ln(n) (lower is better).
+     * Gaussian mixture model ('full' or 'diag' covariance), best of nInit k-means starts (as scikit-learn) and nInit
+     * random starts. BIC = -2 log-likelihood + parameters x ln(n) (lower is better).
      */
     function gmm(X, k, { covType = 'full', nInit = 5, seed = 2024, reg = 1e-6, maxIter = 500, tol = 1e-6 } = {}) {
         const p = checkMatrix(X), n = X.length;
@@ -387,7 +387,8 @@
             if (size[own] === 1) { values[i] = 0; continue; }
             const a = sums[own] / (size[own] - 1);
             let b = Infinity; for (let c = 0; c < k; c++) if (c !== own && size[c]) b = Math.min(b, sums[c] / size[c]);
-            values[i] = (b - a) / Math.max(a, b);
+            // identical patients in different clusters (a = b = 0) score 0, as scikit-learn
+            values[i] = Math.max(a, b) > 0 ? (b - a) / Math.max(a, b) : 0;
         }
         return { mean: values.reduce((x, y) => x + y, 0) / n, values };
     }
@@ -475,7 +476,8 @@
     function gapStatistic(X, kMax, { B = 50, seed = 2024, nInit = 5 } = {}) {
         checkMatrix(X);
         const n = X.length, rng = createPRNG(seed);
-        const logW = data => { const out = []; for (let k = 1; k <= kMax; k++) out.push(Math.log(k === 1 ? withinSS(data, new Array(n).fill(0)) : kmeans(data, k, { nInit, seed: Math.floor(rng() * 1e9) }).inertia)); return out; };
+        // log W(k); a clustering that fits the data exactly (W = 0, few distinct values) is floored at 1e-12 of W(1)
+        const logW = data => { const out = [], W1 = withinSS(data, new Array(n).fill(0)), floor = Math.max(1e-12 * W1, 1e-300); for (let k = 1; k <= kMax; k++) out.push(Math.log(Math.max(floor, k === 1 ? W1 : kmeans(data, k, { nInit, seed: Math.floor(rng() * 1e9) }).inertia))); return out; };
         const obs = logW(X);
         const P = pca(X), mn = P.mean, comps = P.components;
         const lo = comps.map((_, c) => Math.min(...P.scores.map(s => s[c]))), hi = comps.map((_, c) => Math.max(...P.scores.map(s => s[c])));
@@ -608,7 +610,7 @@
     function normInv(p) {
         const a = [-3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02, 1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00];
         const b = [-5.447609879822406e+01, 1.615858368580409e+02, -1.556989798598866e+02, 6.680131188771972e+01, -1.328068155288572e+01];
-        const c = [-7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e+00, -2.549671010599464e+00, 4.374664141464968e+00, 2.938163982698783e+00];
+        const c = [-7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e+00, -2.549732539343734e+00, 4.374664141464968e+00, 2.938163982698783e+00];
         const d = [7.784695709041462e-03, 3.224671290700398e-01, 2.445134137142996e+00, 3.754408661907416e+00];
         const pl = 0.02425;
         if (p < pl) { const q = Math.sqrt(-2 * Math.log(p)); return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1); }
@@ -670,7 +672,9 @@
         const factor = R => cholesky(R, p) || cholesky(project(R), p) || cholesky(project(project(R)).map((r, a) => r.map((v, b) => (a === b ? v + 1e-6 : v))), p);
         const drawLatent = (L, r) => { const e = Array.from({ length: p }, () => gaussian(r)), z = new Array(p).fill(0); for (let i = 0; i < p; i++) for (let j = 0; j <= i; j++) z[i] += L[i][j] * e[j]; return z; };
         let Rl = target.map(r => r.slice()), L = factor(Rl);
-        const crng = createPRNG(seed + 1), m = Math.max(4000, 20 * n);
+        // Simulated sample for matching the correlations: 20 per patient, at least 4,000 and at most 200,000 (standard
+        // error of a correlation about 0.002, within the 0.005 tolerance)
+        const crng = createPRNG(seed + 1), m = Math.min(200000, Math.max(4000, 20 * n));
         for (let it = 0; it < 12 && L; it++) {
             const ref = pearson(Array.from({ length: m }, () => mapRow(drawLatent(L, crng))));
             let worst = 0;
@@ -678,6 +682,7 @@
             if (!cholesky(Rl, p)) Rl = project(Rl);
             L = factor(Rl);
             if (worst < 0.005) break;
+            yield;
         }
         if (!L) throw new Error('The correlation of the variables could not be modelled.');
         // How closely the reference data reproduce the observed correlations (largest difference); the projection and
