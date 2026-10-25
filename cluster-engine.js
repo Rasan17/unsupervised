@@ -473,7 +473,7 @@
      * components (as R's cluster::clusGap, spaceH0 = "scaledPCA"). Recommended k: the smallest k with
      * gap(k) >= gap(k+1) - se(k+1) (Tibshirani's 1-SE rule).
      */
-    function gapStatistic(X, kMax, { B = 50, seed = 2024, nInit = 5 } = {}) {
+    function* gapSteps(X, kMax, { B = 50, seed = 2024, nInit = 5 } = {}) {
         checkMatrix(X);
         const n = X.length, rng = createPRNG(seed);
         // log W(k); a clustering that fits the data exactly (W = 0, few distinct values) is floored at 1e-12 of W(1)
@@ -485,6 +485,7 @@
         for (let b = 0; b < B; b++) {
             const Y = Array.from({ length: n }, () => { const sc = lo.map((l, c) => l + rng() * (hi[c] - l)); return mn.map((m, j) => m + comps.reduce((s, v, c) => s + v[j] * sc[c], 0)); });
             ref.push(logW(Y));
+            yield b + 1;
         }
         const res = obs.map((o, i) => { const v = ref.map(r => r[i]), m = v.reduce((a, x) => a + x, 0) / B, sd = Math.sqrt(v.reduce((a, x) => a + (x - m) ** 2, 0) / B); return { k: i + 1, logW: o, expected: m, gap: m - o, se: sd * Math.sqrt(1 + 1 / B) }; });
         let kBest = kMax;
@@ -508,6 +509,7 @@
         for (;;) { const r = g.next(); if (r.done) return r.value; if (Date.now() - last > 100) { await new Promise(res => setTimeout(res, 0)); last = Date.now(); } }
     }
     const lca = (...a) => runSteps(lcaSteps(...a)), lcaAsync = (...a) => runStepsAsync(lcaSteps(...a));
+    const gapStatistic = (...a) => runSteps(gapSteps(...a)), gapStatisticAsync = (...a) => runStepsAsync(gapSteps(...a));
     const nullClusterTest = (...a) => runSteps(nullClusterSteps(...a)), nullClusterTestAsync = (...a) => runStepsAsync(nullClusterSteps(...a));
     const copulaNullTest = (...a) => runSteps(copulaNullSteps(...a)), copulaNullTestAsync = (...a) => runStepsAsync(copulaNullSteps(...a));
     // The resampling is a generator that yields after each resample, so that the page can stay responsive and show
@@ -1017,7 +1019,7 @@
     const epsilonSquared = (H, n) => (n > 1 ? H / (n - 1) : null);
 
     const ClusterEngine = { createPRNG, standardize, euclideanMatrix, gowerMatrix, lloyd, kmeansPlusPlus, kmeans, pam, hierarchical, cutTree, gmm, gmmFromParams, mStep,
-        silhouette, calinskiHarabasz, daviesBouldin, withinSS, adjustedRand, symmetricEigen, pca, gapStatistic, bootstrapStability, bootstrapStabilityAsync, nullClusterTest, nullClusterTestAsync, copulaNullTest, copulaNullTestAsync, lcaAsync, normInv, normCdf, chiSquareTest, kruskalWallis, gammaQ, relabelBySize,
+        silhouette, calinskiHarabasz, daviesBouldin, withinSS, adjustedRand, symmetricEigen, pca, gapStatistic, gapStatisticAsync, bootstrapStability, bootstrapStabilityAsync, nullClusterTest, nullClusterTestAsync, copulaNullTest, copulaNullTestAsync, lcaAsync, normInv, normCdf, chiSquareTest, kruskalWallis, gammaQ, relabelBySize,
         benjaminiHochberg, cramersV, epsilonSquared, codeValue, gowerDistances, gowerBalancedWeights, gowerPairFn, lca, lcaPosterior, classificationTree, predictTree, treePath, treeRules, cohenKappa };
     root.ClusterEngine = ClusterEngine;
 })(typeof window !== 'undefined' ? window : globalThis);

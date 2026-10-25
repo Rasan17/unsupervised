@@ -273,6 +273,19 @@ code { font-family: var(--mono); font-size: 0.85em; background: var(--paper); bo
     </table></div>
   </section>
 
+  <section>
+    <h2>Addendum: findings after external review (25 October 2026)</h2>
+    <p>A later external assessment pointed to the coding of unseen categories. Checking it, and re-measuring responsiveness for every method, found two further defects, both corrected.</p>
+    <div class="wrap"><table>
+      <thead><tr><th>ID</th><th>Finding</th><th>Correction and test</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">F-18</td><td><span class="sev moderate">Moderate</span> The self-organising map coded a category not seen during training as "recorded, none of the known categories", which is not neutral and could pull a new record towards particular units.</td><td>Coded as not recorded, as an unknown grade already was. Simulation check: identical to a missing value.</td></tr>
+        <tr><td class="mono">F-19</td><td><span class="sev moderate">Moderate</span> With k-means or Ward on 8,000 records, the gap statistic ran in one block and froze the page for 35 s. Multiple imputation also ran in one block.</td><td>Both written as generators with progress; longest pause 1.5 s. Simulation check: identical results run straight through or asynchronously; the pinned imputation checksum is unchanged.</td></tr>
+      </tbody>
+    </table></div>
+    <p>After these corrections: 96 reference checks, 34 simulation checks and 144 browser checks, all passing.</p>
+  </section>
+
   <footer class="sign">
     <p>Software conceived, designed and directed by Dr G Narenthiran. © 2026 Dr G Narenthiran. All rights reserved.</p>
     <p>Audit performed by Claude (Anthropic) on 25 October 2026 at the author's request. This report describes the software at revision 4821a7a and is not an independent certification or a regulatory approval.</p>

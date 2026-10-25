@@ -349,20 +349,29 @@ check('New patients are scored exactly as the original patients: latent class pr
     assert(worstP < 1e-9 && worstG < 1e-12, `posterior ${worstP}, Gower ${worstG}`);
     return `largest difference: probabilities ${worstP.toExponential(1)}, Gower ${worstG.toExponential(1)}`;
 });
+check('A category not seen when the map was trained is treated as not recorded (neutral), not as an extra profile', () => {
+    const rows = Array.from({ length: 60 }, (_, i) => [i % 2 ? 'GP' : 'ED', i / 10]);
+    const vars = [{ name: 'src', type: 'nominal' }, { name: 'x', type: 'continuous' }], coded = NN.codeData(rows, vars);
+    const unseen = NN.codeRow(coded, ['Physio', 2.5]), missing = NN.codeRow(coded, [null, 2.5]);
+    assert(JSON.stringify(unseen) === JSON.stringify(missing), `${JSON.stringify(unseen)} vs ${JSON.stringify(missing)}`);
+    return 'coded exactly as a missing value';
+});
 // Asynchronous versions (which hand control back to the page) must give exactly the same results
 const asyncSame = (async () => {
     const r = CE.createPRNG(55), gz = () => { const u = r() || 1e-12, v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
     const X = Array.from({ length: 150 }, (_, i) => [gz() + 3 * (i % 3 === 0), gz(), Math.exp(gz())]);
-    const rows = X.map(x => [x[0], x[1] > 0 ? 'Yes' : 'No']), vars = [{ type: 'continuous' }, { type: 'nominal' }];
+    const rows = X.map((x, i) => [i % 9 === 4 ? null : x[0], x[1] > 0 ? 'Yes' : 'No']), vars = [{ type: 'continuous' }, { type: 'nominal' }];
     const fn = idx => CE.kmeans(idx.map(i => X[i]), 2, { seed: 3, nInit: 3 }).labels, lab = CE.kmeans(X, 2, { seed: 3, nInit: 3 }).labels;
     const pairs = [[CE.lca(rows, vars, 2, { nInit: 3, seed: 4 }), await CE.lcaAsync(rows, vars, 2, { nInit: 3, seed: 4 })],
         [CE.nullClusterTest(X, 2, { B: 19, seed: 5 }), await CE.nullClusterTestAsync(X, 2, { B: 19, seed: 5 })],
         [CE.copulaNullTest(X, 2, { B: 19, seed: 6 }), await CE.copulaNullTestAsync(X, 2, { B: 19, seed: 6 })],
-        [CE.bootstrapStability(150, lab, fn, { B: 20, seed: 7 }), await CE.bootstrapStabilityAsync(150, lab, fn, { B: 20, seed: 7 })]];
+        [CE.bootstrapStability(150, lab, fn, { B: 20, seed: 7 }), await CE.bootstrapStabilityAsync(150, lab, fn, { B: 20, seed: 7 })],
+        [CE.gapStatistic(X, 4, { B: 10, seed: 8 }), await CE.gapStatisticAsync(X, 4, { B: 10, seed: 8 })],
+        [DE.miceImpute(rows.map(r => ({ a: r[0] === null ? '' : String(r[0]), b: r[1] })), { a: { role: 'feature', type: 'continuous' }, b: { role: 'feature', type: 'nominal' } }, { m: 2, iterations: 3, seed: 9 }), await DE.miceImputeAsync(rows.map(r => ({ a: r[0] === null ? '' : String(r[0]), b: r[1] })), { a: { role: 'feature', type: 'continuous' }, b: { role: 'feature', type: 'nominal' } }, { m: 2, iterations: 3, seed: 9 })]];
     return pairs.every(([a, b]) => JSON.stringify(a) === JSON.stringify(b));
 })();
 asyncSame.then(same => {
-    check('Latent classes, both tests of no real sub-groups and bootstrap stability give identical results when run asynchronously (keeping the page responsive)', () => { assert(same, 'results differ'); return 'identical'; });
+    check('Latent classes, both tests of no real sub-groups, bootstrap stability, the gap statistic and multiple imputation give identical results when run asynchronously (keeping the page responsive)', () => { assert(same, 'results differ'); return 'identical'; });
     console.log(`\n${passed}/${passed + failed} behaviour checks passed`);
     process.exit(failed ? 1 : 0);
 });

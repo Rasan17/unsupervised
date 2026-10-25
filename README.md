@@ -207,8 +207,8 @@ For 360 patients every step takes a few seconds; the sensitivity analysis refits
 At 30,000 records (measured): data checks about 55 s, self-organising map about 15 s, describing 5 clusters about
 35 s; the longest pause in any step is under 4 s.
 
-The page stays responsive during these computations: latent class fits, bootstrap resamples and the tests of no
-real sub-groups hand control back to the browser about every 100 ms and the status line counts the resamples
+The page stays responsive during these computations: latent class fits, bootstrap resamples, the tests of no
+real sub-groups, the gap statistic, multiple imputation, map training and the local density check hand control back to the browser about every 100 ms and the status line counts the resamples
 (the longest pause measured on the referral demo is about 2 s, down from 44 s). They are written as generators,
 so the asynchronous results are identical to the direct ones (checked in the simulations). Web Workers were not
 used because the page must also work when opened directly from disk, where browsers do not allow them.
@@ -216,9 +216,9 @@ used because the page must also work when opened directly from disk, where brows
 ## Validation status and limitations
 
 - Verified: every computational method against an established implementation (96 reference checks) and the
-  behaviour of the decisions in simulations (33 checks, including a pinned regression check of the multiple imputation), with the interface tested end to end in a browser.
+  behaviour of the decisions in simulations (34 checks, including a pinned regression check of the multiple imputation), with the interface tested end to end in a browser.
 - Internal audit (25 October 2026): line-by-line review, independent recomputation, adversarial and scale testing;
-  17 findings, all corrected. Report: [`docs/audit_2026-10-25.html`](docs/audit_2026-10-25.html) (an internal audit by an AI
+  17 findings, all corrected, and 2 more after an external review (addendum). Report: [`docs/audit_2026-10-25.html`](docs/audit_2026-10-25.html) (an internal audit by an AI
   system, not an independent certification).
 - Not yet done: application to real cohorts and independent review by a statistician. A protocol for the first
   is in [`docs/validation_protocol.md`](docs/validation_protocol.md). Clusters found in one dataset are
@@ -235,7 +235,7 @@ used because the page must also work when opened directly from disk, where brows
 
 ```bash
 node tests/reference_check.js && python3 tests/reference_check.py   # 96 checks against scikit-learn, SciPy, NumPy, umap-learn and R (cluster, poLCA, mclust, FactoMineR, VarSelLCM)
-node tests/behaviour_check.js                                       # 33 simulations: true k found, 1 cluster when there are none, calibration and power of the tests, stability
+node tests/behaviour_check.js                                       # 34 simulations: true k found, 1 cluster when there are none, calibration and power of the tests, stability
 node tests/ui_check.js                                              # browser (Playwright + Chrome): every demo end to end, the audit features, edge cases, privacy, the R script, layout, no page errors
 npx eslint@9.39.5 -c eslint.config.mjs src cluster-engine.js embed-engine.js anomaly-engine.js nn-engine.js  # undefined names and real mistakes
 ```

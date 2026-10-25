@@ -120,8 +120,10 @@
                 cols.push({ variable: j, name: v.name, x: val.map(x => (x === null ? 0 : (x - m) / sd)), m: val.map(x => (x === null ? 0 : 1)), coder: row => { const y = toNum(row[j]); return y === null ? [0, 0] : [(y - m) / sd, 1]; } });
             } else {
                 const val = raw.map(x => (x === null || x === undefined || x === '' ? null : String(x).trim())), levels = [...new Set(val.filter(x => x !== null))].sort(), nObs = val.filter(x => x !== null).length;
+                // A category not seen in the training data is treated as not recorded (neutral), as an unknown grade is
+                const known = new Set(levels);
                 levels.forEach(l => { const pq = val.filter(x => x === l).length / Math.max(1, nObs); cols.push({ variable: j, name: `${v.name} = ${l}`, x: val.map(x => (x === null || !(pq > 0) ? 0 : ((x === l ? 1 : 0) - pq) / Math.sqrt(pq))), m: val.map(x => (x === null ? 0 : 1)),
-                    coder: row => { const x = row[j]; if (x === null || x === undefined || x === '') return [0, 0]; return [pq > 0 ? ((String(x).trim() === l ? 1 : 0) - pq) / Math.sqrt(pq) : 0, 1]; } }); });
+                    coder: row => { const x = row[j]; if (x === null || x === undefined || x === '' || !known.has(String(x).trim())) return [0, 0]; return [pq > 0 ? ((String(x).trim() === l ? 1 : 0) - pq) / Math.sqrt(pq) : 0, 1]; } }); });
             }
         });
         const n = rows.length;

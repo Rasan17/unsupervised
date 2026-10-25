@@ -1192,7 +1192,22 @@
          * whose predicted values are closest. Categorical predictors are predicted as one-hot vectors.
          * Returns m completed copies of the rows (imputed values are always values actually observed).
          */
-        miceImpute(rows, columnConfigs, { m = 5, iterations = 10, seed = 2024, donors = 5 } = {}) {
+        miceImpute(rows, columnConfigs, opts = {}) {
+            const g = this.miceImputeSteps(rows, columnConfigs, opts);
+            for (;;) { const r = g.next(); if (r.done) return r.value; }
+        },
+        /** As miceImpute, returning a promise: hands control back to the page about every 100 ms and reports progress
+         *  (onProgress(imputation, m, iteration, iterations)); identical results */
+        async miceImputeAsync(rows, columnConfigs, opts = {}, onProgress = null) {
+            const g = this.miceImputeSteps(rows, columnConfigs, opts);
+            let last = Date.now();
+            for (;;) {
+                const r = g.next(); if (r.done) return r.value;
+                if (Date.now() - last > 100) { if (onProgress && r.value) onProgress(...r.value); await new Promise(res => setTimeout(res, 0)); last = Date.now(); }
+            }
+        },
+        // Multiple imputation as a generator that yields after each variable is updated (see miceImpute)
+        *miceImputeSteps(rows, columnConfigs, { m = 5, iterations = 10, seed = 2024, donors = 5 } = {}) {
             const cols = Object.keys(columnConfigs).filter(c => columnConfigs[c].role === 'feature' || columnConfigs[c].role === 'target');
             const isNum = c => columnConfigs[c].type !== 'nominal' && rows.every(r => this.isMissing(r[c]) || !isNaN(Number(r[c])));
             const numeric = {}; cols.forEach(c => { numeric[c] = isNum(c); });
@@ -1243,7 +1258,7 @@
                     missingIdx[c].forEach(i => { data[i][c] = obs[Math.floor(rng() * obs.length)]; });
                 });
                 for (let it = 0; it < iterations; it++) {
-                    targets.forEach(c => {
+                    for (const c of targets) {
                         // Design matrix from all other variables (current completed values), standardised / one-hot
                         const others = cols.filter(o => o !== c && missingIdx[o].length < rows.length && !(columnConfigs[o].role === 'target' && missingIdx[o].length));
                         const stats = {};
@@ -1287,7 +1302,8 @@
                             const pick = best[Math.floor(rng() * best.length)];
                             data[i][c] = rows[obsIdx[pick.k]][c];
                         });
-                    });
+                        yield [l + 1, m, it + 1, iterations];
+                    }
                 }
                 datasets.push(data);
             }

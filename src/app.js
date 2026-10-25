@@ -244,7 +244,7 @@
 
     // ------------------------------------------------------------------------------------- data preparation
     // o: optional overrides (method, missing, gowerWeights, cols) for the sensitivity analysis
-    function prepare(o = {}) {
+    async function prepare(o = {}) {
         const method = o.method ?? $('method').value, missingChoice = o.missing ?? $('missing').value, missing = method === 'neural' && missingChoice === 'mice' ? 'gower' : missingChoice, gowerWeights = o.gowerWeights ?? $('gower-weights').value, cols = o.cols ?? S.data.headers.filter(h => S.vars[h].role === 'cluster');
         const describeCols = S.data.headers.filter(h => S.vars[h].role === 'describe');
         const specs = cols.map(h => ({ col: h, type: S.vars[h].type, levels: S.vars[h].type === 'continuous' ? null : levelsOf(h) }));
@@ -286,7 +286,7 @@
         const cfg = {}; cols.forEach(h => { cfg[h] = { role: 'feature', type: S.vars[h].type === 'nominal' ? 'nominal' : 'numeric' }; });
         const missingValues = clean.reduce((a, r) => a + cols.filter(h => DE.isMissing(r[h])).length, 0);
         const missingPatients = clean.filter(r => cols.some(h => DE.isMissing(r[h]))).length;
-        const mi = DE.miceImpute(clean, cfg, { m: MICE_M, iterations: 10, seed });
+        const mi = await DE.miceImputeAsync(clean, cfg, { m: MICE_M, iterations: 10, seed }, (l, m, it, its) => status(o.statusEl || 'explore-status', `Multiple imputation: dataset ${l} of ${m}, round ${it} of ${its}…`));
         const imps = mi.datasets.map(d => encode(d, specs, method, isMiss, gowerWeights, sampleIdx));
         const P = { ...base, ...imps[0], mice: { m: MICE_M, iterations: 10, missingValues, missingPatients } };
         P.impP = imps.map(e => ({ ...P, ...e }));
@@ -460,7 +460,7 @@
         for (const [t, sp] of specs.entries()) {
             st.textContent = `Sensitivity analysis ${t + 1} of ${specs.length}: ${sp.label}…`; await yieldUI();
             try {
-                const Q = prepare({ method: P.method, missing: P.missing, gowerWeights: P.gowerWeights, cols: P.cols, ...sp.o });
+                const Q = await prepare({ statusEl: 'sens-status', method: P.method, missing: P.missing, gowerWeights: P.gowerWeights, cols: P.cols, ...sp.o });
                 if (Q.method === 'neural') await trainNeural(Q);
                 const f = await fullFit(Q, k), ids = Q.rowIds.filter(id => main.has(id)), lab = new Map(Q.rowIds.map((id, i) => [id, f.labels[i]]));
                 // Match the alternative's clusters to the main ones by greatest overlap
@@ -499,7 +499,7 @@
     // ------------------------------------------------------------------------------------- step 4: how many clusters?
     async function explore() {
         let P;
-        try { P = prepare(); } catch (e) { status('explore-status', e.message, 'bad'); return; }
+        try { P = await prepare(); } catch (e) { status('explore-status', e.message, 'bad'); return; }
         S.prep = P; S.result = null;
         if (P.method === 'neural') { $('explore-btn').disabled = true; try { await trainNeural(P); } catch (e) { status('explore-status', `The neural network could not be trained: ${e.message}`, 'bad'); $('explore-btn').disabled = false; return; } }
         const kMax = Math.min(Number($('kmax').value) || 8, P.rows.length - 1), ks = []; for (let k = 2; k <= kMax; k++) ks.push(k);
@@ -517,7 +517,7 @@
                     ch: P.Z ? pooled(P, Q => CE.calinskiHarabasz(Q.Z, fit.labels)) : null, db: P.Z ? pooled(P, Q => CE.daviesBouldin(Q.Z, fit.labels)) : null, bic: fit.bic ?? null, centroids: fit.centroids ?? null, unitLabels: fit.unitLabels ?? null, entropy: fit.entropy ?? null, posterior: fit.posterior ?? null, model: fit.model ?? null, smallest: Math.min(...sizes), agreement: fit.agreement ?? null, lcaFit: fit.lcaFit ?? null });
             }
             let gap = null;
-            if (P.Z && (P.method === 'kmeans' || P.method === 'ward')) { status('explore-status', 'Gap statistic (comparison with reference data without clusters)…'); await yieldUI(); gap = CE.gapStatistic(P.Z, kMax, { B: 30, seed: P.seed, nInit: 3 }); }
+            if (P.Z && (P.method === 'kmeans' || P.method === 'ward')) { status('explore-status', 'Gap statistic (comparison with reference data without clusters)…'); await yieldUI(); gap = await CE.gapStatisticAsync(P.Z, kMax, { B: 30, seed: P.seed, nInit: 3 }); }
             S.explore = { P, res, gap };
             renderExplore();
             status('explore-status', '');
